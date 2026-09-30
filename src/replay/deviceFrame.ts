@@ -1,0 +1,117 @@
+// Hardware identifiers and front-face families verified against DeviceKit:
+// https://github.com/devicekit/DeviceKit/blob/master/Source/Device.generated.swift
+// Screenshot dimensions remain authoritative for the display aspect ratio.
+const appleModels: Array<[string[], string, string]> = [
+  [["iPhone3,1", "iPhone3,2", "iPhone3,3"], "iPhone 4", "iphone-home"],
+  [["iPhone4,1"], "iPhone 4s", "iphone-home"],
+  [["iPhone5,1", "iPhone5,2"], "iPhone 5", "iphone-home"],
+  [["iPhone5,3", "iPhone5,4"], "iPhone 5c", "iphone-home"],
+  [["iPhone6,1", "iPhone6,2"], "iPhone 5s", "iphone-home"],
+  [["iPhone7,2"], "iPhone 6", "iphone-home"],
+  [["iPhone7,1"], "iPhone 6 Plus", "iphone-home"],
+  [["iPhone8,1"], "iPhone 6s", "iphone-home"],
+  [["iPhone8,2"], "iPhone 6s Plus", "iphone-home"],
+  [["iPhone9,1", "iPhone9,3"], "iPhone 7", "iphone-home"],
+  [["iPhone9,2", "iPhone9,4"], "iPhone 7 Plus", "iphone-home"],
+  [["iPhone8,4"], "iPhone SE", "iphone-home"],
+  [["iPhone10,1", "iPhone10,4"], "iPhone 8", "iphone-home"],
+  [["iPhone10,2", "iPhone10,5"], "iPhone 8 Plus", "iphone-home"],
+  [["iPhone10,3", "iPhone10,6"], "iPhone X", "iphone-notch"],
+  [["iPhone11,2"], "iPhone XS", "iphone-notch"],
+  [["iPhone11,4", "iPhone11,6"], "iPhone XS Max", "iphone-notch"],
+  [["iPhone11,8"], "iPhone XR", "iphone-notch"],
+  [["iPhone12,1"], "iPhone 11", "iphone-notch"],
+  [["iPhone12,3"], "iPhone 11 Pro", "iphone-notch"],
+  [["iPhone12,5"], "iPhone 11 Pro Max", "iphone-notch"],
+  [["iPhone12,8"], "iPhone SE (2nd generation)", "iphone-home"],
+  [["iPhone13,2"], "iPhone 12", "iphone-notch"],
+  [["iPhone13,1"], "iPhone 12 mini", "iphone-notch"],
+  [["iPhone13,3"], "iPhone 12 Pro", "iphone-notch"],
+  [["iPhone13,4"], "iPhone 12 Pro Max", "iphone-notch"],
+  [["iPhone14,5"], "iPhone 13", "iphone-notch"],
+  [["iPhone14,4"], "iPhone 13 mini", "iphone-notch"],
+  [["iPhone14,2"], "iPhone 13 Pro", "iphone-notch"],
+  [["iPhone14,3"], "iPhone 13 Pro Max", "iphone-notch"],
+  [["iPhone14,6"], "iPhone SE (3rd generation)", "iphone-home"],
+  [["iPhone14,7"], "iPhone 14", "iphone-notch"],
+  [["iPhone14,8"], "iPhone 14 Plus", "iphone-notch"],
+  [["iPhone15,2"], "iPhone 14 Pro", "iphone-island"],
+  [["iPhone15,3"], "iPhone 14 Pro Max", "iphone-island"],
+  [["iPhone15,4"], "iPhone 15", "iphone-island"],
+  [["iPhone15,5"], "iPhone 15 Plus", "iphone-island"],
+  [["iPhone16,1"], "iPhone 15 Pro", "iphone-island"],
+  [["iPhone16,2"], "iPhone 15 Pro Max", "iphone-island"],
+  [["iPhone17,3"], "iPhone 16", "iphone-island"],
+  [["iPhone17,4"], "iPhone 16 Plus", "iphone-island"],
+  [["iPhone17,1"], "iPhone 16 Pro", "iphone-island"],
+  [["iPhone17,2"], "iPhone 16 Pro Max", "iphone-island"],
+  [["iPhone17,5"], "iPhone 16e", "iphone-notch"],
+  [["iPhone18,3"], "iPhone 17", "iphone-island"],
+  [["iPhone18,1"], "iPhone 17 Pro", "iphone-island"],
+  [["iPhone18,2"], "iPhone 17 Pro Max", "iphone-island"],
+  [["iPhone18,4"], "iPhone Air", "iphone-island"],
+  [["iPhone18,5"], "iPhone 17e", "iphone-notch"],
+  [["iPhone19,2"], "iPhone 18 Pro", "iphone-island"],
+  [["iPhone19,3", "iPhone19,7"], "iPhone 18 Pro Max", "iphone-island"],
+  [["iPad2,1", "iPad2,2", "iPad2,3", "iPad2,4"], "iPad 2", "ipad-home"],
+  [["iPad3,1", "iPad3,2", "iPad3,3"], "iPad (3rd generation)", "ipad-home"],
+  [["iPad3,4", "iPad3,5", "iPad3,6"], "iPad (4th generation)", "ipad-home"],
+  [["iPad4,1", "iPad4,2", "iPad4,3"], "iPad Air", "ipad-home"],
+  [["iPad5,3", "iPad5,4"], "iPad Air 2", "ipad-home"],
+  [["iPad6,11", "iPad6,12"], "iPad (5th generation)", "ipad-home"],
+  [["iPad7,5", "iPad7,6"], "iPad (6th generation)", "ipad-home"],
+  [["iPad11,3", "iPad11,4"], "iPad Air (3rd generation)", "ipad-home"],
+  [["iPad7,11", "iPad7,12"], "iPad (7th generation)", "ipad-home"],
+  [["iPad11,6", "iPad11,7"], "iPad (8th generation)", "ipad-home"],
+  [["iPad12,1", "iPad12,2"], "iPad (9th generation)", "ipad-home"],
+  [["iPad13,18", "iPad13,19"], "iPad (10th generation)", "ipad"],
+  [["iPad15,7", "iPad15,8"], "iPad (A16)", "ipad"],
+  [["iPad13,1", "iPad13,2"], "iPad Air (4th generation)", "ipad"],
+  [["iPad13,16", "iPad13,17"], "iPad Air (5th generation)", "ipad"],
+  [["iPad14,8", "iPad14,9"], "iPad Air (11-inch) (M2)", "ipad"],
+  [["iPad14,10", "iPad14,11"], "iPad Air (13-inch) (M2)", "ipad"],
+  [["iPad15,3", "iPad15,4"], "iPad Air (11-inch) (M3)", "ipad"],
+  [["iPad15,5", "iPad15,6"], "iPad Air (13-inch) (M3)", "ipad"],
+  [["iPad16,8", "iPad16,9"], "iPad Air (11-inch) (M4)", "ipad"],
+  [["iPad16,10", "iPad16,11"], "iPad Air (13-inch) (M4)", "ipad"],
+  [["iPad2,5", "iPad2,6", "iPad2,7"], "iPad mini", "ipad-home"],
+  [["iPad4,4", "iPad4,5", "iPad4,6"], "iPad mini 2", "ipad-home"],
+  [["iPad4,7", "iPad4,8", "iPad4,9"], "iPad mini 3", "ipad-home"],
+  [["iPad5,1", "iPad5,2"], "iPad mini 4", "ipad-home"],
+  [["iPad11,1", "iPad11,2"], "iPad mini (5th generation)", "ipad-home"],
+  [["iPad14,1", "iPad14,2"], "iPad mini (6th generation)", "ipad"],
+  [["iPad16,1", "iPad16,2"], "iPad mini (A17 Pro)", "ipad"],
+  [["iPad6,3", "iPad6,4"], "iPad Pro (9.7-inch)", "ipad-home"],
+  [["iPad6,7", "iPad6,8"], "iPad Pro (12.9-inch)", "ipad-home"],
+  [["iPad7,1", "iPad7,2"], "iPad Pro (12.9-inch) (2nd generation)", "ipad-home"],
+  [["iPad7,3", "iPad7,4"], "iPad Pro (10.5-inch)", "ipad-home"],
+  [["iPad8,1", "iPad8,2", "iPad8,3", "iPad8,4"], "iPad Pro (11-inch)", "ipad"],
+  [["iPad8,5", "iPad8,6", "iPad8,7", "iPad8,8"], "iPad Pro (12.9-inch) (3rd generation)", "ipad"],
+  [["iPad8,9", "iPad8,10"], "iPad Pro (11-inch) (2nd generation)", "ipad"],
+  [["iPad8,11", "iPad8,12"], "iPad Pro (12.9-inch) (4th generation)", "ipad"],
+  [["iPad13,4", "iPad13,5", "iPad13,6", "iPad13,7"], "iPad Pro (11-inch) (3rd generation)", "ipad"],
+  [["iPad13,8", "iPad13,9", "iPad13,10", "iPad13,11"], "iPad Pro (12.9-inch) (5th generation)", "ipad"],
+  [["iPad14,3", "iPad14,4"], "iPad Pro (11-inch) (4th generation)", "ipad"],
+  [["iPad14,5", "iPad14,6"], "iPad Pro (12.9-inch) (6th generation)", "ipad"],
+  [["iPad16,3", "iPad16,4"], "iPad Pro (11-inch) (M4)", "ipad"],
+  [["iPad16,5", "iPad16,6"], "iPad Pro (13-inch) (M4)", "ipad"],
+  [["iPad17,1", "iPad17,2"], "iPad Pro (11-inch) (M5)", "ipad"],
+  [["iPad17,3", "iPad17,4"], "iPad Pro (13-inch) (M5)", "ipad"],
+]
+
+export type DeviceFrame = { name: string; style: string; kind: 'phone' | 'tablet' | 'desktop'; cameraControl: boolean }
+
+export function resolveDeviceFrame(descriptors: readonly string[], fallbackKind: DeviceFrame['kind']): DeviceFrame {
+  const descriptor = descriptors.join(' ').toLowerCase()
+  const identifier = descriptor.match(/(?:iphone|ipad)\d+,\d+/)?.[0]
+  const known = appleModels.find(([ids]) => ids.some(id => id.toLowerCase() === identifier))
+    ?? [...appleModels].sort((a, b) => b[1].length - a[1].length).find(([, name]) => descriptors.some(value => value.toLowerCase() === name.toLowerCase()))
+  if (known) {
+    const [, name, style] = known
+    return { name, style, kind: style.startsWith('ipad') ? 'tablet' : 'phone', cameraControl: /iPhone (16|17|18)( Pro)?( Max| Plus)?$/.test(name) }
+  }
+  const apple = /apple|iphone|ipad|\bios\b|ipados/.test(descriptor)
+  const kind = /ipad|tablet/.test(descriptor) ? 'tablet' : /iphone|android|\bphone\b/.test(descriptor) && fallbackKind === 'desktop' ? 'phone' : fallbackKind
+  const style = kind === 'desktop' ? 'desktop' : apple ? (kind === 'tablet' ? 'ipad' : 'iphone-unknown') : (kind === 'tablet' ? 'android-tablet' : 'android')
+  return { name: descriptors.find(value => /iphone|ipad/i.test(value)) ?? (apple ? (kind === 'tablet' ? 'iPad' : 'iPhone') : kind === 'tablet' ? 'Android tablet' : kind === 'phone' ? 'Android device' : 'Display'), style, kind, cameraControl: false }
+}

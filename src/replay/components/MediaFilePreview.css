@@ -1,0 +1,73 @@
+.session-viewer-dashboard .file-media-player {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 220px;
+  height: 100%;
+  padding: 16px;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.session-viewer-dashboard .file-media-player .file-media-preview {
+  display: block;
+  flex: 0 1 auto;
+  min-height: 0;
+  width: 100%;
+  max-height: min(560px, 60vh);
+}
+
+.session-viewer-dashboard .file-media-player--video .file-media-preview {
+  object-fit: contain;
+  background: #000;
+  border-radius: 6px;
+}
+
+.session-viewer-dashboard .file-media-player--audio .file-media-preview {
+  flex-shrink: 0;
+  max-width: 560px;
+}
+
+.session-viewer-dashboard .file-media-audio-heading {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.session-viewer-dashboard .file-media-audio-heading svg {
+  width: 48px;
+  height: 48px;
+  color: var(--accent);
+}
+
+.session-viewer-dashboard .file-media-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 560px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.session-viewer-dashboard .file-media-error svg {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.session-viewer-dashboard .file-media-error p {
+  margin: 0;
+}
+
+.session-viewer-dashboard .file-media-download {
+  flex-shrink: 0;
+  color: var(--accent);
+  font-size: 12px;
+}

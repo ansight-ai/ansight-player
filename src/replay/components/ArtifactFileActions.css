@@ -1,0 +1,81 @@
+.session-viewer-dashboard .artifact-entry-item {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.session-viewer-dashboard .artifact-entry-item > .artifact-entry-row {
+  flex: 1 1 240px;
+  width: auto;
+  grid-template-columns: 28px minmax(0, 1fr);
+  padding: 0;
+  border: 0;
+}
+
+.session-viewer-dashboard .artifact-entry-item > .artifact-entry-row code {
+  grid-column: 2;
+  text-align: left;
+}
+
+.session-viewer-dashboard .artifact-file-operations {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.session-viewer-dashboard .artifact-file-operation-buttons,
+.session-viewer-dashboard .artifact-application-list {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.session-viewer-dashboard .artifact-file-operation-buttons .button,
+.session-viewer-dashboard .artifact-application-list .button {
+  min-height: 32px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.session-viewer-dashboard .artifact-application-list {
+  max-width: 420px;
+  margin-top: 8px;
+  padding: 8px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.session-viewer-dashboard .artifact-application-list p,
+.session-viewer-dashboard .artifact-file-operation-status {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.session-viewer-dashboard .artifact-file-operation-status:not(:empty) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 420px;
+  margin-top: 6px;
+}
+
+.session-viewer-dashboard .artifact-entry-item { flex-wrap: nowrap; }
+.session-viewer-dashboard .artifact-entry-item > .artifact-entry-row { min-width: 0; flex-basis: 0; }
+.session-viewer-dashboard .artifact-file-operations { margin-left: auto; flex-shrink: 0; }
+.artifact-actions-trigger { display: inline-flex; justify-content: center; align-items: center; width: 36px; height: 36px; padding: 4px !important; }
+.artifact-actions-dialog { position: fixed; left: auto; bottom: auto; margin: 0; width: min(320px, calc(100vw - 32px)); max-height: calc(100vh - 32px); box-sizing: border-box; padding: 16px; border: 1px solid #ccc; border-radius: 12px; background: #faf9f5; color: #252525; box-shadow: 0 12px 40px #0003; }
+.artifact-actions-dialog::backdrop { background: #0002; }
+.artifact-actions-dialog header { display: flex; gap: 12px; align-items: start; margin-bottom: 12px; }
+.artifact-actions-dialog header strong { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
+.artifact-actions-dialog header button { border: 0; background: transparent; padding: 3px; cursor: pointer; }
+.artifact-actions-dialog .artifact-file-operation-buttons, .artifact-actions-dialog .artifact-application-list { display: flex; flex-direction: column; gap: 6px; }
+.artifact-actions-dialog .button { width: 100%; justify-content: flex-start; padding: 10px; font-size: 13px; }
+.artifact-actions-dialog .artifact-application-list { margin-top: 12px; border-top: 1px solid #ddd; padding-top: 12px; }
+.artifact-actions-dialog p, .artifact-actions-dialog .artifact-file-operation-status { font-size: 12px; overflow-wrap: anywhere; }
+.artifact-actions-dialog .artifact-file-operation-status:not(:empty) { margin-top: 12px; }

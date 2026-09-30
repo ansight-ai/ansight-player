@@ -1,0 +1,118 @@
+:root {
+  /* Brand — shared across themes */
+  --accent: #fa441f;
+  --accent-light: #fc8b70;
+  --accent-rgb: 250, 68, 31;
+  --success: #22c55e;
+  --warning: #eab308;
+  --info: #38bdf8;
+  --error: #ef4444;
+
+  /* Radii */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+  --radius-full: 9999px;
+
+  /* Type */
+  --font-sans:
+    "Outfit", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "Helvetica Neue", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  font-family: var(--font-sans);
+  font-synthesis: none;
+  line-height: 1.5;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ---------- Dark theme (default) ---------- */
+:root,
+:root[data-theme='dark'] {
+  --bg-primary: #0f0f12;
+  --bg-secondary: #1a1a1e;
+  --surface: #252529;
+  --surface-muted: rgba(255, 255, 255, 0.025);
+  --surface-raised: rgba(255, 255, 255, 0.06);
+  --input-bg: rgba(255, 255, 255, 0.04);
+  --text-primary: #f6f2eb;
+  --text-secondary: rgba(246, 242, 235, 0.72);
+  --text-muted: rgba(246, 242, 235, 0.5);
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --accent-soft: rgba(250, 68, 31, 0.12);
+  color-scheme: dark;
+}
+
+/* ---------- Light theme (follows system preference) ---------- */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    --bg-primary: #f5f5ef;
+    --bg-secondary: #edede6;
+    --surface: #ffffff;
+    --surface-muted: #f5f5ef;
+    --surface-raised: rgba(0, 0, 0, 0.04);
+    --input-bg: #ffffff;
+    --text-primary: #1a1410;
+    --text-secondary: rgba(26, 20, 16, 0.72);
+    --text-muted: rgba(26, 20, 16, 0.5);
+    --border: rgba(0, 0, 0, 0.08);
+    --border-strong: rgba(0, 0, 0, 0.16);
+    --accent-soft: rgba(250, 68, 31, 0.1);
+    color-scheme: light;
+  }
+}
+
+:root[data-theme='light'] {
+  --bg-primary: #f5f5ef;
+  --bg-secondary: #edede6;
+  --surface: #ffffff;
+  --surface-muted: #f5f5ef;
+  --surface-raised: rgba(0, 0, 0, 0.04);
+  --input-bg: #ffffff;
+  --text-primary: #1a1410;
+  --text-secondary: rgba(26, 20, 16, 0.72);
+  --text-muted: rgba(26, 20, 16, 0.5);
+  --border: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.16);
+  --accent-soft: rgba(250, 68, 31, 0.1);
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  background: var(--bg-primary);
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  background-attachment: fixed;
+  transition:
+    background-color 200ms ease,
+    color 200ms ease;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+#root {
+  min-height: 100vh;
+}

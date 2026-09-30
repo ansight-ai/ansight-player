@@ -1,0 +1,1273 @@
+import { readSessionTimelineLink, sessionTimelineHref, type SessionTimelineLink } from './sessionLinks'
+import { observeLocalActivity } from './usage'
+import { Check, Copy, DownloadSimple, Archive, CaretDown, ChartLineUp, CircleNotch, CloudArrowUp, DeviceMobile, FlowArrow, Gear, Info, Link, NotePencil, Pulse, QrCode, SidebarSimple, SquaresFour, TestTube, Trash, UserCircle, VideoCamera, WifiHigh, X } from '@phosphor-icons/react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type SetStateAction } from 'react'
+import { SessionIcon } from './SessionIcon'
+import { SessionViewerPage, type SessionReplayPanelContext, type TimelineEditSelection } from '../replay/pages/SessionViewerPage'
+import { AccountCompanionPanel } from './AccountCompanionPanel'
+import { RemoteRunnerPanel } from './RemoteRunnerPanel'
+import { AboutInstallationPanel } from './AboutInstallationPanel'
+import { AppGraphProgressPanel } from './AppGraphProgressPanel'
+import { AppGraphRecordingPanel } from './AppGraphRecordingPanel'
+import { CoreSettingsPanel } from './CoreSettingsPanel'
+import { DeviceManagementPanel } from './DeviceManagementPanel'
+import { DeviceLocationPanel } from './DeviceLocationPanel'
+import { EditSessionMetadataPanel } from './EditSessionMetadataPanel'
+import { HostHealthPanel } from './HostHealthPanel'
+import { HostManagementPanel } from './HostManagementPanel'
+import { OptionalPlayerPanel } from './OptionalPlayerPanel'
+import { localReplaySource } from './localSessionData'
+import { TrendsPanel } from './TrendsPanel'
+import { SessionExplorer } from './SessionExplorer'
+import { SessionAdministrationPanel } from './SessionAdministrationPanel'
+import { ShareLocalSessionModal } from './ShareLocalSessionModal'
+import { SimulatorControlView } from './SimulatorControlView'
+import { TeamSessionExplorer } from './TeamSessionExplorer'
+import { TestHistoryPanel } from './TestHistoryPanel'
+import { TestExecutionPanel } from './TestExecutionPanel'
+import type { LocalAppGraphLiveRun, LocalEnrollmentInviteResult, LocalOperationResult, LocalRemoteRunnerRegistration, LocalRemoteRunnerStatus, LocalReplayBootstrap, LocalSessionSummary, LocalTestHistory, LocalTestRunSummary } from './types'
+
+const linkedTraceRefreshIntervalMs = 8000
+const appGraphRefreshIntervalMs = 750
+const isAppGraphToolVisible = false
+const sessionEventRefreshDebounceMs = 250
+const sessionRecoveryRefreshIntervalMs = 60_000
+const TaskExtractionPanel = lazy(async () => {
+  const module = await import('./TaskExtractionPanel')
+  return { default: module.TaskExtractionPanel }
+})
+
+interface LocalSessionSelection {
+  sessionId: string | null
+  link: SessionTimelineLink | null
+}
+
+export function LocalReplayApp() {
+  useEffect(observeLocalActivity, [])
+  const [isOptionalAnalysisOpen, setIsOptionalAnalysisOpen] = useState(false)
+  const [bootstrap, setBootstrap] = useState<LocalReplayBootstrap | null>(null)
+  const [sessions, setSessions] = useState<LocalSessionSummary[]>([])
+  const [isSessionsLoading, setIsSessionsLoading] = useState(true)
+  const [sessionRefreshNonce, setSessionRefreshNonce] = useState(0)
+  const [sessionSelection, setSessionSelection] = useState<LocalSessionSelection>(() => {
+    const link = readSessionTimelineLink(window.location.href)
+    if (link) return { sessionId: link.sessionId, link }
+    try { return { sessionId: window.sessionStorage.getItem(`ansight.local-session:${window.location.pathname}`), link: null } }
+    catch { return { sessionId: null, link: null } }
+  })
+  const { sessionId: selectedSessionId, link: sessionLink } = sessionSelection
+  const setSelectedSessionId = useCallback((value: SetStateAction<string | null>) => {
+    setSessionSelection((current) => {
+      const sessionId = typeof value === 'function' ? value(current.sessionId) : value
+      return sessionId === current.sessionId ? current : { sessionId, link: null }
+    })
+  }, [])
+  const [isExplorerOpen, setIsExplorerOpen] = useState(true)
+  // Published on the root so the fixed session toolbar can align with the player's cards.
+  const [replayPanelWidth, setReplayPanelWidth] = useState<number | null>(null)
+  const [explorerMode, setExplorerMode] = useState<'local' | 'team'>('local')
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false)
+  const [isSessionMetadataOpen, setIsSessionMetadataOpen] = useState(false)
+  const [isSessionInfoOpen, setIsSessionInfoOpen] = useState(false)
+  const [isLocationOpen, setIsLocationOpen] = useState(false)
+  const [activePanel, setActivePanel] = useState<LocalGlobalPanel>(null)
+  const runnerStatus: LocalRemoteRunnerStatus | null = null
+  const runnerRegistration: LocalRemoteRunnerRegistration | null = null
+  const canManageRunner = true
+  const [isManageMenuOpen, setIsManageMenuOpen] = useState(false)
+  const [liveViewPreference, setLiveViewPreference] = useState<LocalLiveViewPreference>({
+    mode: 'simulator',
+    sessionId: null,
+  })
+  const [linkedTraceRun, setLinkedTraceRun] = useState<LocalTestRunSummary | null>(null)
+  const [appGraphRuns, setAppGraphRuns] = useState<LocalAppGraphLiveRun[]>([])
+  const [appGraphPanelMode, setAppGraphPanelMode] = useState<'recording' | 'runs'>('recording')
+  const [isAppGraphRefreshing, setIsAppGraphRefreshing] = useState(false)
+  const [testHistoryInitialRun, setTestHistoryInitialRun] = useState<LocalTestRunSummary | null>(null)
+  const [taskExtractionRequest, setTaskExtractionRequest] = useState<{
+    period: TimelineEditSelection
+    sessionId: string
+  } | null>(null)
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null)
+  const [sessionActionError, setSessionActionError] = useState<string | null>(null)
+  const [copiedSessionId, setCopiedSessionId] = useState<string | null>(null)
+  const [copiedSessionLinkId, setCopiedSessionLinkId] = useState<string | null>(null)
+  const [exportingSessionId, setExportingSessionId] = useState<string | null>(null)
+  const [exportMessage, setExportMessage] = useState<string | null>(null)
+  // Export notices are transient toasts; clear them after a few seconds.
+  useEffect(() => {
+    if (!exportMessage) {
+      return undefined
+    }
+    const timer = window.setTimeout(() => setExportMessage(null), 6000)
+    return () => window.clearTimeout(timer)
+  }, [exportMessage])
+
+  async function copySessionId(sessionId: string) {
+    try {
+      await navigator.clipboard.writeText(sessionId)
+      setCopiedSessionId(sessionId)
+      setSessionActionError(null)
+      window.setTimeout(() => setCopiedSessionId(null), 2000)
+    } catch { setSessionActionError('Unable to copy the session ID. Select the ID and copy it manually.') }
+  }
+
+  async function copySessionLink(sessionId: string) {
+    try {
+      await navigator.clipboard.writeText(sessionTimelineHref(window.location.href, { sessionId }))
+      setCopiedSessionLinkId(sessionId)
+      setSessionActionError(null)
+      window.setTimeout(() => setCopiedSessionLinkId(null), 2000)
+    } catch { setSessionActionError('Unable to copy the session link. Copy the URL from the address bar.') }
+  }
+
+  async function exportSession(sessionId: string) {
+    setExportingSessionId(sessionId)
+    setExportMessage(null)
+    setSessionActionError(null)
+    try {
+      const response = await fetch(`api/sessions/${encodeURIComponent(sessionId)}/export-desktop`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      const result = await response.json() as LocalOperationResult
+      if (!response.ok || !result.isSuccess) throw new Error(result.message || 'Unable to export this session.')
+      setExportMessage(result.message)
+    } catch (error) { setSessionActionError(resolveErrorMessage(error, 'Unable to export this session.')) }
+    finally { setExportingSessionId(null) }
+  }
+  const [message, setMessage] = useState<string | null>(null)
+  const [pairingQr, setPairingQr] = useState<LocalEnrollmentInviteResult | null>(null)
+  const [pairingQrError, setPairingQrError] = useState<string | null>(null)
+  const [isIssuingPairingQr, setIsIssuingPairingQr] = useState(false)
+  const initialSessionIdRef = useRef<string | null>(null)
+  const manageMenuRef = useRef<HTMLDivElement>(null)
+  const trackedSessionIds = useRef(new Set<string>())
+
+
+  useEffect(() => {
+    const link = selectedSessionId
+      ? { sessionId: selectedSessionId, artifactId: sessionLink?.sessionId === selectedSessionId ? sessionLink.artifactId : undefined }
+      : null
+    const href = sessionTimelineHref(window.location.href, link)
+    if (href !== window.location.href) window.history.replaceState(window.history.state, '', href)
+    if (selectedSessionId) {
+      try { window.sessionStorage.setItem(`ansight.local-session:${window.location.pathname}`, selectedSessionId) }
+      catch { /* Storage can be unavailable in private browser contexts. */ }
+    } else {
+      try { window.sessionStorage.removeItem(`ansight.local-session:${window.location.pathname}`) }
+      catch { /* Storage can be unavailable in private browser contexts. */ }
+    }
+  }, [selectedSessionId, sessionLink])
+
+  useEffect(() => {
+    function navigateToUrl() {
+      const link = readSessionTimelineLink(window.location.href)
+      const sessionId = link?.sessionId
+        ?? sessions.find((session) => session.sessionId === initialSessionIdRef.current)?.sessionId
+        ?? sessions.find((session) => session.isConnected)?.sessionId
+        ?? sessions[0]?.sessionId
+        ?? null
+      setSessionSelection({ sessionId, link })
+      setActivePanel(null)
+      setExplorerMode('local')
+      setIsSessionInfoOpen(false)
+      setSessionActionError(null)
+    }
+    window.addEventListener('popstate', navigateToUrl)
+    return () => window.removeEventListener('popstate', navigateToUrl)
+  }, [sessions])
+
+  useEffect(() => {
+    let isMounted = true
+    let retryTimeout: number | undefined
+    async function loadBootstrap() {
+      try {
+        const response = await fetch('api/bootstrap', { cache: 'no-store' })
+        if (!response.ok) {
+          throw new Error(`The local host returned HTTP ${response.status}.`)
+        }
+
+        const next = await response.json() as LocalReplayBootstrap
+        if (isMounted) {
+          initialSessionIdRef.current = next.initialSessionId ?? null
+          setBootstrap(next)
+          setSelectedSessionId((current) => current ?? next.initialSessionId ?? null)
+          trackLocalWebEvent({ kind: 'daily_active' })
+          trackLocalWebEvent({ kind: 'opened' })
+        }
+      } catch (error) {
+        if (isMounted) {
+          setMessage(resolveErrorMessage(error, 'Unable to connect to the local Ansight host.'))
+          retryTimeout = window.setTimeout(() => void loadBootstrap(), 3000)
+        }
+      }
+    }
+
+    void loadBootstrap()
+    return () => {
+      isMounted = false
+      if (retryTimeout !== undefined) window.clearTimeout(retryTimeout)
+    }
+  }, [setSelectedSessionId])
+
+  useEffect(() => {
+    let isMounted = true
+    let eventRefreshTimeout: number | undefined
+    let recoveryRefreshTimeout: number | undefined
+    let eventSource: EventSource | null = null
+    let isRefreshInProgress = false
+    let isRefreshPending = false
+
+    async function refreshSessions() {
+      if (isRefreshInProgress) {
+        isRefreshPending = true
+        return
+      }
+
+      isRefreshInProgress = true
+      try {
+        do {
+          isRefreshPending = false
+          try {
+            const response = await fetch('api/sessions', { cache: 'no-store' })
+            if (!response.ok) {
+              throw new Error(`The local host returned HTTP ${response.status}.`)
+            }
+
+            const next = await response.json() as LocalSessionSummary[]
+            if (!isMounted) {
+              return
+            }
+
+            setSessions((current) => reconcileSessionSummaries(current, next))
+            setSelectedSessionId((current) => {
+              // An explicit URL must not silently open another session when its target is missing.
+              if (sessionLink && current === sessionLink.sessionId) return current
+              if (current && next.some((session) => session.sessionId === current)) {
+                return current
+              }
+
+              return next.find((session) => session.sessionId === initialSessionIdRef.current)?.sessionId
+                ?? next.find((session) => session.isConnected)?.sessionId
+                ?? next[0]?.sessionId
+                ?? null
+            })
+            setMessage(null)
+          } catch (error) {
+            if (isMounted) {
+              setMessage(resolveErrorMessage(error, 'Unable to refresh local sessions.'))
+            }
+          } finally {
+            if (isMounted) {
+              setIsSessionsLoading(false)
+            }
+          }
+        } while (isRefreshPending && document.visibilityState === 'visible')
+      } finally {
+        isRefreshInProgress = false
+      }
+    }
+
+    function clearRecoveryRefresh() {
+      if (recoveryRefreshTimeout !== undefined) {
+        window.clearTimeout(recoveryRefreshTimeout)
+        recoveryRefreshTimeout = undefined
+      }
+    }
+
+    function scheduleRecoveryRefresh() {
+      clearRecoveryRefresh()
+      if (!isMounted || document.visibilityState !== 'visible') {
+        return
+      }
+
+      recoveryRefreshTimeout = window.setTimeout(() => {
+        recoveryRefreshTimeout = undefined
+        void refreshSessions().finally(scheduleRecoveryRefresh)
+      }, sessionRecoveryRefreshIntervalMs)
+    }
+
+    function scheduleEventRefresh() {
+      if (document.visibilityState !== 'visible') {
+        isRefreshPending = true
+        return
+      }
+
+      if (eventRefreshTimeout !== undefined) {
+        return
+      }
+
+      eventRefreshTimeout = window.setTimeout(() => {
+        eventRefreshTimeout = undefined
+        void refreshSessions().finally(scheduleRecoveryRefresh)
+      }, sessionEventRefreshDebounceMs)
+    }
+
+    function openSessionEventStream() {
+      if (eventSource || document.visibilityState !== 'visible') {
+        return
+      }
+
+      eventSource = new EventSource('api/session-events')
+      eventSource.addEventListener('ready', scheduleEventRefresh)
+      eventSource.addEventListener('sessions-changed', scheduleEventRefresh)
+    }
+
+    function closeSessionEventStream() {
+      eventSource?.close()
+      eventSource = null
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState !== 'visible') {
+        closeSessionEventStream()
+        clearRecoveryRefresh()
+        if (eventRefreshTimeout !== undefined) {
+          window.clearTimeout(eventRefreshTimeout)
+          eventRefreshTimeout = undefined
+          isRefreshPending = true
+        }
+        return
+      }
+
+      openSessionEventStream()
+      void refreshSessions().finally(scheduleRecoveryRefresh)
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    openSessionEventStream()
+    void refreshSessions().finally(scheduleRecoveryRefresh)
+    return () => {
+      isMounted = false
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      closeSessionEventStream()
+      clearRecoveryRefresh()
+      if (eventRefreshTimeout !== undefined) {
+        window.clearTimeout(eventRefreshTimeout)
+      }
+    }
+  }, [sessionLink, sessionRefreshNonce, setSelectedSessionId])
+
+  const selectedSession = useMemo(
+    () => sessions.find((session) => session.sessionId === selectedSessionId) ?? null,
+    [selectedSessionId, sessions],
+  )
+  const refreshKey = selectedSession
+    ? `${selectedSession.lastUpdatedUtc}:${selectedSession.logCount}:${selectedSession.screenshotCount}:${selectedSession.visualTreeSnapshotCount}`
+    : undefined
+  const liveCount = sessions.filter((session) => session.isConnected).length
+  const canSwitchLiveView = selectedSession?.isConnected === true
+    && selectedSession.isSimulatorOrEmulator
+    && !!selectedSession.runtimeDeviceIdentifier
+  const liveViewMode = liveViewPreference.sessionId === selectedSessionId
+    ? liveViewPreference.mode
+    : 'simulator'
+  const selectedLinkedTraceRun = bootstrap?.supportsTestHistory
+    && linkedTraceRun?.sessionId === selectedSessionId
+    ? linkedTraceRun
+    : null
+  const canManageSelectedSession = bootstrap !== null
+    && (bootstrap.mode === 'explorer' || selectedSession?.sessionId === bootstrap.initialSessionId)
+  const hasActiveAppGraphRun = appGraphRuns.some((run) => run.status === 'starting' || run.status === 'running')
+  const openDeviceLocation = useCallback(() => {
+    setIsLocationOpen(true)
+    trackLocalWebEvent({ kind: 'panel_opened', panel: 'device_location' })
+  }, [])
+  const requestTaskExtraction = useCallback((period: TimelineEditSelection) => {
+    if (selectedSessionId) {
+      setTaskExtractionRequest({ period, sessionId: selectedSessionId })
+    }
+  }, [selectedSessionId])
+  const replayPanelOverride = useMemo(() => {
+    if (liveViewMode !== 'simulator'
+      || selectedSession?.isConnected !== true
+      || !selectedSession.isSimulatorOrEmulator
+      || !selectedSession.runtimeDeviceIdentifier) {
+      return undefined
+    }
+
+    const deviceIdentifier = selectedSession.runtimeDeviceIdentifier
+    const platform = selectedSession.runtimePlatform
+    const sessionId = selectedSession.sessionId
+    return ({ annotations, captureToolbar, frame, isAnnotationEditorOpen, onCreateAnnotation, selectedAnnotationId }: SessionReplayPanelContext) => (
+      <SimulatorControlView
+        annotations={annotations}
+        captureToolbar={captureToolbar}
+        deviceIdentifier={deviceIdentifier}
+        frame={frame}
+        isAnnotationEditorOpen={isAnnotationEditorOpen}
+        key={sessionId}
+        onCreateAnnotation={onCreateAnnotation}
+        onOpenDeviceLocation={bootstrap?.supportsDeviceLocation ? openDeviceLocation : undefined}
+        platform={platform}
+        selectedAnnotationId={selectedAnnotationId}
+        sessionId={sessionId}
+      />
+    )
+  }, [
+    bootstrap?.supportsDeviceLocation,
+    liveViewMode,
+    openDeviceLocation,
+    selectedSession?.isConnected,
+    selectedSession?.isSimulatorOrEmulator,
+    selectedSession?.runtimeDeviceIdentifier,
+    selectedSession?.runtimePlatform,
+    selectedSession?.sessionId,
+  ])
+
+  const refreshAppGraphRuns = useCallback(async () => {
+    if (!bootstrap?.supportsAppGraphProgress) return
+    setIsAppGraphRefreshing(true)
+    try {
+      const query = selectedSessionId
+        ? `?${new URLSearchParams({ sessionId: selectedSessionId })}`
+        : ''
+      const response = await fetch(`api/app-graph-runs${query}`, { cache: 'no-store' })
+      if (!response.ok) throw new Error(`The local host returned HTTP ${response.status}.`)
+      setAppGraphRuns(await response.json() as LocalAppGraphLiveRun[])
+    } catch {
+      setAppGraphRuns([])
+    } finally {
+      setIsAppGraphRefreshing(false)
+    }
+  }, [bootstrap?.supportsAppGraphProgress, selectedSessionId])
+
+  useEffect(() => {
+    if (!bootstrap?.supportsAppGraphProgress) return undefined
+    const timeoutId = window.setTimeout(() => void refreshAppGraphRuns(), 0)
+    const interval = window.setInterval(() => void refreshAppGraphRuns(), appGraphRefreshIntervalMs)
+    return () => {
+      window.clearTimeout(timeoutId)
+      window.clearInterval(interval)
+    }
+  }, [bootstrap?.supportsAppGraphProgress, refreshAppGraphRuns])
+
+  const deleteSession = useCallback(async (sessionId: string) => {
+    const response = await fetch(`api/sessions/${encodeURIComponent(sessionId)}/delete`, {
+      body: '{}',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+    })
+    const result = await response.json() as LocalOperationResult
+    if (!response.ok || !result.isSuccess) {
+      throw new Error(result.message || `The local host returned HTTP ${response.status}.`)
+    }
+
+    setSessions((current) => current.filter((session) => session.sessionId !== sessionId))
+    setSelectedSessionId((current) => current === sessionId ? null : current)
+    setIsSessionInfoOpen(false)
+  }, [setSelectedSessionId])
+
+  const setSessionPinned = useCallback(async (sessionId: string, isPinned: boolean) => {
+    let endpoint = 'api/sessions/bulk'
+    let body: object = { operation: isPinned ? 'pin' : 'unpin', sessionIds: [sessionId] }
+    if (bootstrap?.mode !== 'explorer') {
+      // The standalone player has no bulk endpoint. Preserve the full metadata when updating its pin.
+      const metadataResponse = await fetch(`api/sessions/${encodeURIComponent(sessionId)}`, { cache: 'no-store' })
+      if (!metadataResponse.ok) {
+        throw new Error(`Unable to load session details (HTTP ${metadataResponse.status}).`)
+      }
+
+      const metadata = await metadataResponse.json() as { name?: string | null; tags: string[]; notes?: string | null }
+      endpoint = `api/sessions/${encodeURIComponent(sessionId)}/metadata`
+      body = { isPinned, name: metadata.name, tags: metadata.tags, notes: metadata.notes }
+    }
+
+    const response = await fetch(endpoint, {
+      body: JSON.stringify(body),
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+    })
+    const result = await response.json() as LocalOperationResult
+    if (!response.ok || !result.isSuccess) {
+      throw new Error(result.message || `The local host returned HTTP ${response.status}.`)
+    }
+
+    setSessions((current) => current.map((session) => session.sessionId === sessionId ? { ...session, isPinned } : session))
+    setSessionRefreshNonce((current) => current + 1)
+  }, [bootstrap?.mode])
+
+  async function deleteSelectedSession() {
+    const session = selectedSession
+    if (!session || !canManageSelectedSession || session.isConnected || deletingSessionId) return
+    const sessionName = session.name || session.clientName || session.appId
+    if (!window.confirm(`Delete “${sessionName}” permanently? Its capture, search index, metrics, and trends history will be removed.`)) {
+      return
+    }
+
+    setDeletingSessionId(session.sessionId)
+    setSessionActionError(null)
+    try {
+      await deleteSession(session.sessionId)
+      setIsShareModalOpen(false)
+      setActivePanel(null)
+    } catch (error) {
+      setSessionActionError(resolveErrorMessage(error, 'Unable to delete the session.'))
+    } finally {
+      setDeletingSessionId(null)
+    }
+  }
+
+  function toggleGlobalPanel(panel: NonNullable<LocalGlobalPanel>) {
+    const isOpening = activePanel !== panel
+    setIsManageMenuOpen(false)
+    setActivePanel(isOpening ? panel : null)
+
+    if (isOpening) {
+      trackLocalWebEvent({ kind: 'panel_opened', panel })
+    }
+  }
+
+  function openLinkedTrace(run: LocalTestRunSummary) {
+    setTestHistoryInitialRun(run)
+    setActivePanel('test_history')
+    trackLocalWebEvent({ kind: 'panel_opened', panel: 'test_history' })
+  }
+
+  function openTrendsSession(sessionId: string) {
+    setSessionActionError(null)
+    setIsSessionInfoOpen(false)
+    setSelectedSessionId(sessionId)
+    setIsExplorerOpen(true)
+    setActivePanel(null)
+  }
+
+  function globalPanelButtonClassName(panel: NonNullable<LocalGlobalPanel>) {
+    return activePanel === panel
+      ? 'local-banner-button local-banner-button--active'
+      : 'local-banner-button'
+  }
+
+  useEffect(() => {
+    if (!selectedSessionId || !selectedSession || trackedSessionIds.current.has(selectedSessionId)) {
+      return
+    }
+
+    trackedSessionIds.current.add(selectedSessionId)
+    trackLocalWebEvent({
+      kind: 'session_viewed',
+      isLive: selectedSession?.isConnected === true,
+    })
+  }, [selectedSession, selectedSessionId])
+
+  useEffect(() => {
+    if (!isManageMenuOpen) {
+      return undefined
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      if (event.target instanceof Node && !manageMenuRef.current?.contains(event.target)) {
+        setIsManageMenuOpen(false)
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setIsManageMenuOpen(false)
+      }
+    }
+
+    window.addEventListener('pointerdown', handlePointerDown)
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isManageMenuOpen])
+
+  useEffect(() => {
+    if (!pairingQr) {
+      return undefined
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setPairingQr(null)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [pairingQr])
+
+  useEffect(() => {
+    if (!bootstrap?.supportsTestHistory || !selectedSessionId) {
+      return undefined
+    }
+
+    let isMounted = true
+    const loadLinkedTrace = async () => {
+      try {
+        const query = new URLSearchParams({ limit: '1', sessionId: selectedSessionId })
+        if (selectedSession?.appId) {
+          query.set('appId', selectedSession.appId)
+        }
+        const response = await fetch(`api/test-history?${query}`, { cache: 'no-store' })
+        if (!response.ok) {
+          throw new Error(`The local host returned HTTP ${response.status}.`)
+        }
+
+        const history = await response.json() as LocalTestHistory
+        if (isMounted) {
+          setLinkedTraceRun(history.runs[0] ?? null)
+        }
+      } catch {
+        if (isMounted) {
+          setLinkedTraceRun(null)
+        }
+      }
+    }
+
+    void loadLinkedTrace()
+    const interval = window.setInterval(() => void loadLinkedTrace(), linkedTraceRefreshIntervalMs)
+    return () => {
+      isMounted = false
+      window.clearInterval(interval)
+    }
+  }, [bootstrap?.supportsTestHistory, selectedSession?.appId, selectedSessionId])
+
+  async function issuePairingQr() {
+    if (isIssuingPairingQr) {
+      return
+    }
+
+    setIsIssuingPairingQr(true)
+    setPairingQrError(null)
+    try {
+      const response = await fetch('api/enrollment/invites', {
+        body: JSON.stringify({
+          appId: null,
+          appName: null,
+          duration: '1mo',
+          hostAddress: null,
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      })
+      const result = await response.json() as LocalEnrollmentInviteResult
+      if (!response.ok || !result.isSuccess || !result.qrImageDataUrl) {
+        throw new Error(result.message || `The local host returned HTTP ${response.status}.`)
+      }
+
+      setPairingQr(result)
+    } catch (error) {
+      setPairingQrError(resolveErrorMessage(error, 'Unable to issue a pairing QR.'))
+    } finally {
+      setIsIssuingPairingQr(false)
+    }
+  }
+
+  const isSessionsSectionActive = activePanel === null || activePanel === 'app_graph'
+  const isTestsSectionActive = activePanel === 'test_execution' || activePanel === 'test_history'
+  const isTrendsSectionActive = activePanel === 'trends'
+  const isManageSectionActive = activePanel === 'about'
+    || activePanel === 'account'
+    || activePanel === 'runner'
+    || activePanel === 'apps'
+    || activePanel === 'devices'
+    || activePanel === 'session_admin'
+    || activePanel === 'health'
+    || activePanel === 'settings'
+  const rootClassName = [
+    'local-replay-root',
+    isExplorerOpen ? '' : 'local-replay-root--collapsed',
+    selectedSession ? 'local-replay-root--has-session-context' : '',
+  ].filter(Boolean).join(' ')
+  // The explorer carries its own hide control; the banner only offers the way back.
+  const explorerToggle = (
+    <button
+      aria-label="Hide session explorer"
+      className="local-banner-button local-banner-button--icon local-session-explorer-toggle"
+      data-tooltip="Hide session explorer"
+      data-tooltip-align="end"
+      onClick={() => setIsExplorerOpen(false)}
+      type="button"
+    >
+      <SidebarSimple aria-hidden="true" />
+    </button>
+  )
+
+  return (
+    <div className={rootClassName} style={replayPanelWidth === null ? undefined : { '--session-replay-panel-width': `${replayPanelWidth}px` } as CSSProperties}>
+      <div className="local-replay-banner">
+        <div className="local-replay-brand">
+          {isExplorerOpen ? null : (
+            <button
+              aria-label="Show session explorer"
+              className="local-banner-button local-banner-button--icon"
+              data-tooltip="Show session explorer"
+              onClick={() => setIsExplorerOpen(true)}
+              type="button"
+            >
+              <SidebarSimple aria-hidden="true" />
+            </button>
+          )}
+          <span>Ansight</span>
+          <small>Local</small>
+        </div>
+        <div className="local-replay-actions">
+          <button
+            aria-describedby="local-runner-status-tooltip"
+            aria-label="Manage remote runner"
+            className={`local-host-status local-runner-status local-runner-status--${'disabled'}`}
+            onClick={() => setActivePanel('runner')}
+            type="button"
+          >
+            <Pulse aria-hidden="true" />
+            Runner
+            <span className="local-host-status-tooltip" id="local-runner-status-tooltip" role="tooltip">
+              Select to manage a cloud runner.
+            </span>
+          </button>
+          <span
+            aria-describedby="local-host-status-tooltip"
+            className={liveCount > 0 ? 'local-host-status local-host-status--live' : 'local-host-status'}
+            tabIndex={0}
+          >
+            <WifiHigh aria-hidden="true" />
+            {liveCount > 0 ? `${liveCount} live` : 'Host ready'}
+            <span className="local-host-status-tooltip" id="local-host-status-tooltip" role="tooltip">
+              {liveCount > 0
+                ? `The host is available and connected to ${liveCount} ${liveCount === 1 ? 'app' : 'apps'}.`
+                : 'The host is available and ready for apps to connect.'}
+            </span>
+          </span>
+          <nav aria-label="Local explorer" className="local-global-navigation">
+            <button
+              aria-current={isSessionsSectionActive ? 'page' : undefined}
+              className={isSessionsSectionActive ? 'local-banner-button local-banner-button--active' : 'local-banner-button'}
+              onClick={() => {
+                setIsManageMenuOpen(false)
+                setActivePanel(null)
+              }}
+              title="Sessions"
+              type="button"
+            >
+              <VideoCamera aria-hidden="true" />
+              Sessions
+            </button>
+            {bootstrap?.supportsTestExecution ? (
+              <button
+                aria-current={isTestsSectionActive ? 'page' : undefined}
+                className={isTestsSectionActive ? 'local-banner-button local-banner-button--active' : 'local-banner-button'}
+                onClick={() => {
+                  setTestHistoryInitialRun(null)
+                  toggleGlobalPanel('test_execution')
+                }}
+                title="Tests"
+                type="button"
+              >
+                <TestTube aria-hidden="true" />
+                Tests
+              </button>
+            ) : null}
+            {bootstrap?.supportsTrends ? (
+              <button
+                aria-current={isTrendsSectionActive ? 'page' : undefined}
+                className={isTrendsSectionActive ? 'local-banner-button local-banner-button--active' : 'local-banner-button'}
+                onClick={() => toggleGlobalPanel('trends')}
+                title="Trends"
+                type="button"
+              >
+                <ChartLineUp aria-hidden="true" />
+                Trends
+              </button>
+            ) : null}
+          </nav>
+          <div className="local-manage-menu" ref={manageMenuRef}>
+            <button
+              aria-expanded={isManageMenuOpen}
+              aria-haspopup="menu"
+              className={isManageSectionActive ? 'local-banner-button local-banner-button--active' : 'local-banner-button'}
+              onClick={() => setIsManageMenuOpen((current) => !current)}
+              title="Manage"
+              type="button"
+            >
+              <Gear aria-hidden="true" />
+              Manage
+              <CaretDown aria-hidden="true" className="local-manage-menu-caret" />
+            </button>
+            {isManageMenuOpen ? (
+              <div className="local-manage-menu-popover" role="menu">
+                {bootstrap?.supportsRegisteredApps ? (
+                  <button onClick={() => toggleGlobalPanel('apps')} role="menuitem" type="button">
+                    <SquaresFour aria-hidden="true" />
+                    <span><strong>Apps</strong><small>Registrations, app monitoring and automation</small></span>
+                  </button>
+                ) : null}
+                {bootstrap?.supportsDeviceManagement ? (
+                  <button onClick={() => toggleGlobalPanel('devices')} role="menuitem" type="button">
+                    <DeviceMobile aria-hidden="true" />
+                    <span><strong>Devices</strong><small>Prepare and control simulator targets</small></span>
+                  </button>
+                ) : null}
+                {bootstrap?.supportsSessionAdministration ? (
+                  <button onClick={() => toggleGlobalPanel('session_admin')} role="menuitem" type="button">
+                    <Archive aria-hidden="true" />
+                    <span><strong>Session storage</strong><small>Import, export and clean up captures</small></span>
+                  </button>
+                ) : null}
+                {bootstrap?.supportsHostHealth ? (
+                  <button onClick={() => toggleGlobalPanel('health')} role="menuitem" type="button">
+                    <Pulse aria-hidden="true" />
+                    <span><strong>Host health</strong><small>Diagnostics, permissions and logs</small></span>
+                  </button>
+                ) : null}
+                {bootstrap?.supportsSettings ? (
+                  <button onClick={() => toggleGlobalPanel('settings')} role="menuitem" type="button">
+                    <Gear aria-hidden="true" />
+                    <span><strong>Settings</strong><small>Configure this local host</small></span>
+                  </button>
+                ) : null}
+                {bootstrap?.supportsAccountManagement ? (
+                  <button onClick={() => toggleGlobalPanel('account')} role="menuitem" type="button">
+                    <UserCircle aria-hidden="true" />
+                    <span><strong>Account</strong><small>Manage your identity and companion machines</small></span>
+                  </button>
+                ) : null}
+                {bootstrap?.supportsHostHealth ? (
+                  <button className="local-manage-menu-about" onClick={() => toggleGlobalPanel('about')} role="menuitem" type="button">
+                    <Info aria-hidden="true" />
+                    <span><strong>About Ansight</strong><small>Version and installation details</small></span>
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+          {bootstrap?.supportsEnrollmentInvites ? (
+            <div className="local-pairing-action">
+              <button
+                aria-expanded={pairingQr !== null}
+                aria-haspopup="dialog"
+                aria-label={isIssuingPairingQr ? 'Issuing pairing QR' : 'Issue pairing QR'}
+                className="local-banner-button local-banner-button--icon local-pairing-qr-button"
+                disabled={isIssuingPairingQr}
+                onClick={() => void issuePairingQr()}
+                title="Issue and open a pairing QR"
+                type="button"
+              >
+                {isIssuingPairingQr ? <CircleNotch className="spin" aria-hidden="true" /> : <QrCode aria-hidden="true" />}
+              </button>
+              {pairingQrError ? <span className="local-pairing-error" role="alert">{pairingQrError}</span> : null}
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      {bootstrap?.supportsCloudSessions && selectedSessionId ? <button type="button" onClick={() => setIsOptionalAnalysisOpen(true)}>Cloud analysis</button> : null}
+      {isOptionalAnalysisOpen && selectedSessionId ? <OptionalPlayerPanel component="CloudAnalysisPlayer" panelProps={{ sessionId: selectedSessionId, onClose: () => setIsOptionalAnalysisOpen(false) }} /> : null}
+      <div className="local-replay-layout">
+        {isExplorerOpen ? explorerMode === 'team' && bootstrap?.supportsCloudSessions ? (
+          <TeamSessionExplorer
+            headingAction={explorerToggle}
+            onOpenSession={(sessionId) => {
+              setSessionActionError(null)
+              setIsSessionInfoOpen(false)
+              setSelectedSessionId(sessionId)
+              setExplorerMode('local')
+            }}
+            onShowLocalSessions={() => setExplorerMode('local')}
+          />
+        ) : (
+          <SessionExplorer
+            canPinSession={(sessionId) => bootstrap !== null && (bootstrap.mode === 'explorer' || sessionId === bootstrap.initialSessionId)}
+            headingAction={explorerToggle}
+            isLoading={isSessionsLoading}
+            onDeleteSession={deleteSession}
+            onSetSessionPinned={setSessionPinned}
+            onSelectSession={(sessionId) => {
+              setSessionActionError(null)
+              setIsSessionInfoOpen(false)
+              setSelectedSessionId(sessionId)
+            }}
+            onShowTeamSessions={() => setExplorerMode('team')}
+            selectedSessionId={selectedSessionId}
+            sessions={sessions}
+            supportsCloudSessions={bootstrap?.supportsCloudSessions === true}
+          />
+        ) : null}
+        <main className="local-replay-viewer">
+          {selectedSession ? (
+            <div className="local-session-context-toolbar">
+              <span className="local-session-context-icon">
+                <SessionIcon appIconUrl={selectedSession.appIconUrl} platform={selectedSession.runtimePlatform} />
+              </span>
+              <span className="local-session-context-title">
+                <strong>{selectedSession.name || selectedSession.clientName}</strong>
+                <span className="local-session-id">
+                  <span>{selectedSession.sessionId}</span>
+                  <button aria-label="Copy session ID" data-tooltip="Copy session ID" type="button" onClick={() => void copySessionId(selectedSession.sessionId)}>
+                    {copiedSessionId === selectedSession.sessionId ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+                  </button>
+                  <span className="local-session-copy-feedback" role="status">{copiedSessionId === selectedSession.sessionId ? 'Copied' : ''}</span>
+                  <button aria-label="Copy session link" data-tooltip="Copy session link" type="button" onClick={() => void copySessionLink(selectedSession.sessionId)}>
+                    {copiedSessionLinkId === selectedSession.sessionId ? <Check aria-hidden="true" /> : <Link aria-hidden="true" />}
+                  </button>
+                  <span className="local-session-copy-feedback" role="status">{copiedSessionLinkId === selectedSession.sessionId ? 'Link copied' : ''}</span>
+                </span>
+              </span>
+              {canSwitchLiveView ? (
+                <div aria-label="Live session view" className="local-live-view-toggle" role="group">
+                  <button
+                    aria-pressed={liveViewMode === 'simulator'}
+                    className={liveViewMode === 'simulator' ? 'local-banner-button local-banner-button--active' : 'local-banner-button'}
+                    onClick={() => setLiveViewPreference({ mode: 'simulator', sessionId: selectedSessionId })}
+                    data-tooltip="Simulator"
+                    type="button"
+                  >
+                    <DeviceMobile aria-hidden="true" />
+                    Simulator
+                  </button>
+                  <button
+                    aria-pressed={liveViewMode === 'playback'}
+                    className={liveViewMode === 'playback' ? 'local-banner-button local-banner-button--active' : 'local-banner-button'}
+                    onClick={() => setLiveViewPreference({ mode: 'playback', sessionId: selectedSessionId })}
+                    data-tooltip="Playback"
+                    type="button"
+                  >
+                    <VideoCamera aria-hidden="true" />
+                    Playback
+                  </button>
+                </div>
+              ) : null}
+              {isAppGraphToolVisible && (bootstrap?.supportsAppGraphProgress || bootstrap?.supportsAppGraphRecording) ? (
+                <button
+                  aria-pressed={activePanel === 'app_graph'}
+                  className={`${globalPanelButtonClassName('app_graph')}${hasActiveAppGraphRun ? ' local-banner-button--live' : ''}`}
+                  onClick={() => {
+                    setAppGraphPanelMode(
+                      bootstrap?.supportsAppGraphRecording && selectedSession.isConnected
+                        ? 'recording'
+                        : 'runs',
+                    )
+                    toggleGlobalPanel('app_graph')
+                  }}
+                  data-tooltip="App Graph"
+                  type="button"
+                >
+                  <FlowArrow aria-hidden="true" />
+                  Graph
+                  {hasActiveAppGraphRun ? <i aria-label="Exploration running" /> : null}
+                </button>
+              ) : null}
+              {selectedLinkedTraceRun ? (
+                <button
+                  className={activePanel === 'test_history' && testHistoryInitialRun?.runId === selectedLinkedTraceRun.runId
+                    ? 'local-banner-button local-banner-button--active'
+                    : 'local-banner-button'}
+                  onClick={() => openLinkedTrace(selectedLinkedTraceRun)}
+                  data-tooltip={`Open linked trace ${selectedLinkedTraceRun.runId}`}
+                  type="button"
+                >
+                  <FlowArrow aria-hidden="true" />
+                  Trace
+                </button>
+              ) : null}
+              <span className="local-session-context-spacer" />
+              {sessionActionError ? <span className="local-session-context-error" role="alert" title={sessionActionError}>{sessionActionError}</span> : null}
+              <button className="local-banner-button" disabled={selectedSession.isConnected || exportingSessionId !== null} onClick={() => void exportSession(selectedSession.sessionId)} data-tooltip={selectedSession.isConnected ? 'Finish recording before exporting this session' : 'Export session ZIP to Desktop'} type="button">
+                {exportingSessionId === selectedSession.sessionId ? <CircleNotch className="spin" aria-hidden="true" /> : <DownloadSimple aria-hidden="true" />}
+                {exportingSessionId === selectedSession.sessionId ? 'Exporting…' : 'Export ZIP'}
+              </button>
+              <button
+                className="local-banner-button"
+                onClick={() => setIsSessionInfoOpen(true)}
+                data-tooltip="View session information"
+                type="button"
+              >
+                <Info aria-hidden="true" />
+                Info
+              </button>
+              {canManageSelectedSession ? (
+                <button
+                  className="local-banner-button"
+                  onClick={() => setIsSessionMetadataOpen(true)}
+                  data-tooltip="Edit session name and notes"
+                  type="button"
+                >
+                  <NotePencil aria-hidden="true" />
+                  Edit
+                </button>
+              ) : null}
+              {bootstrap?.supportsCloudSessions ? (
+                <button
+                  className="local-banner-button"
+                  disabled={selectedSession.isConnected}
+                  onClick={() => setIsShareModalOpen(true)}
+                  data-tooltip={selectedSession.isConnected ? 'Finish recording before sharing this session' : 'Share this session to a team'}
+                  type="button"
+                >
+                  <CloudArrowUp aria-hidden="true" />
+                  Share
+                </button>
+              ) : null}
+              {canManageSelectedSession ? (
+                <button
+                  className="local-banner-button local-session-context-delete"
+                  disabled={selectedSession.isConnected || deletingSessionId !== null}
+                  onClick={() => void deleteSelectedSession()}
+                  data-tooltip={selectedSession.isConnected ? 'Disconnect the live session before deleting it' : 'Delete this session permanently'}
+                  type="button"
+                >
+                  {deletingSessionId === selectedSession.sessionId ? <CircleNotch aria-hidden="true" className="spin" /> : <Trash aria-hidden="true" />}
+                  {deletingSessionId === selectedSession.sessionId ? 'Deleting…' : 'Delete'}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+          {exportMessage ? <p className="inline-message local-replay-message" role="status">{exportMessage}</p> : null}
+          {message && sessions.length === 0 ? <p className="inline-message local-replay-message">{message}</p> : null}
+          {(!bootstrap || isSessionsLoading) && !message ? (
+            <div className="local-replay-loading">
+              <CircleNotch className="spin" aria-hidden="true" />
+              <strong>{bootstrap ? 'Loading sessions' : 'Connecting to the local host'}</strong>
+            </div>
+          ) : selectedSessionId && sessions.length > 0 ? (
+            <SessionViewerPage
+              initialArtifactId={sessionLink?.sessionId === selectedSessionId ? sessionLink.artifactId : undefined}
+              isEmbedded
+              isLiveSession={selectedSession?.isConnected === true}
+              onReplayPanelWidthChange={setReplayPanelWidth}
+              isSignedIn={false}
+              onSessionInfoOpenChange={setIsSessionInfoOpen}
+              onSessionExtracted={(sessionId) => {
+                setSessionActionError(null)
+                setIsSessionInfoOpen(false)
+                setSelectedSessionId(sessionId)
+              }}
+              onTaskExtractionRequested={bootstrap?.supportsTaskExtraction
+                ? requestTaskExtraction
+                : undefined}
+              replayPanelOverride={replayPanelOverride}
+              refreshKey={refreshKey}
+              sessionId={selectedSessionId}
+              sessionInfoOpen={isSessionInfoOpen}
+              source={localReplaySource}
+            />
+          ) : (
+            <div className="local-replay-welcome">
+              <WifiHigh aria-hidden="true" />
+              <p className="eyebrow">No sessions yet</p>
+              <h2>Connect your app</h2>
+              <p>Open your app project in a coding agent. Ask it to follow the <a href="https://www.ansight.ai/skills/ansight-install.md" rel="noopener noreferrer" target="_blank">Ansight install skill</a> to set up capture and verify a session.</p>
+              <p>Run your app, then return here to inspect the recording.</p>
+            </div>
+          )}
+        </main>
+      </div>
+
+      {isLocationOpen ? (
+        <DeviceLocationPanel
+          mapboxAccessToken={bootstrap?.mapboxAccessToken ?? ''}
+          onClose={() => setIsLocationOpen(false)}
+        />
+      ) : null}
+      {isShareModalOpen && selectedSession ? (
+        <ShareLocalSessionModal
+          onClose={() => setIsShareModalOpen(false)}
+          onOpenAccount={() => { setIsShareModalOpen(false); setActivePanel('account') }}
+          session={selectedSession}
+        />
+      ) : null}
+      {isSessionMetadataOpen && selectedSession ? (
+        <EditSessionMetadataPanel
+          key={selectedSession.sessionId}
+          onClose={() => setIsSessionMetadataOpen(false)}
+          onSaved={(name) => {
+            setSessions((current) => current.map((session) => session.sessionId === selectedSession.sessionId
+              ? { ...session, name }
+              : session))
+            setIsSessionMetadataOpen(false)
+            setSessionRefreshNonce((current) => current + 1)
+          }}
+          sessionId={selectedSession.sessionId}
+          sessionTitle={selectedSession.name || selectedSession.clientName || selectedSession.appId}
+        />
+      ) : null}
+      {activePanel === 'app_graph' ? (
+        appGraphPanelMode === 'recording' && selectedSession?.isConnected ? (
+          <AppGraphRecordingPanel
+            onClose={() => setActivePanel(null)}
+            onShowRuns={() => setAppGraphPanelMode('runs')}
+            session={selectedSession}
+          />
+        ) : (
+          <AppGraphProgressPanel
+            isRefreshing={isAppGraphRefreshing}
+            onClose={() => setActivePanel(null)}
+            onRecord={bootstrap?.supportsAppGraphRecording && selectedSession?.isConnected
+              ? () => setAppGraphPanelMode('recording')
+              : undefined}
+            onRefresh={() => void refreshAppGraphRuns()}
+            runs={appGraphRuns}
+          />
+        )
+      ) : null}
+      {activePanel === 'trends' ? (
+        <TrendsPanel
+          onClose={() => setActivePanel(null)}
+          onOpenSession={openTrendsSession}
+          sessions={sessions}
+        />
+      ) : null}
+      {activePanel === 'test_history' ? (
+        <TestHistoryPanel
+          appId={selectedSession?.appId}
+          appName={selectedSession?.name ?? selectedSession?.clientName}
+          initialRun={testHistoryInitialRun}
+          onClose={() => setActivePanel(null)}
+        />
+      ) : null}
+      {activePanel === 'test_execution' ? (
+        <TestExecutionPanel
+          onClose={() => setActivePanel(null)}
+          onOpenHistory={() => {
+            setTestHistoryInitialRun(null)
+            setActivePanel('test_history')
+          }}
+        />
+      ) : null}
+      {activePanel === 'devices' ? <DeviceManagementPanel onClose={() => setActivePanel(null)} /> : null}
+      {activePanel === 'session_admin' ? (
+        <SessionAdministrationPanel
+          onClose={() => setActivePanel(null)}
+          onSessionsChanged={() => setSessionRefreshNonce((current) => current + 1)}
+          selectedSession={selectedSession}
+          sessions={sessions}
+        />
+      ) : null}
+      {activePanel === 'apps' ? (
+        <HostManagementPanel onClose={() => setActivePanel(null)} />
+      ) : null}
+      {activePanel === 'about' ? <AboutInstallationPanel onClose={() => setActivePanel(null)} /> : null}
+      {activePanel === 'account' ? <AccountCompanionPanel onClose={() => setActivePanel(null)} /> : null}
+      {activePanel === 'runner' ? <RemoteRunnerPanel
+        canManage={canManageRunner}
+        onClose={() => setActivePanel(null)}
+        onOpenAccount={() => setActivePanel('account')}
+        registration={runnerRegistration}
+        status={runnerStatus}
+      /> : null}
+      {activePanel === 'health' ? <HostHealthPanel onClose={() => setActivePanel(null)} /> : null}
+      {activePanel === 'settings' ? <CoreSettingsPanel onClose={() => setActivePanel(null)} /> : null}
+      {taskExtractionRequest ? (() => {
+        const extractionSession = sessions.find((candidate) => candidate.sessionId === taskExtractionRequest.sessionId)
+        return extractionSession ? (
+          <Suspense fallback={<TaskExtractionLoadingPanel />}>
+            <TaskExtractionPanel
+              onClose={() => setTaskExtractionRequest(null)}
+              period={taskExtractionRequest.period}
+              session={extractionSession}
+              sessions={sessions}
+            />
+          </Suspense>
+        ) : null
+      })() : null}
+      {pairingQr?.qrImageDataUrl ? (
+        <div className="local-enrollment-qr-modal" role="presentation" onMouseDown={(event) => {
+          if (event.currentTarget === event.target) {
+            setPairingQr(null)
+          }
+        }}>
+          <section aria-label="Pairing QR code" aria-modal="true" role="dialog">
+            <button aria-label="Close pairing QR code" className="local-icon-button" onClick={() => setPairingQr(null)} type="button">
+              <X aria-hidden="true" />
+            </button>
+            <img alt="One-time Ansight pairing QR code" src={pairingQr.qrImageDataUrl} />
+            <strong>Pair with this host</strong>
+            <span>Scan with an Ansight-enabled app</span>
+          </section>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function TaskExtractionLoadingPanel() {
+  return (
+    <div className="local-admin-backdrop" role="presentation">
+      <section aria-label="Loading task extraction" className="local-admin-panel local-task-extraction-panel">
+        <div className="local-replay-loading">
+          <CircleNotch className="spin" aria-hidden="true" />
+          <strong>Loading task editor</strong>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function reconcileSessionSummaries(
+  current: LocalSessionSummary[],
+  next: LocalSessionSummary[],
+): LocalSessionSummary[] {
+  if (current.length === 0) {
+    return next
+  }
+
+  const currentById = new Map(current.map((session) => [session.sessionId, session]))
+  const reconciled = next.map((session) => {
+    const existing = currentById.get(session.sessionId)
+    return existing && sessionSummariesEqual(existing, session) ? existing : session
+  })
+  return current.length === reconciled.length
+    && current.every((session, index) => session === reconciled[index])
+    ? current
+    : reconciled
+}
+
+function sessionSummariesEqual(left: LocalSessionSummary, right: LocalSessionSummary): boolean {
+  return left.sessionId === right.sessionId
+    && left.appId === right.appId
+    && left.appName === right.appName
+    && left.appIconUrl === right.appIconUrl
+    && left.name === right.name
+    && left.clientName === right.clientName
+    && left.status === right.status
+    && left.isConnected === right.isConnected
+    && left.isSimulatorOrEmulator === right.isSimulatorOrEmulator
+    && left.runtimeDeviceIdentifier === right.runtimeDeviceIdentifier
+    && left.runtimePlatform === right.runtimePlatform
+    && left.isHistorical === right.isHistorical
+    && left.isPinned === right.isPinned
+    && left.createdUtc === right.createdUtc
+    && left.lastUpdatedUtc === right.lastUpdatedUtc
+    && left.logCount === right.logCount
+    && left.screenshotCount === right.screenshotCount
+    && left.visualTreeSnapshotCount === right.visualTreeSnapshotCount
+    && left.artifactSnapshotCount === right.artifactSnapshotCount
+    && left.tags.length === right.tags.length
+    && left.tags.every((tag, index) => tag === right.tags[index])
+}
+
+function resolveErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback
+}
+
+type LocalWebAnalyticsEvent = {
+  kind: 'daily_active' | 'opened' | 'session_viewed' | 'panel_opened'
+  isLive?: boolean
+  panel?: 'about' | 'account' | 'app_graph' | 'apps' | 'device_location' | 'devices' | 'health' | 'trends' | 'runner' | 'session_admin' | 'settings' | 'test_execution' | 'test_history'
+}
+
+type LocalLiveViewMode = 'simulator' | 'playback'
+
+type LocalLiveViewPreference = {
+  mode: LocalLiveViewMode
+  sessionId: string | null
+}
+
+
+type LocalGlobalPanel = 'about' | 'account' | 'app_graph' | 'apps' | 'devices' | 'health' | 'trends' | 'runner' | 'session_admin' | 'settings' | 'test_execution' | 'test_history' | null
+
+
+function trackLocalWebEvent(event: LocalWebAnalyticsEvent): void {
+  void fetch('api/analytics/events', {
+    body: JSON.stringify(event),
+    cache: 'no-store',
+    headers: { 'Content-Type': 'application/json' },
+    keepalive: true,
+    method: 'POST',
+  }).catch(() => {
+    // Analytics failures must never affect the local explorer.
+  })
+}

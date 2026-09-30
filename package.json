@@ -1,0 +1,397 @@
+{
+  "name": "@ansight/player",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --config vite.config.ts",
+    "build": "npm run build:library && npm run build:local",
+    "lint": "eslint .",
+    "test": "npm run build:library && node --test tests/*.mjs tests/*.mts",
+    "pack:release": "npm run build && node scripts/pack-package.mjs",
+    "prepack": "node scripts/check-package.mjs",
+    "build:library": "tsc -b && node scripts/clean-library.mjs && tsc -p tsconfig.library.json && node scripts/finalize-library.mjs",
+    "build:local": "vite build --config vite.config.ts && node scripts/stamp-local.mjs"
+  },
+  "dependencies": {
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "@fontsource/outfit": "^5.3.0",
+    "@phosphor-icons/react": "^2.1.10",
+    "fflate": "0.8.3",
+    "mermaid": "^11.15.0",
+    "monaco-editor": "^0.56.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.12.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@types/three": "^0.185.4",
+    "@vitejs/plugin-react": "^6.0.1",
+    "eslint": "^10.2.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.5.0",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "^8.58.2",
+    "vite": "^8.0.10",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "license": "SEE LICENSE IN LICENSE",
+  "description": "Shared Ansight session player and account-free local host UI",
+  "files": [
+    "dist/library",
+    "dist/local",
+    "LICENSE",
+    "NOTICE",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/library/index.d.ts",
+      "default": "./dist/library/index.js"
+    },
+    "./types": {
+      "types": "./dist/library/types.d.ts",
+      "default": "./dist/library/types.js"
+    },
+    "./package.json": "./package.json",
+    "./styles.css": "./dist/library/index.css",
+    "./app.css": "./dist/library/App.css",
+    "./adapters": {
+      "types": "./dist/library/adapters/cloudPlayerAdapter.d.ts",
+      "default": "./dist/library/adapters/cloudPlayerAdapter.js"
+    },
+    "./App": "./dist/library/App.css",
+    "./adapters/cloudPlayerAdapter": {
+      "types": "./dist/library/adapters/cloudPlayerAdapter.d.ts",
+      "default": "./dist/library/adapters/cloudPlayerAdapter.js"
+    },
+    "./agentReasoning": {
+      "types": "./dist/library/agentReasoning.d.ts",
+      "default": "./dist/library/agentReasoning.js"
+    },
+    "./components/DetailRow": {
+      "types": "./dist/library/components/DetailRow.d.ts",
+      "default": "./dist/library/components/DetailRow.js"
+    },
+    "./components/EmptyState": {
+      "types": "./dist/library/components/EmptyState.d.ts",
+      "default": "./dist/library/components/EmptyState.js"
+    },
+    "./components/PageHeader": {
+      "types": "./dist/library/components/PageHeader.d.ts",
+      "default": "./dist/library/components/PageHeader.js"
+    },
+    "./index": "./dist/library/index.css",
+    "./local-replay/AboutInstallationPanel": {
+      "types": "./dist/library/local-replay/AboutInstallationPanel.d.ts",
+      "default": "./dist/library/local-replay/AboutInstallationPanel.js"
+    },
+    "./local-replay/AccountCompanionPanel": {
+      "types": "./dist/library/local-replay/AccountCompanionPanel.d.ts",
+      "default": "./dist/library/local-replay/AccountCompanionPanel.js"
+    },
+    "./local-replay/AppGraphProgressPanel": {
+      "types": "./dist/library/local-replay/AppGraphProgressPanel.d.ts",
+      "default": "./dist/library/local-replay/AppGraphProgressPanel.js"
+    },
+    "./local-replay/AppGraphRecordingPanel": {
+      "types": "./dist/library/local-replay/AppGraphRecordingPanel.d.ts",
+      "default": "./dist/library/local-replay/AppGraphRecordingPanel.js"
+    },
+    "./local-replay/AppMonitoringPanel": {
+      "types": "./dist/library/local-replay/AppMonitoringPanel.d.ts",
+      "default": "./dist/library/local-replay/AppMonitoringPanel.js"
+    },
+    "./local-replay/CoreSettingsPanel": {
+      "types": "./dist/library/local-replay/CoreSettingsPanel.d.ts",
+      "default": "./dist/library/local-replay/CoreSettingsPanel.js"
+    },
+    "./local-replay/DeviceLocationMap": {
+      "types": "./dist/library/local-replay/DeviceLocationMap.d.ts",
+      "default": "./dist/library/local-replay/DeviceLocationMap.js"
+    },
+    "./local-replay/DeviceLocationPanel": {
+      "types": "./dist/library/local-replay/DeviceLocationPanel.d.ts",
+      "default": "./dist/library/local-replay/DeviceLocationPanel.js"
+    },
+    "./local-replay/DeviceManagementPanel": {
+      "types": "./dist/library/local-replay/DeviceManagementPanel.d.ts",
+      "default": "./dist/library/local-replay/DeviceManagementPanel.js"
+    },
+    "./local-replay/EditSessionMetadataPanel": {
+      "types": "./dist/library/local-replay/EditSessionMetadataPanel.d.ts",
+      "default": "./dist/library/local-replay/EditSessionMetadataPanel.js"
+    },
+    "./local-replay/HostHealthPanel": {
+      "types": "./dist/library/local-replay/HostHealthPanel.d.ts",
+      "default": "./dist/library/local-replay/HostHealthPanel.js"
+    },
+    "./local-replay/HostManagementPanel": {
+      "types": "./dist/library/local-replay/HostManagementPanel.d.ts",
+      "default": "./dist/library/local-replay/HostManagementPanel.js"
+    },
+    "./local-replay/LocalReplayApp": {
+      "types": "./dist/library/local-replay/LocalReplayApp.d.ts",
+      "default": "./dist/library/local-replay/LocalReplayApp.js"
+    },
+    "./local-replay/RemoteRunnerPanel": {
+      "types": "./dist/library/local-replay/RemoteRunnerPanel.d.ts",
+      "default": "./dist/library/local-replay/RemoteRunnerPanel.js"
+    },
+    "./local-replay/SessionAdministrationPanel": {
+      "types": "./dist/library/local-replay/SessionAdministrationPanel.d.ts",
+      "default": "./dist/library/local-replay/SessionAdministrationPanel.js"
+    },
+    "./local-replay/SessionExplorer": {
+      "types": "./dist/library/local-replay/SessionExplorer.d.ts",
+      "default": "./dist/library/local-replay/SessionExplorer.js"
+    },
+    "./local-replay/SessionIcon": {
+      "types": "./dist/library/local-replay/SessionIcon.d.ts",
+      "default": "./dist/library/local-replay/SessionIcon.js"
+    },
+    "./local-replay/ShareLocalSessionModal": {
+      "types": "./dist/library/local-replay/ShareLocalSessionModal.d.ts",
+      "default": "./dist/library/local-replay/ShareLocalSessionModal.js"
+    },
+    "./local-replay/SimulatorControlView": {
+      "types": "./dist/library/local-replay/SimulatorControlView.d.ts",
+      "default": "./dist/library/local-replay/SimulatorControlView.js"
+    },
+    "./local-replay/TaskExtractionPanel": {
+      "types": "./dist/library/local-replay/TaskExtractionPanel.d.ts",
+      "default": "./dist/library/local-replay/TaskExtractionPanel.js"
+    },
+    "./local-replay/TaskSourceViewer": {
+      "types": "./dist/library/local-replay/TaskSourceViewer.d.ts",
+      "default": "./dist/library/local-replay/TaskSourceViewer.js"
+    },
+    "./local-replay/TeamSessionExplorer": {
+      "types": "./dist/library/local-replay/TeamSessionExplorer.d.ts",
+      "default": "./dist/library/local-replay/TeamSessionExplorer.js"
+    },
+    "./local-replay/TestExecutionPanel": {
+      "types": "./dist/library/local-replay/TestExecutionPanel.d.ts",
+      "default": "./dist/library/local-replay/TestExecutionPanel.js"
+    },
+    "./local-replay/TestHistoryPanel": {
+      "types": "./dist/library/local-replay/TestHistoryPanel.d.ts",
+      "default": "./dist/library/local-replay/TestHistoryPanel.js"
+    },
+    "./local-replay/TraceSourceCodeEditor": {
+      "types": "./dist/library/local-replay/TraceSourceCodeEditor.d.ts",
+      "default": "./dist/library/local-replay/TraceSourceCodeEditor.js"
+    },
+    "./local-replay/TrendsPanel": {
+      "types": "./dist/library/local-replay/TrendsPanel.d.ts",
+      "default": "./dist/library/local-replay/TrendsPanel.js"
+    },
+    "./local-replay/TypeScriptTaskEditor": {
+      "types": "./dist/library/local-replay/TypeScriptTaskEditor.d.ts",
+      "default": "./dist/library/local-replay/TypeScriptTaskEditor.js"
+    },
+    "./local-replay/artifactLinks": {
+      "types": "./dist/library/local-replay/artifactLinks.d.ts",
+      "default": "./dist/library/local-replay/artifactLinks.js"
+    },
+    "./local-replay/localSessionData": {
+      "types": "./dist/library/local-replay/localSessionData.d.ts",
+      "default": "./dist/library/local-replay/localSessionData.js"
+    },
+    "./local-replay/main": {
+      "types": "./dist/library/local-replay/main.d.ts",
+      "default": "./dist/library/local-replay/main.js"
+    },
+    "./local-replay/monacoEnvironment": {
+      "types": "./dist/library/local-replay/monacoEnvironment.d.ts",
+      "default": "./dist/library/local-replay/monacoEnvironment.js"
+    },
+    "./local-replay/replay-shell": "./dist/library/local-replay/replay-shell.css",
+    "./local-replay/replay-theme": "./dist/library/local-replay/replay-theme.css",
+    "./local-replay/sessionLinks": {
+      "types": "./dist/library/local-replay/sessionLinks.d.ts",
+      "default": "./dist/library/local-replay/sessionLinks.js"
+    },
+    "./local-replay/sessionOperationStream": {
+      "types": "./dist/library/local-replay/sessionOperationStream.d.ts",
+      "default": "./dist/library/local-replay/sessionOperationStream.js"
+    },
+    "./local-replay/simulatorCommandQueue": {
+      "types": "./dist/library/local-replay/simulatorCommandQueue.d.ts",
+      "default": "./dist/library/local-replay/simulatorCommandQueue.js"
+    },
+    "./local-replay/simulatorVideoProgress": {
+      "types": "./dist/library/local-replay/simulatorVideoProgress.d.ts",
+      "default": "./dist/library/local-replay/simulatorVideoProgress.js"
+    },
+    "./local-replay/taskCallTrace": {
+      "types": "./dist/library/local-replay/taskCallTrace.d.ts",
+      "default": "./dist/library/local-replay/taskCallTrace.js"
+    },
+    "./local-replay/taskSourceTrace": {
+      "types": "./dist/library/local-replay/taskSourceTrace.d.ts",
+      "default": "./dist/library/local-replay/taskSourceTrace.js"
+    },
+    "./local-replay/types": {
+      "types": "./dist/library/local-replay/types.d.ts",
+      "default": "./dist/library/local-replay/types.js"
+    },
+    "./local-replay/usage": {
+      "types": "./dist/library/local-replay/usage.d.ts",
+      "default": "./dist/library/local-replay/usage.js"
+    },
+    "./replay/LiveVisualTreeCaptureToolbar": {
+      "types": "./dist/library/replay/LiveVisualTreeCaptureToolbar.d.ts",
+      "default": "./dist/library/replay/LiveVisualTreeCaptureToolbar.js"
+    },
+    "./replay/SessionEditModal": {
+      "types": "./dist/library/replay/SessionEditModal.d.ts",
+      "default": "./dist/library/replay/SessionEditModal.js"
+    },
+    "./replay/appGraphModel": {
+      "types": "./dist/library/replay/appGraphModel.d.ts",
+      "default": "./dist/library/replay/appGraphModel.js"
+    },
+    "./replay/components/AppGraphCanvas": {
+      "types": "./dist/library/replay/components/AppGraphCanvas.d.ts",
+      "default": "./dist/library/replay/components/AppGraphCanvas.js"
+    },
+    "./replay/components/ArtifactComparisonExplorer": {
+      "types": "./dist/library/replay/components/ArtifactComparisonExplorer.d.ts",
+      "default": "./dist/library/replay/components/ArtifactComparisonExplorer.js"
+    },
+    "./replay/components/ArtifactDatabaseDiff": {
+      "types": "./dist/library/replay/components/ArtifactDatabaseDiff.d.ts",
+      "default": "./dist/library/replay/components/ArtifactDatabaseDiff.js"
+    },
+    "./replay/components/ArtifactFileActions": {
+      "types": "./dist/library/replay/components/ArtifactFileActions.d.ts",
+      "default": "./dist/library/replay/components/ArtifactFileActions.js"
+    },
+    "./replay/components/DeferredTelemetryStatus": {
+      "types": "./dist/library/replay/components/DeferredTelemetryStatus.d.ts",
+      "default": "./dist/library/replay/components/DeferredTelemetryStatus.js"
+    },
+    "./replay/components/LiveSessionFileExplorer": {
+      "types": "./dist/library/replay/components/LiveSessionFileExplorer.d.ts",
+      "default": "./dist/library/replay/components/LiveSessionFileExplorer.js"
+    },
+    "./replay/components/MediaFilePreview": {
+      "types": "./dist/library/replay/components/MediaFilePreview.d.ts",
+      "default": "./dist/library/replay/components/MediaFilePreview.js"
+    },
+    "./replay/components/SdkCapabilityNotice": {
+      "types": "./dist/library/replay/components/SdkCapabilityNotice.d.ts",
+      "default": "./dist/library/replay/components/SdkCapabilityNotice.js"
+    },
+    "./replay/components/ThreeModelViewer": {
+      "types": "./dist/library/replay/components/ThreeModelViewer.d.ts",
+      "default": "./dist/library/replay/components/ThreeModelViewer.js"
+    },
+    "./replay/components/VirtualizedLogList": {
+      "types": "./dist/library/replay/components/VirtualizedLogList.d.ts",
+      "default": "./dist/library/replay/components/VirtualizedLogList.js"
+    },
+    "./replay/components/VisualTreeInspector": {
+      "types": "./dist/library/replay/components/VisualTreeInspector.d.ts",
+      "default": "./dist/library/replay/components/VisualTreeInspector.js"
+    },
+    "./replay/components/artifactComparison": {
+      "types": "./dist/library/replay/components/artifactComparison.d.ts",
+      "default": "./dist/library/replay/components/artifactComparison.js"
+    },
+    "./replay/components/glbFileContents": {
+      "types": "./dist/library/replay/components/glbFileContents.d.ts",
+      "default": "./dist/library/replay/components/glbFileContents.js"
+    },
+    "./replay/components/liveFilePreview": {
+      "types": "./dist/library/replay/components/liveFilePreview.d.ts",
+      "default": "./dist/library/replay/components/liveFilePreview.js"
+    },
+    "./replay/components/mediaFileFormat": {
+      "types": "./dist/library/replay/components/mediaFileFormat.d.ts",
+      "default": "./dist/library/replay/components/mediaFileFormat.js"
+    },
+    "./replay/components/modelFileData": {
+      "types": "./dist/library/replay/components/modelFileData.d.ts",
+      "default": "./dist/library/replay/components/modelFileData.js"
+    },
+    "./replay/components/virtualLogWindow": {
+      "types": "./dist/library/replay/components/virtualLogWindow.d.ts",
+      "default": "./dist/library/replay/components/virtualLogWindow.js"
+    },
+    "./replay/date": {
+      "types": "./dist/library/replay/date.d.ts",
+      "default": "./dist/library/replay/date.js"
+    },
+    "./replay/deferredTelemetry": {
+      "types": "./dist/library/replay/deferredTelemetry.d.ts",
+      "default": "./dist/library/replay/deferredTelemetry.js"
+    },
+    "./replay/deviceFrame": {
+      "types": "./dist/library/replay/deviceFrame.d.ts",
+      "default": "./dist/library/replay/deviceFrame.js"
+    },
+    "./replay/metricPresentation": {
+      "types": "./dist/library/replay/metricPresentation.d.ts",
+      "default": "./dist/library/replay/metricPresentation.js"
+    },
+    "./replay/pages/AppGraphsPanel": "./dist/library/replay/pages/AppGraphsPanel.css",
+    "./replay/pages/SessionViewerPage": {
+      "types": "./dist/library/replay/pages/SessionViewerPage.d.ts",
+      "default": "./dist/library/replay/pages/SessionViewerPage.js"
+    },
+    "./replay/sessionAiData": {
+      "types": "./dist/library/replay/sessionAiData.d.ts",
+      "default": "./dist/library/replay/sessionAiData.js"
+    },
+    "./replay/sessionAttachmentData": {
+      "types": "./dist/library/replay/sessionAttachmentData.d.ts",
+      "default": "./dist/library/replay/sessionAttachmentData.js"
+    },
+    "./replay/sessionViewerData": {
+      "types": "./dist/library/replay/sessionViewerData.d.ts",
+      "default": "./dist/library/replay/sessionViewerData.js"
+    },
+    "./replay/teamData": {
+      "types": "./dist/library/replay/teamData.d.ts",
+      "default": "./dist/library/replay/teamData.js"
+    },
+    "./replay/timelineCurve": {
+      "types": "./dist/library/replay/timelineCurve.d.ts",
+      "default": "./dist/library/replay/timelineCurve.js"
+    },
+    "./replay/usageData": {
+      "types": "./dist/library/replay/usageData.d.ts",
+      "default": "./dist/library/replay/usageData.js"
+    },
+    "./replay/visualTreeFrame": {
+      "types": "./dist/library/replay/visualTreeFrame.d.ts",
+      "default": "./dist/library/replay/visualTreeFrame.js"
+    },
+    "./App.css": "./dist/library/App.css",
+    "./index.css": "./dist/library/index.css",
+    "./local-replay/replay-theme.css": "./dist/library/local-replay/replay-theme.css",
+    "./local-replay/replay-shell.css": "./dist/library/local-replay/replay-shell.css",
+    "./replay/components/SdkCapabilityNotice.css": "./dist/library/replay/components/SdkCapabilityNotice.css",
+    "./replay/components/ArtifactFileActions.css": "./dist/library/replay/components/ArtifactFileActions.css",
+    "./replay/components/MediaFilePreview.css": "./dist/library/replay/components/MediaFilePreview.css",
+    "./replay/components/ArtifactComparisonExplorer.css": "./dist/library/replay/components/ArtifactComparisonExplorer.css",
+    "./replay/pages/AppGraphsPanel.css": "./dist/library/replay/pages/AppGraphsPanel.css"
+  },
+  "peerDependencies": {
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

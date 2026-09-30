@@ -1,0 +1,2333 @@
+/* Local explorer visual theme, following the site's SessionReplayMock: rail-coloured
+   chrome, a white content pane with grey panels inside it, pill tags, and mono
+   metadata. Every rule is scoped to .local-replay-root and restyles existing
+   elements only. */
+
+.local-replay-root {
+  --rp-bg: #ffffff;
+  --rp-panel: #f2f2ee;
+  --rp-line: rgba(0, 0, 0, 0.09);
+  --rp-text: #1a1a1e;
+  --rp-muted: #6b6b75;
+  --rp-rail: #f2f2ee;
+  --rp-tag: rgba(125, 125, 135, 0.14);
+  --rp-hover: rgba(125, 125, 135, 0.09);
+  --rp-accent-soft: rgba(250, 68, 31, 0.12);
+  --danger: #d4483c;
+  --local-explorer-width: 236px;
+  --local-session-context-height: 0px;
+  position: relative;
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+  /* Own stacking context, so the ::after pane paints above this background. */
+  isolation: isolate;
+  color: var(--rp-text);
+  background: var(--rp-rail);
+}
+
+.local-replay-root.local-replay-root--has-session-context {
+  --local-session-context-height: 52px;
+}
+
+:root[data-theme='dark'] .local-replay-root {
+  --danger: #ff7b6b;
+  --rp-bg: #17171b;
+  --rp-panel: #131317;
+  --rp-line: rgba(255, 255, 255, 0.1);
+  --rp-text: #f2f2f0;
+  --rp-muted: #9a9aa4;
+  --rp-rail: #131317;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .local-replay-root {
+    --danger: #ff7b6b;
+    --rp-bg: #17171b;
+    --rp-panel: #131317;
+    --rp-line: rgba(255, 255, 255, 0.1);
+    --rp-text: #f2f2f0;
+    --rp-muted: #9a9aa4;
+    --rp-rail: #131317;
+  }
+}
+
+/* ---------- Content pane ---------- */
+
+/* The white pane the session header, viewer, and device column sit on; its
+   rounded top-left corner reveals the rail chrome, as in the reference. */
+.local-replay-root::after {
+  content: '';
+  position: fixed;
+  top: var(--local-banner-height);
+  right: 0;
+  bottom: 0;
+  left: var(--local-explorer-width);
+  z-index: -1;
+  background: var(--rp-bg);
+  border-top: 1px solid var(--rp-line);
+  border-left: 1px solid var(--rp-line);
+  border-radius: 20px 0 0 0;
+  pointer-events: none;
+}
+
+.local-replay-root .local-replay-layout {
+  height: 100vh;
+  min-height: 0;
+  padding-top: 0;
+}
+
+/* ---------- Layering ---------- */
+
+/* The fixed chrome stays above page content but below every modal backdrop
+   (the lowest one in the app is 12), so popups always cover the whole window. */
+.local-replay-root .local-replay-banner {
+  z-index: 10;
+}
+
+.local-replay-root .local-session-context-toolbar,
+.local-replay-root.local-replay-root--collapsed .local-session-context-toolbar {
+  z-index: 9;
+}
+
+.local-replay-root .local-session-explorer {
+  z-index: 8;
+}
+
+/* ---------- Banner (window chrome strip) ---------- */
+
+.local-replay-root .local-replay-banner {
+  padding: 0 14px 0 14px;
+  color: var(--rp-muted);
+  background: transparent;
+  border-bottom: 0;
+  backdrop-filter: none;
+}
+
+.local-replay-root .local-replay-brand {
+  gap: 11px;
+  height: 18px;
+}
+
+.local-replay-root .local-replay-brand > .local-banner-button--icon {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+/* Cropped wordmark, as on the site: the logo file carries whitespace. */
+.local-replay-root .local-replay-brand > span {
+  display: block;
+  width: calc(18px * 808 / 222);
+  height: 18px;
+  overflow: hidden;
+  color: transparent;
+  background: url('../assets/ansight-logo.png') center / 134.158% 196.396% no-repeat;
+  font-size: 0;
+}
+
+.local-replay-root .local-replay-brand > small {
+  display: inline-flex;
+  align-self: stretch;
+  align-items: center;
+  padding-left: 11px;
+  color: var(--rp-muted);
+  border-left: 1px solid var(--rp-line);
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1;
+  text-transform: none;
+}
+
+.local-replay-root .local-host-status {
+  color: var(--rp-muted);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* ---------- Hover descriptions ---------- */
+
+.local-replay-root .local-host-status-tooltip {
+  color: var(--rp-text);
+  background: var(--rp-bg);
+  border-color: var(--rp-line);
+  box-shadow: 0 6px 18px rgba(15, 15, 18, 0.12);
+}
+
+/* Icon-only controls describe themselves after a short hover; the text sits
+   in data-tooltip so the native title bubble does not double up. */
+.local-replay-root [data-tooltip] {
+  position: relative;
+}
+
+.local-replay-root [data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  z-index: 40;
+  width: max-content;
+  max-width: 240px;
+  padding: 5px 8px;
+  color: var(--rp-text);
+  background: var(--rp-bg);
+  border: 1px solid var(--rp-line);
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(15, 15, 18, 0.12);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: 0;
+  text-align: center;
+  text-transform: none;
+  white-space: normal;
+  opacity: 0;
+  transform: translate(-50%, -2px);
+  pointer-events: none;
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.local-replay-root [data-tooltip][data-tooltip-align='end']::after {
+  right: 0;
+  left: auto;
+  transform: translate(0, -2px);
+}
+
+.local-replay-root [data-tooltip]:hover::after,
+.local-replay-root [data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  transition-delay: 650ms;
+}
+
+.local-replay-root [data-tooltip][data-tooltip-align='end']:hover::after,
+.local-replay-root [data-tooltip][data-tooltip-align='end']:focus-visible::after {
+  transform: translate(0, 0);
+}
+
+/* ---------- Chip buttons ---------- */
+
+.local-replay-root .local-banner-button,
+.local-replay-root .local-icon-button {
+  min-height: 30px;
+  padding: 0 11px;
+  color: var(--rp-muted);
+  background: var(--rp-bg);
+  border: 1px solid var(--rp-line);
+  border-radius: 7px;
+  box-shadow: none;
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.local-replay-root .local-banner-button--icon {
+  padding: 0;
+}
+
+/* Icon-only buttons centre their glyph; the base sheet leaves these as inline blocks. */
+.local-replay-root .local-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  min-height: 30px;
+  padding: 0;
+}
+
+.local-replay-root .local-icon-button svg {
+  display: block;
+}
+
+.local-replay-root .local-banner-button:hover,
+.local-replay-root .local-icon-button:hover {
+  color: var(--rp-text);
+  border-color: var(--rp-line);
+}
+
+.local-replay-root .local-banner-button--active,
+.local-replay-root .local-banner-button--active:hover {
+  color: var(--rp-text);
+  background: var(--rp-panel);
+  border-color: var(--rp-line);
+}
+
+/* ---------- Banner actions ---------- */
+
+.local-replay-root .local-replay-actions {
+  gap: 10px;
+}
+
+/* Status readouts: quiet mono text beside their icons. */
+.local-replay-root .local-host-status {
+  gap: 5px;
+  color: var(--rp-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.local-replay-root .local-host-status svg {
+  width: 14px;
+  height: 14px;
+}
+
+.local-replay-root .local-runner-status {
+  min-height: 28px;
+  padding: 0 6px;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+}
+
+.local-replay-root .local-runner-status:hover {
+  color: var(--rp-text);
+  background: var(--rp-hover);
+}
+
+/* Primary navigation: a segmented control like the rail's Local/Team switch. */
+.local-replay-root .local-global-navigation {
+  gap: 2px;
+  padding: 3px;
+  background: rgba(125, 125, 135, 0.1);
+  border: 0;
+  border-radius: 9px;
+}
+
+.local-replay-root .local-global-navigation .local-banner-button {
+  min-height: 26px;
+  padding: 0 10px;
+  color: var(--rp-muted);
+  background: transparent;
+  border-color: transparent;
+  border-radius: 6px;
+  box-shadow: none;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.local-replay-root .local-global-navigation .local-banner-button:hover {
+  color: var(--rp-text);
+  background: transparent;
+  border-color: transparent;
+}
+
+.local-replay-root .local-global-navigation .local-banner-button--active,
+.local-replay-root .local-global-navigation .local-banner-button--active:hover {
+  color: var(--rp-text);
+  background: var(--rp-bg);
+  border-color: transparent;
+  box-shadow: 0 1px 2px rgba(26, 26, 30, 0.1);
+}
+
+/* Manage and pairing are ghost buttons that light up on hover. */
+.local-replay-root .local-manage-menu > .local-banner-button,
+.local-replay-root .local-pairing-qr-button {
+  color: var(--rp-muted);
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.local-replay-root .local-manage-menu > .local-banner-button:hover,
+.local-replay-root .local-pairing-qr-button:hover:not(:disabled) {
+  color: var(--rp-text);
+  background: var(--rp-hover);
+  border-color: transparent;
+}
+
+/* ---------- Session rail ---------- */
+
+.local-replay-root .local-session-explorer {
+  gap: 10px;
+  padding: 4px 8px 8px;
+  background: var(--rp-rail);
+  border-right: 0;
+}
+
+.local-replay-root .local-session-explorer-heading {
+  padding-inline: 0;
+}
+
+.local-replay-root .local-session-source-toggle {
+  padding: 2px;
+  background: rgba(125, 125, 135, 0.1);
+  border: 0;
+  border-radius: 7px;
+}
+
+.local-replay-root .local-session-source-toggle button {
+  min-height: 24px;
+  padding: 0 10px;
+  color: var(--rp-muted);
+  border-radius: 5px;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.local-replay-root .local-session-source-toggle .local-session-source-toggle--active {
+  color: var(--rp-text);
+  background: var(--rp-bg);
+  box-shadow: none;
+}
+
+/* Ghost button: lights up on hover like the session rows beside it. */
+.local-replay-root .local-session-explorer-toggle,
+.local-replay-root .local-session-explorer-toggle:hover {
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+  background: transparent;
+  border-color: transparent;
+}
+
+.local-replay-root .local-session-explorer-toggle:hover {
+  color: var(--rp-text);
+  background: var(--rp-hover);
+}
+
+.local-replay-root .local-session-search,
+.local-replay-root .local-session-search:focus-within {
+  min-height: 30px;
+  padding: 0 9px;
+  background: var(--rp-bg);
+  border-color: transparent;
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+.local-replay-root .local-session-search input {
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.local-replay-root .local-session-list {
+  gap: 6px;
+}
+
+.local-replay-root .local-session-day-group > h2 {
+  padding: 8px 4px 7px;
+  color: var(--rp-muted);
+  background: var(--rp-rail);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.local-replay-root .local-session-card {
+  border-color: transparent;
+  border-radius: 10px;
+}
+
+.local-replay-root .local-session-card:hover {
+  background: var(--rp-hover);
+  border-color: transparent;
+}
+
+/* Selection is carried by the pane colour alone: no border, no accent tint. */
+.local-replay-root .local-session-card--selected,
+.local-replay-root .local-session-card--selected:hover {
+  background: var(--rp-bg);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+/* Compact rows for the narrow rail: the pin stays at the edge, delete joins it on hover. */
+.local-replay-root .local-session-card-select {
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 8px;
+  padding: 8px 36px 8px 8px;
+  border-radius: 10px;
+}
+
+.local-replay-root .local-session-card-content {
+  gap: 2px;
+}
+
+.local-replay-root .local-session-icon-wrapper,
+.local-replay-root .local-session-icon {
+  width: 32px;
+  height: 32px;
+}
+
+.local-replay-root .local-session-icon {
+  background: linear-gradient(150deg, #f4a58e, var(--accent));
+  border: 0;
+  border-radius: 7px;
+}
+
+.local-replay-root .local-session-icon > svg {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Platform mark: a bare black glyph on the icon corner, no box. A faint white
+   halo keeps it legible over dark artwork. */
+.local-replay-root .local-session-platform-badge {
+  right: -6px;
+  bottom: -5px;
+  left: auto;
+  width: 16px;
+  height: 16px;
+  color: var(--rp-text);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  filter: drop-shadow(0 0 1.5px rgba(255, 255, 255, 0.95));
+}
+
+.local-replay-root .local-session-platform-badge > svg {
+  width: 14px;
+  height: 14px;
+}
+
+.local-replay-root .local-session-pin-button,
+.local-replay-root .local-session-delete-button {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+}
+
+.local-replay-root .local-session-pin-button {
+  right: 6px;
+}
+
+.local-replay-root .local-session-delete-button {
+  right: 32px;
+}
+
+.local-replay-root .local-session-card-title strong {
+  color: var(--rp-text);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.local-replay-root .local-session-card-meta > span {
+  color: var(--rp-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* ---------- Session header ---------- */
+
+.local-replay-root .local-session-context-toolbar {
+  top: calc(var(--local-banner-height) + 1px);
+  left: calc(var(--local-explorer-width) + 1px);
+  gap: 6px;
+  padding: 0 16px;
+  color: var(--rp-muted);
+  background: var(--rp-bg);
+  border-bottom: 0;
+  border-radius: 19px 0 0 0;
+  transition: none;
+}
+
+/* Actions end where the player's cards end, clear of the device column; the
+   formula mirrors --session-replay-panel-effective-width plus the shell and
+   viewer padding. */
+.local-replay-root .local-session-context-toolbar {
+  padding-right: calc(min(var(--session-replay-panel-width, 384px), calc(100vw - var(--local-explorer-width) - 620px)) + 22px + 16px);
+}
+
+.local-replay-root.local-replay-root--collapsed .local-session-context-toolbar {
+  padding-right: calc(min(var(--session-replay-panel-width, 384px), calc(100vw - 620px)) + 22px + 16px);
+}
+
+/* Session actions are icon-only ghost buttons; their text stays for assistive tech. */
+.local-replay-root .local-session-context-toolbar .local-banner-button {
+  gap: 0;
+  width: 30px;
+  padding: 0;
+  color: var(--rp-muted);
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  font-size: 0;
+}
+
+.local-replay-root .local-session-context-toolbar .local-banner-button:hover:not(:disabled) {
+  color: var(--rp-text);
+  background: var(--rp-hover);
+  border-color: transparent;
+}
+
+.local-replay-root .local-session-context-toolbar .local-banner-button--active,
+.local-replay-root .local-session-context-toolbar .local-banner-button--active:hover {
+  color: var(--rp-text);
+  background: var(--rp-tag);
+  border-color: transparent;
+}
+
+.local-replay-root .local-session-context-toolbar .local-session-context-delete:hover:not(:disabled) {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
+/* The app's icon leads the session title, as in the reference header. */
+.local-replay-root .local-session-context-icon {
+  display: flex;
+  flex: 0 0 auto;
+  margin-right: 10px;
+}
+
+.local-replay-root .local-session-context-icon .local-session-icon-wrapper,
+.local-replay-root .local-session-context-icon .local-session-icon {
+  width: 34px;
+  height: 34px;
+}
+
+.local-replay-root .local-session-context-icon .local-session-icon {
+  border-radius: 8px;
+}
+
+.local-replay-root .local-session-context-title {
+  gap: 0;
+  max-width: 420px;
+  margin-right: 8px;
+}
+
+.local-replay-root .local-session-context-title strong {
+  color: var(--rp-text);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.local-replay-root .local-session-id {
+  color: var(--rp-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+/* ---------- Viewer (scrolls inside the pane) ---------- */
+
+/* Absolute inside the viewport-sized root rather than fixed: a fixed box is its own
+   stacking context and would trap the player's modals beneath the chrome. */
+.local-replay-root .local-replay-viewer {
+  position: absolute;
+  top: calc(var(--local-workspace-top) + 1px);
+  right: 0;
+  bottom: 0;
+  left: calc(var(--local-explorer-width) + 1px);
+  min-height: 0;
+  margin: 0;
+  padding: 14px 16px 18px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: transparent;
+  transition: none;
+}
+
+.local-replay-root .session-viewer-dashboard,
+.local-replay-root .session-viewer-dashboard .session-player-shell {
+  gap: 12px;
+}
+
+/* ---------- Panels ---------- */
+
+.local-replay-root .session-viewer-dashboard .timeline-panel,
+.local-replay-root .session-viewer-dashboard .live-log-panel:not(.live-log-panel--tab),
+.local-replay-root .session-viewer-dashboard > .panel {
+  padding: 14px;
+  background: var(--rp-panel);
+  border: 1px solid var(--rp-line);
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.local-replay-root .session-viewer-dashboard .timeline-title-block {
+  gap: 2px;
+}
+
+.local-replay-root .session-viewer-dashboard .timeline-title-block::before {
+  content: 'Telemetry';
+  color: var(--rp-text);
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.local-replay-root .session-viewer-dashboard .timeline-title-block > span {
+  color: var(--rp-muted);
+  font-size: 11px;
+}
+
+.local-replay-root .session-viewer-dashboard .timeline-chart-actions button,
+.local-replay-root .session-viewer-dashboard .timeline-zoom-button {
+  min-height: 26px;
+  padding: 0 9px;
+  color: var(--rp-text);
+  background: var(--rp-bg);
+  border: 1px solid var(--rp-line);
+  border-radius: 6px;
+  box-shadow: none;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Accent variant, as the reference's "Annotate" tool. */
+.local-replay-root .session-viewer-dashboard .timeline-chart-actions .timeline-edit-button,
+.local-replay-root .session-viewer-dashboard .timeline-chart-actions .timeline-edit-button:hover,
+.local-replay-root .session-viewer-dashboard .timeline-chart-actions .timeline-edit-button--active {
+  color: var(--accent);
+  border-color: rgba(250, 68, 31, 0.5);
+}
+
+.local-replay-root .session-viewer-dashboard .timeline-chart-actions .timeline-edit-button:hover,
+.local-replay-root .session-viewer-dashboard .timeline-chart-actions .timeline-edit-button--active {
+  border-color: var(--accent);
+  background: var(--rp-accent-soft);
+}
+
+.local-replay-root .session-viewer-dashboard .timeline-legend {
+  gap: 3px 12px;
+  color: var(--rp-text);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.local-replay-root .session-viewer-dashboard .timeline-legend button {
+  padding: 2px 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.local-replay-root .session-viewer-dashboard .timeline-legend i:not(.timeline-legend-app-state):not(.timeline-legend-touch-swatch) {
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+.local-replay-root .session-viewer-dashboard .timeline-legend i.timeline-legend-touch-swatch {
+  width: 6px;
+  height: 6px;
+  background: var(--accent);
+  border-radius: 50%;
+}
+
+/* Sampled from the solid pixels in src/assets/ansight-logo.png: #fa431f.
+   Use its OKLCH lightness and chroma as the base, retaining each series' hue.
+   Yellow is deliberately lighter: orange-level lightness makes it mustard.
+   The browser gamut-maps hues that cannot reproduce that chroma in sRGB. */
+.local-replay-root .session-viewer-dashboard {
+  --timeline-series-orange: #fa431f;
+  --timeline-series-yellow: #edc600;
+  --timeline-series-lightness: 0.6509993873;
+  --timeline-series-chroma: 0.2239265069;
+}
+
+/* Share the exact logo orange across the chart cursor, touches and controls. */
+.local-replay-root .session-viewer-dashboard .timeline-panel {
+  --accent: var(--timeline-series-orange);
+}
+
+.local-replay-root .session-viewer-dashboard .timeline-snapshot-marker {
+  fill: oklch(from #38bdf8 var(--timeline-series-lightness) var(--timeline-series-chroma) h);
+  opacity: 1;
+}
+
+.local-replay-root .session-viewer-dashboard .timeline-artifact-marker {
+  fill: oklch(from #22c55e var(--timeline-series-lightness) var(--timeline-series-chroma) h);
+  opacity: 1;
+}
+
+.local-replay-root .session-viewer-dashboard .timeline-legend i.timeline-legend-touch-swatch,
+.local-replay-root .session-viewer-dashboard .timeline-scrubber-touch {
+  background: var(--timeline-series-orange);
+}
+
+.local-replay-root .timeline-series,
+.local-replay-root .timeline-series-point {
+  opacity: 1;
+  stroke-opacity: 1;
+  fill-opacity: 1;
+}
+
+.local-replay-root .session-viewer-dashboard .timeline-legend-app-state {
+  background: linear-gradient(90deg, oklch(var(--timeline-series-lightness) var(--timeline-series-chroma) 145), var(--timeline-series-yellow));
+}
+
+/* Chart: white plot on the grey panel, mono axes, accent cursor. */
+.local-replay-root .session-viewer-dashboard .timeline-chart-stage .timeline-plot-bg {
+  fill: var(--rp-bg);
+  stroke: none;
+}
+
+.local-replay-root .session-viewer-dashboard .timeline-chart-stage .timeline-y-grid-line {
+  stroke: color-mix(in srgb, var(--rp-text) 5%, transparent);
+}
+
+.local-replay-root .session-viewer-dashboard .timeline-chart-stage .timeline-axis-label {
+  fill: var(--rp-muted);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+}
+
+.local-replay-root .session-viewer-dashboard .timeline-chart-stage .timeline-axis-title {
+  fill: var(--rp-muted);
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.local-replay-root .session-viewer-dashboard .timeline-chart-stage .timeline-scrub-line {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+
+.local-replay-root .session-viewer-dashboard .timeline-chart-stage .timeline-scrub-handle {
+  fill: var(--accent);
+}
+
+.local-replay-root .session-viewer-dashboard .timeline-chart-stage .timeline-probe-panel rect {
+  fill: var(--rp-bg);
+  stroke: var(--rp-line);
+}
+
+.local-replay-root .session-viewer-dashboard .timeline-chart-stage .timeline-probe-panel text {
+  fill: var(--rp-text);
+}
+
+.local-replay-root .session-viewer-dashboard .timeline-chart-stage .timeline-probe-line {
+  stroke: var(--rp-muted);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+
+/* Tools sits in the card's top-right corner, level with the title. */
+.local-replay-root .session-viewer-dashboard .timeline-panel {
+  position: relative;
+}
+
+.local-replay-root .session-viewer-dashboard .timeline-chart-actions {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+}
+
+.local-replay-root .session-viewer-dashboard .timeline-scrubber {
+  padding-top: 22px;
+}
+
+.local-replay-root .session-viewer-dashboard .timeline-scrubber-track {
+  height: 34px;
+  background: var(--rp-bg);
+  border: 0;
+  border-radius: 6px;
+}
+
+/* The zoomed range spans the full track height. */
+.local-replay-root .session-viewer-dashboard .timeline-visible-window {
+  top: 0;
+  bottom: 0;
+}
+
+.local-replay-root .session-viewer-dashboard .timeline-scrubber-tick {
+  background: var(--rp-muted);
+  opacity: 0.7;
+}
+
+/* Ticks stay neutral so orange on the track means a touch. */
+.local-replay-root .session-viewer-dashboard .timeline-scrubber-tick--major {
+  background: var(--rp-muted);
+  opacity: 0.9;
+}
+
+.local-replay-root .session-viewer-dashboard .timeline-scrubber-label {
+  padding: 2px 6px;
+  color: #ffffff;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+/* ---------- Evidence tabs ---------- */
+
+/* The evidence card opens with a compact tab strip and filter row. */
+.local-replay-root .session-viewer-dashboard > .panel {
+  padding-top: 10px;
+}
+
+.local-replay-root .session-viewer-dashboard .viewer-tabs {
+  gap: 18px;
+  margin: 0 0 6px;
+  padding: 0;
+  border-bottom: 1px solid var(--rp-line);
+}
+
+.local-replay-root .session-viewer-dashboard .viewer-tab {
+  gap: 7px;
+  min-height: 0;
+  padding: 0 0 6px;
+  color: var(--rp-muted);
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.local-replay-root .session-viewer-dashboard .viewer-tab svg {
+  width: 15px;
+  height: 15px;
+  color: currentColor;
+}
+
+.local-replay-root .session-viewer-dashboard .viewer-tab:hover {
+  color: var(--rp-text);
+}
+
+.local-replay-root .session-viewer-dashboard .viewer-tab--active,
+.local-replay-root .session-viewer-dashboard .viewer-tab--active:hover {
+  color: var(--accent);
+  background: none;
+  border-bottom-color: var(--accent);
+}
+
+.local-replay-root .session-viewer-dashboard .viewer-tab-badge {
+  min-width: 0;
+  padding: 1px 6px;
+  color: var(--rp-text);
+  background: var(--rp-tag);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.local-replay-root .session-viewer-dashboard .viewer-tab--active .viewer-tab-badge {
+  color: var(--accent);
+  background: var(--rp-accent-soft);
+}
+
+/* ---------- Log filters and table ---------- */
+
+.local-replay-root .session-viewer-dashboard .live-log-filters {
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 6px;
+  align-items: center;
+  margin-top: 6px;
+  padding: 0;
+}
+
+.local-replay-root .session-viewer-dashboard .live-log-filter-clear {
+  width: 28px;
+  min-width: 0;
+  height: 28px;
+  padding: 0;
+  border-color: transparent;
+}
+
+.local-replay-root .session-viewer-dashboard .live-log-filter {
+  position: relative;
+  gap: 0;
+}
+
+/* The controls read on their own, as in the reference; labels stay for assistive tech. */
+.local-replay-root .session-viewer-dashboard .live-log-filter-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.local-replay-root .session-viewer-dashboard .live-log-filter-control {
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 9px;
+  background: var(--rp-bg);
+  border-color: transparent;
+  border-radius: 6px;
+}
+
+/* Borderless fields: focus shows through the caret, not a ring. */
+.local-replay-root .session-viewer-dashboard .live-log-filter-control:focus-within {
+  border-color: transparent;
+  outline: 0;
+  box-shadow: none;
+}
+
+.local-replay-root .session-viewer-dashboard .live-log-filter-control svg {
+  width: 14px;
+  height: 14px;
+}
+
+.local-replay-root .session-viewer-dashboard .live-log-filter-control input,
+.local-replay-root .session-viewer-dashboard .live-log-filter-control select {
+  color: var(--rp-text);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.local-replay-root .session-viewer-dashboard .live-log-filter-control input::placeholder {
+  color: var(--rp-muted);
+  font-weight: 400;
+}
+
+.local-replay-root .session-viewer-dashboard .live-log-stream-picker-button {
+  color: var(--rp-text);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.local-replay-root .session-viewer-dashboard .live-log-stream-picker-list {
+  background: var(--rp-bg);
+  border-color: var(--rp-line);
+  box-shadow: 0 8px 24px rgba(26, 26, 30, 0.12);
+}
+
+.local-replay-root .session-viewer-dashboard .live-log-stream-picker-option {
+  color: var(--rp-text);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.local-replay-root .session-viewer-dashboard .live-log-stream-picker-option--active {
+  background: var(--rp-hover);
+}
+
+.local-replay-root .session-viewer-dashboard .live-log-filter-menu-button {
+  min-width: 0;
+  height: 28px;
+  padding: 0 9px;
+  color: var(--rp-text);
+  background: var(--rp-bg);
+  border-color: transparent;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.local-replay-root .session-viewer-dashboard .live-log-panel--tab {
+  gap: 4px;
+}
+
+.local-replay-root .session-viewer-dashboard .live-log-list {
+  margin-top: 0;
+  border-top: 0;
+}
+
+.local-replay-root .session-viewer-dashboard .live-log-row {
+  grid-template-columns: 104px 118px minmax(0, 1fr);
+  gap: 10px;
+  padding: 6px 8px;
+  background: transparent;
+  border-bottom: 1px solid var(--rp-line);
+  box-shadow: none;
+}
+
+.local-replay-root .session-viewer-dashboard .live-log-row--header {
+  background: var(--rp-panel);
+  box-shadow: none;
+}
+
+.local-replay-root .live-log-virtual-rows .live-log-row {
+  height: 36px;
+}
+
+.local-replay-root .session-viewer-dashboard .live-log-row--header span {
+  color: var(--rp-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Neutral row states: the current row reads as selected, not alarmed. */
+.local-replay-root .session-viewer-dashboard .live-log-row:not(.live-log-row--header):hover {
+  background: var(--rp-hover);
+}
+
+.local-replay-root .session-viewer-dashboard .live-log-row--active,
+.local-replay-root .session-viewer-dashboard .live-log-row--active:hover {
+  background: var(--rp-tag);
+}
+
+.local-replay-root .live-log-time {
+  color: var(--rp-muted);
+  font-size: 12px;
+}
+
+.local-replay-root .live-log-message {
+  color: var(--rp-text);
+  font-size: 12px;
+}
+
+/* The level column is a tag pill; only errors and warnings carry colour. */
+.local-replay-root .live-log-level,
+.local-replay-root .live-log-level--trace,
+.local-replay-root .live-log-level--default,
+.local-replay-root .live-log-level--info,
+.local-replay-root .live-log-level--debug {
+  padding: 2px 8px;
+  color: var(--rp-text);
+  background: var(--rp-tag);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.local-replay-root .live-log-level--error {
+  color: #d4483c;
+  background: rgba(212, 72, 60, 0.14);
+}
+
+.local-replay-root .live-log-level--warn {
+  color: #b9860b;
+  background: rgba(185, 134, 11, 0.14);
+}
+
+/* ---------- Device column ---------- */
+
+.local-replay-root .session-viewer-dashboard .session-screenshot-panel {
+  top: calc(var(--local-workspace-top) + 1px);
+  right: 0;
+  bottom: 0;
+  height: auto;
+  /* The base sheet pins this fixed column to the top at content height; stretch it so
+     the phone (align-self: center) sits in the middle of the column. */
+  align-self: stretch;
+  padding: 16px 16px 16px 10px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.local-replay-root .session-viewer-dashboard .session-replay-resize-handle::before {
+  background: transparent;
+}
+
+.local-replay-root .session-viewer-dashboard .session-replay-resize-handle span {
+  width: 5px;
+  height: 44px;
+  opacity: 0.35;
+}
+
+/* iPhone body: bezel and screen corners only; captures carry their own status bar. */
+.local-replay-root .session-viewer-dashboard .session-frame-stage--phone {
+  padding: 6px;
+  background: #101014;
+  border: 0;
+  border-radius: 34px;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.09) inset,
+    6px 10px 22px -6px rgba(15, 15, 18, 0.32);
+}
+
+.local-replay-root .session-viewer-dashboard .session-frame-stage--phone .session-frame-viewport {
+  background: var(--rp-panel);
+  border-radius: 28px;
+}
+
+/* ---------- Status toast ---------- */
+
+/* One-off notices (export saved, host messages) float as a toast over the pane
+   instead of pushing the player down. */
+.local-replay-root .local-replay-viewer > .local-replay-message {
+  position: fixed;
+  bottom: 24px;
+  left: calc((100vw + var(--local-explorer-width)) / 2);
+  z-index: 30;
+  max-width: min(720px, calc(100vw - var(--local-explorer-width) - 48px));
+  margin: 0;
+  padding: 10px 14px;
+  color: var(--rp-text);
+  background: var(--rp-bg);
+  border: 1px solid var(--rp-line);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(15, 15, 18, 0.14);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.4;
+  transform: translateX(-50%);
+}
+
+.local-replay-root.local-replay-root--collapsed .local-replay-viewer > .local-replay-message {
+  left: 50vw;
+  max-width: min(720px, calc(100vw - 48px));
+}
+
+/* ---------- Player buttons ---------- */
+
+/* The player's generic .button (modals, sheets) takes the explorer's chip look
+   instead of the portal's square mono style. */
+.local-replay-root .session-viewer-dashboard .button {
+  min-height: 32px;
+  padding: 0 14px;
+  border-radius: 7px;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.local-replay-root .session-viewer-dashboard .button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.local-replay-root .session-viewer-dashboard .button--compact {
+  min-height: 26px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.local-replay-root .session-viewer-dashboard .button--secondary {
+  color: var(--rp-text);
+  background: var(--rp-bg);
+  border: 1px solid transparent;
+}
+
+.local-replay-root .session-viewer-dashboard .button--secondary:hover:not(:disabled) {
+  border-color: var(--rp-line);
+}
+
+/* On the white modal a white chip would vanish; use the card grey there. */
+.local-replay-root .session-info-modal .button--secondary:not(.button--icon):not(.session-info-row__copy) {
+  background: var(--rp-panel);
+}
+
+.local-replay-root .session-viewer-dashboard .button--primary,
+.local-replay-root .session-viewer-dashboard .button--primary:hover:not(:disabled) {
+  color: #ffffff;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+}
+
+/* ---------- Session info modal ---------- */
+
+/* Dense layout: a wider sheet, three-up summary, property groups side by side,
+   one-line rows, so the whole thing needs far less scrolling. */
+.local-replay-root .session-info-modal {
+  width: min(1120px, calc(100vw - 48px));
+  padding: 16px 22px 20px;
+  border-color: var(--rp-line);
+  border-radius: 12px;
+}
+
+.local-replay-root .session-info-modal .modal-heading {
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.local-replay-root .session-info-modal .modal-heading .eyebrow {
+  margin: 0;
+  color: var(--rp-muted);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.local-replay-root .session-info-modal .modal-heading h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.local-replay-root .session-info-modal .modal-heading .button--icon {
+  width: 30px;
+  min-height: 30px;
+  height: 30px;
+  padding: 0;
+  color: var(--rp-muted);
+  background: transparent;
+  border-color: transparent;
+}
+
+.local-replay-root .session-info-modal .modal-heading .button--icon:hover {
+  color: var(--rp-text);
+  background: var(--rp-hover);
+}
+
+.local-replay-root .session-info-modal .session-info-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 24px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.local-replay-root .session-info-modal .session-info-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 0;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--rp-line);
+  font-size: 12px;
+}
+
+.local-replay-root .session-info-modal .session-info-row > span {
+  flex: 0 0 auto;
+  color: var(--rp-muted);
+  font-weight: 500;
+}
+
+.local-replay-root .session-info-modal .session-info-row__value {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+  text-align: right;
+}
+
+.local-replay-root .session-info-modal .session-info-row__value strong {
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+}
+
+.local-replay-root .session-info-modal .session-info-row__copy {
+  min-height: 22px;
+  height: 22px;
+  padding: 0 6px;
+  color: var(--rp-muted);
+  background: transparent;
+  border-color: transparent;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.local-replay-root .session-info-modal .session-info-row__copy:hover {
+  color: var(--rp-text);
+  background: var(--rp-hover);
+}
+
+.local-replay-root .session-info-modal .session-property-search {
+  min-height: 32px;
+  height: 32px;
+  margin: 12px 0 4px;
+  padding: 0 10px;
+  border-color: var(--rp-line);
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.local-replay-root .session-info-modal .session-info-section {
+  margin-top: 12px;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.local-replay-root .session-info-modal .session-info-section h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Cards in a row share one height (rows start at the top of each), so edges line up. */
+.local-replay-root .session-info-modal .session-property-sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 10px;
+  align-items: stretch;
+}
+
+.local-replay-root .session-info-modal .session-property-section {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  margin: 0;
+  padding: 10px 12px 6px;
+  background: var(--rp-panel);
+  border: 0;
+  border-radius: 10px;
+}
+
+.local-replay-root .session-info-modal .session-property-section > div:first-child {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  margin-bottom: 4px;
+}
+
+.local-replay-root .session-info-modal .session-property-section h4 {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.local-replay-root .session-info-modal .session-property-section > div:first-child > p {
+  margin: 0;
+  color: var(--rp-muted);
+  font-size: 11px;
+}
+
+.local-replay-root .session-info-modal .session-property-grid {
+  display: block;
+}
+
+.local-replay-root .session-info-modal .session-property-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--rp-line);
+  font-size: 11.5px;
+}
+
+.local-replay-root .session-info-modal .session-property-row:last-child {
+  border-bottom: 0;
+}
+
+.local-replay-root .session-info-modal .session-property-row > span {
+  color: var(--rp-muted);
+  font-weight: 500;
+}
+
+.local-replay-root .session-info-modal .session-property-row > strong {
+  min-width: 0;
+  font-weight: 500;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.local-replay-root .session-info-modal .session-storage-breakdown-items {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 20px;
+}
+
+.local-replay-root .session-info-modal .session-storage-breakdown-item {
+  padding: 3px 0;
+  font-size: 11.5px;
+}
+
+.local-replay-root .session-info-modal .session-normalization-section p,
+.local-replay-root .session-info-modal .session-normalization-section small,
+.local-replay-root .session-info-modal .session-info-section p.muted {
+  color: var(--rp-muted);
+  font-size: 11.5px;
+}
+
+/* ---------- Side screens: shared building blocks ---------- */
+
+/* Every sheet that slides in from the right: panel grey, no edge line, soft cast. */
+.local-replay-root .local-management-panel,
+.local-replay-root .local-settings-panel,
+.local-replay-root .local-trends-panel,
+.local-replay-root .local-test-history-panel,
+.local-replay-root .local-location-panel,
+.local-replay-root .local-session-admin-panel {
+  background: var(--rp-panel);
+  border-left: 0;
+  box-shadow: -24px 0 70px rgba(15, 15, 18, 0.18);
+}
+
+.local-replay-root .local-management-panel,
+.local-replay-root .local-trends-panel {
+  padding: 20px 24px 24px;
+}
+
+.local-replay-root .local-settings-panel > header,
+.local-replay-root .local-test-history-panel > header {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--rp-line);
+}
+
+.local-replay-root .local-location-panel {
+  padding: 20px 24px;
+}
+
+/* Eyebrows are quiet labels; where one is the sheet's only heading it becomes the title. */
+.local-replay-root .eyebrow {
+  margin: 0 0 4px;
+  color: var(--rp-muted);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.local-replay-root .local-management-panel > header > div > .eyebrow:only-child,
+.local-replay-root .local-trends-panel > header > div > .eyebrow:only-child,
+.local-replay-root .local-settings-panel > header > div > .eyebrow:only-child,
+.local-replay-root .local-test-history-panel > header > div > .eyebrow:only-child,
+.local-replay-root .local-location-panel > header > div > .eyebrow:only-child {
+  margin: 0;
+  color: var(--rp-text);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.local-replay-root .local-location-panel h2 {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.local-replay-root .local-management-panel h3,
+.local-replay-root .local-trends-panel h3,
+.local-replay-root .local-test-history-panel h3,
+.local-replay-root .local-settings-panel h3 {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* View switchers inside sheets: segmented controls like the rail's Local/Team. */
+.local-replay-root .local-management-tabs,
+.local-replay-root .local-session-admin-tabs {
+  gap: 2px;
+  margin-top: 16px;
+  padding: 3px;
+  background: rgba(125, 125, 135, 0.1);
+  border: 0;
+  border-radius: 9px;
+}
+
+.local-replay-root .local-management-tab {
+  min-height: 30px;
+  padding: 0 12px;
+  color: var(--rp-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.local-replay-root .local-management-tab:hover,
+.local-replay-root .local-management-tab:focus-visible {
+  color: var(--rp-text);
+  outline: 0;
+}
+
+.local-replay-root .local-management-tab--active,
+.local-replay-root .local-management-tab--active:hover {
+  color: var(--rp-text);
+  background: var(--rp-bg);
+  border: 0;
+  box-shadow: 0 1px 2px rgba(26, 26, 30, 0.1);
+}
+
+.local-replay-root .local-management-tab span {
+  min-width: 0;
+  padding: 1px 6px;
+  color: var(--rp-muted);
+  background: var(--rp-tag);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+}
+
+/* Sections are white cards on the grey sheet, headed by a plain title and note. */
+.local-replay-root .local-management-section,
+.local-replay-root .local-settings-section,
+.local-replay-root .local-admin-section,
+.local-replay-root .local-location-section {
+  padding: 14px 16px 16px;
+  background: var(--rp-bg);
+  border: 0;
+  border-radius: 10px;
+}
+
+.local-replay-root .local-management-section-heading,
+.local-replay-root .local-settings-section-heading,
+.local-replay-root .local-admin-section-heading {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--rp-line);
+}
+
+.local-replay-root .local-management-section-heading svg,
+.local-replay-root .local-settings-section-heading > svg {
+  width: 18px;
+  height: 18px;
+  color: var(--rp-muted);
+}
+
+.local-replay-root .local-management-section-heading strong,
+.local-replay-root .local-settings-section-heading strong,
+.local-replay-root .local-management-subheading strong,
+.local-replay-root .local-admin-section-heading strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.local-replay-root .local-management-section-heading div span,
+.local-replay-root .local-settings-section-heading span,
+.local-replay-root .local-admin-section-heading small {
+  color: var(--rp-muted);
+  font-size: 11.5px;
+  font-weight: 400;
+}
+
+.local-replay-root .local-management-section-heading > span,
+.local-replay-root .local-management-subheading > span,
+.local-replay-root .local-management-app-stats span {
+  padding: 2px 7px;
+  color: var(--rp-muted);
+  background: var(--rp-tag);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+}
+
+/* Fields: grey wells inside the white cards, no border, no ring. */
+.local-replay-root .local-control-field {
+  gap: 5px;
+  color: var(--rp-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.local-replay-root .local-control-field input,
+.local-replay-root .local-control-field select,
+.local-replay-root .local-control-field textarea,
+.local-replay-root .local-control-field input:focus,
+.local-replay-root .local-control-field select:focus,
+.local-replay-root .local-control-field textarea:focus {
+  min-height: 32px;
+  padding: 0 10px;
+  color: var(--rp-text);
+  background: var(--rp-panel);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  outline: 0;
+  box-shadow: none;
+  font-size: 12.5px;
+}
+
+.local-replay-root .local-field-optional {
+  color: var(--rp-muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.local-replay-root .local-app-search,
+.local-replay-root .local-app-search:focus-within {
+  margin-top: 12px;
+  padding: 0 10px;
+  background: var(--rp-panel);
+  border: 1px solid transparent;
+  border-radius: 8px;
+}
+
+.local-replay-root .local-app-search input {
+  padding: 8px 0;
+  font-size: 12.5px;
+}
+
+/* Buttons outside the player follow the same chip rules as inside it. */
+.local-replay-root .button {
+  min-height: 32px;
+  padding: 0 14px;
+  border-radius: 7px;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.local-replay-root .button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.local-replay-root .button--secondary {
+  color: var(--rp-text);
+  background: var(--rp-panel);
+  border: 1px solid transparent;
+}
+
+.local-replay-root .button--secondary:hover:not(:disabled) {
+  border-color: var(--rp-line);
+}
+
+.local-replay-root .button--primary,
+.local-replay-root .button--primary:hover:not(:disabled) {
+  color: #ffffff;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+}
+
+/* Full-width submit slots keep their row but the button itself stays chip-sized. */
+.local-replay-root .button.local-app-management-form--wide,
+.local-replay-root .button.local-enrollment-submit {
+  justify-self: start;
+  width: auto;
+}
+
+.local-replay-root .local-app-management-actions button,
+.local-replay-root .local-management-invite-actions button,
+.local-replay-root .local-text-button {
+  min-height: 30px;
+  padding: 0 12px;
+  color: var(--rp-text);
+  background: var(--rp-panel);
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.local-replay-root .local-app-management-actions button:hover:not(:disabled),
+.local-replay-root .local-management-invite-actions button:hover:not(:disabled),
+.local-replay-root .local-text-button:hover:not(:disabled) {
+  border-color: var(--rp-line);
+}
+
+/* App rows in the registry list. */
+.local-replay-root .local-management-app {
+  padding: 12px 14px;
+  background: var(--rp-panel);
+  border: 0;
+  border-radius: 8px;
+}
+
+.local-replay-root .local-management-app:hover {
+  background: rgba(125, 125, 135, 0.16);
+  border: 0;
+}
+
+.local-replay-root .local-management-app-heading strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.local-replay-root .local-management-app-heading > span:first-child > span {
+  font-size: 11px;
+}
+
+.local-replay-root .local-management-ready {
+  color: var(--rp-muted);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+}
+
+/* Settings toggles keep their shape but sit on the neutral tokens. */
+.local-replay-root .local-settings-toggle strong {
+  color: var(--rp-text);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.local-replay-root .local-settings-toggle small {
+  color: var(--rp-muted);
+  font-size: 11px;
+}
+
+.local-replay-root .local-settings-toggle > i {
+  background: rgba(125, 125, 135, 0.18);
+  border: 0;
+}
+
+.local-replay-root .local-settings-toggle > i::after {
+  top: 4px;
+  left: 4px;
+  background: var(--rp-bg);
+}
+
+.local-replay-root .local-settings-toggle input:checked + i {
+  background: var(--accent);
+  border: 0;
+}
+
+.local-replay-root .local-settings-toggle input:checked + i::after {
+  background: #ffffff;
+}
+
+/* ---------- Trends ---------- */
+
+.local-replay-root .local-trends-breadcrumb {
+  min-height: 0;
+  margin-top: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--rp-line);
+  font-size: 12px;
+}
+
+.local-replay-root .local-trends-breadcrumb button {
+  color: var(--rp-muted);
+}
+
+.local-replay-root .local-trends-breadcrumb button:hover {
+  color: var(--rp-text);
+  text-decoration: none;
+}
+
+.local-replay-root .local-trends-breadcrumb strong {
+  color: var(--rp-text);
+  font-weight: 500;
+}
+
+.local-replay-root .local-trends-rebuild-button {
+  color: var(--rp-text);
+  background: var(--rp-bg);
+  border-color: transparent;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.local-replay-root .local-trends-rebuild-button:hover:not(:disabled) {
+  border-color: var(--rp-line);
+}
+
+.local-replay-root .local-trends-toolbar {
+  padding: 12px 0;
+  border-bottom: 0;
+}
+
+.local-replay-root .local-trends-toolbar > div:first-child > strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.local-replay-root .local-trends-toolbar > div:first-child > span {
+  font-size: 11.5px;
+}
+
+.local-replay-root .local-trends-monitor-search,
+.local-replay-root .local-trends-monitor-search:focus-within {
+  min-height: 32px;
+  background: var(--rp-bg);
+  border-color: transparent;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.local-replay-root .local-trends-monitor-search input {
+  font-size: 12.5px;
+}
+
+.local-replay-root .local-trends-monitor-list {
+  gap: 8px;
+  margin-top: 6px;
+}
+
+/* Monitor rows: white tiles, a bare sparkline, readable numbers. */
+.local-replay-root .local-trends-monitor-row {
+  gap: 20px;
+  min-height: 0;
+  padding: 12px 18px 12px 16px;
+  color: var(--rp-text);
+  background: var(--rp-bg);
+  border: 1px solid transparent;
+  border-radius: 10px;
+}
+
+.local-replay-root .local-trends-monitor-row:hover {
+  background: var(--rp-bg);
+  border-color: var(--rp-line);
+}
+
+.local-replay-root .local-trends-monitor-row > svg {
+  width: 14px;
+  height: 14px;
+  color: var(--rp-muted);
+}
+
+.local-replay-root .local-trends-monitor-copy {
+  gap: 2px;
+}
+
+.local-replay-root .local-trends-monitor-copy strong {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.local-replay-root .local-trends-monitor-copy small {
+  font-size: 11px;
+}
+
+.local-replay-root .local-trends-monitor-copy > span {
+  margin-top: 1px;
+  font-size: 11px;
+}
+
+.local-replay-root .local-trends-monitor-updated {
+  display: grid;
+  gap: 2px;
+  justify-items: end;
+  text-align: right;
+}
+
+.local-replay-root .local-trends-monitor-updated strong {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.local-replay-root .local-trends-monitor-updated small {
+  color: var(--rp-muted);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.local-replay-root .local-trends-monitor-sparkline {
+  height: 44px;
+  padding: 2px 0;
+  background: transparent;
+  border: 0;
+}
+
+.local-replay-root .local-trends-monitor-sparkline-guide {
+  stroke: var(--rp-line);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.local-replay-root .local-trends-monitor-sparkline polyline {
+  stroke-width: 1.5;
+}
+
+.local-replay-root .local-trends-status {
+  padding: 2px 7px;
+  background: var(--rp-tag);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+/* Detail view. */
+.local-replay-root .local-trends-layout {
+  margin-top: 12px;
+  border: 0;
+  border-radius: 0;
+}
+
+.local-replay-root .local-trends-detail {
+  padding: 8px 0 0;
+}
+
+.local-replay-root .local-trends-decision h3 {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.local-replay-root .local-trends-decision > div > span {
+  font-size: 11px;
+}
+
+.local-replay-root .local-trends-decision-values > div {
+  padding: 10px 12px;
+  background: var(--rp-bg);
+  border: 0;
+  border-radius: 8px;
+}
+
+.local-replay-root .local-trends-decision-values span {
+  color: var(--rp-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+}
+
+.local-replay-root .local-trends-decision-values strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.local-replay-root .local-trends-context > span {
+  padding: 2px 7px;
+  background: var(--rp-tag);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+
+.local-replay-root .local-trends-chart {
+  padding: 16px;
+  background: var(--rp-bg);
+  border: 0;
+  border-radius: 10px;
+}
+
+.local-replay-root .local-trends-chart-heading > div > strong {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.local-replay-root .local-trends-chart-heading > div > small {
+  font-size: 11px;
+}
+
+.local-replay-root .local-trends-chart-heading > span {
+  color: var(--rp-muted);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.local-replay-root .local-trends-chart-y-axis,
+.local-replay-root .local-trends-chart-axis {
+  color: var(--rp-muted);
+  font-size: 10.5px;
+}
+
+.local-replay-root .local-trends-chart svg line {
+  stroke: color-mix(in srgb, var(--rp-text) 6%, transparent);
+  stroke-width: 1;
+}
+
+.local-replay-root .local-trends-chart-line {
+  stroke-width: 1.5;
+}
+
+.local-replay-root .local-trends-chart-line--baseline {
+  stroke: var(--rp-muted);
+  stroke-width: 1;
+}
+
+.local-replay-root .local-trends-chart-point {
+  stroke-width: 4;
+}
+
+.local-replay-root .local-trends-chart-point--baseline {
+  stroke: var(--rp-muted);
+  stroke-width: 3;
+}
+
+.local-replay-root .local-trends-history-list {
+  margin-top: 12px;
+}
+
+.local-replay-root .local-trends-history-row {
+  padding: 12px 14px;
+  background: var(--rp-bg);
+  border: 0;
+  border-radius: 10px;
+}
+
+.local-replay-root .local-trends-history-row strong {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.local-replay-root .local-trends-history-row div > span {
+  font-size: 11px;
+}
+
+.local-replay-root .local-trends-history-actions button {
+  min-height: 28px;
+  padding: 0 10px;
+  color: var(--rp-text);
+  background: var(--rp-panel);
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.local-replay-root .local-trends-history-actions button:hover {
+  color: var(--rp-text);
+  border-color: var(--rp-line);
+}
+
+/* ---------- Side panels (session details, settings, management) ---------- */
+
+.local-replay-root .local-admin-panel {
+  background: var(--rp-panel);
+  border-left: 0;
+  box-shadow: -24px 0 70px rgba(15, 15, 18, 0.22);
+}
+
+.local-replay-root .local-admin-header {
+  padding: 20px 22px 16px;
+  border-bottom: 1px solid var(--rp-line);
+}
+
+.local-replay-root .local-admin-header .eyebrow {
+  margin: 0;
+  color: var(--rp-text);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-transform: none;
+}
+
+.local-replay-root .local-admin-header span {
+  color: var(--rp-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.local-replay-root .local-admin-header .local-icon-button {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.local-replay-root .local-admin-header .local-icon-button:hover {
+  color: var(--rp-text);
+  background: var(--rp-hover);
+  border-color: transparent;
+}
+
+.local-replay-root .local-admin-content {
+  padding: 18px 22px;
+}
+
+.local-replay-root .local-admin-form label:not(.local-admin-checkbox),
+.local-replay-root .local-admin-checkbox-stack {
+  gap: 6px;
+  color: var(--rp-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Fields are plain white wells: no border, and no ring when selected. */
+.local-replay-root .local-admin-form :is(input, select, textarea),
+.local-replay-root .local-admin-inline-form input,
+.local-replay-root .local-admin-section > select,
+.local-replay-root .local-admin-form :is(input, select, textarea):focus,
+.local-replay-root .local-admin-form :is(input, select, textarea):focus-visible {
+  padding: 9px 11px;
+  color: var(--rp-text);
+  background: var(--rp-bg);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  outline: 0;
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.local-replay-root .local-admin-form :is(input, textarea)::placeholder {
+  color: var(--rp-muted);
+}
+
+.local-replay-root .local-admin-actions button {
+  min-height: 32px;
+  padding: 0 14px;
+  color: var(--rp-text);
+  background: var(--rp-bg);
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.local-replay-root .local-admin-actions button:hover:not(:disabled) {
+  border-color: var(--rp-line);
+}
+
+.local-replay-root .local-admin-actions .button--primary,
+.local-replay-root .local-admin-actions .button--primary:hover:not(:disabled) {
+  color: #ffffff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Session storage tabs: the same segmented control as the other sheets. */
+.local-replay-root .local-session-admin-tabs {
+  gap: 2px;
+  margin: 14px 22px 0;
+  padding: 3px;
+  background: rgba(125, 125, 135, 0.1);
+  border: 0;
+  border-radius: 9px;
+}
+
+.local-replay-root .local-session-admin-tabs > button {
+  flex: 1;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0 12px;
+  color: var(--rp-muted);
+  border: 0;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.local-replay-root .local-session-admin-tabs > button:hover {
+  color: var(--rp-text);
+  background: transparent;
+  border: 0;
+}
+
+.local-replay-root .local-session-admin-tabs > .local-session-admin-tab--active,
+.local-replay-root .local-session-admin-tabs > .local-session-admin-tab--active:hover {
+  color: var(--rp-text);
+  background: var(--rp-bg);
+  border: 0;
+  box-shadow: 0 1px 2px rgba(26, 26, 30, 0.1);
+}
+
+.local-replay-root .local-session-admin-tabs svg {
+  width: 14px;
+  height: 14px;
+  color: currentColor;
+}
+
+.local-replay-root .local-session-admin-tabs i {
+  padding: 1px 6px;
+  color: var(--rp-muted);
+  background: var(--rp-tag);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+
+/* Host log: a light mono well rather than a black console. */
+.local-replay-root .local-host-log {
+  color: var(--rp-text);
+  background: var(--rp-panel);
+  border: 0;
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* Inside a white section card the fields flip to the grey well so they stay visible. */
+.local-replay-root .local-admin-section .local-admin-form :is(input, select, textarea),
+.local-replay-root .local-admin-section .local-admin-form :is(input, select, textarea):focus,
+.local-replay-root .local-admin-section .local-admin-form :is(input, select, textarea):focus-visible {
+  background: var(--rp-panel);
+}
+
+/* ---------- Collapsed explorer ---------- */
+
+.local-replay-root.local-replay-root--collapsed::after {
+  left: 0;
+  border-left: 0;
+  border-radius: 0;
+}
+
+.local-replay-root.local-replay-root--collapsed .local-session-context-toolbar,
+.local-replay-root.local-replay-root--collapsed .local-replay-viewer {
+  left: 0;
+}
+
+.local-replay-root.local-replay-root--collapsed .local-session-context-toolbar {
+  border-radius: 0;
+}
+
+/* ---------- Narrow layouts ---------- */
+
+@media (max-width: 1120px) {
+  .local-replay-root {
+    --local-explorer-width: 200px;
+  }
+}
+
+@media (max-width: 940px) {
+  .local-replay-root::after {
+    left: 0;
+    border-left: 0;
+    border-radius: 0;
+  }
+
+  .local-replay-root .local-session-context-toolbar,
+  .local-replay-root .local-replay-viewer {
+    left: 0;
+  }
+
+  .local-replay-root .local-session-context-toolbar {
+    border-radius: 0;
+  }
+}
+
+/* Model-aware hardware; the captured display keeps its original aspect ratio. */
+.local-replay-root .session-viewer-dashboard .device-shell:where(:not(.device-shell--desktop)) {
+  --shell-radius: 42px; --screen-radius: 35px; --shell-bezel: 7px;
+  position: relative; overflow: visible; padding: var(--shell-bezel);
+  border: 2px solid #777571; border-radius: var(--shell-radius); background: #08090b;
+  box-shadow: 0 0 0 1px #252629, inset 0 0 0 1px #b5b1aa, inset 0 0 0 3px #363638, 0 18px 28px -16px #0008, 0 5px 9px -5px #0006;
+}
+.local-replay-root .session-viewer-dashboard .device-shell .session-frame-viewport { border-radius: var(--screen-radius, 8px); background: #08090b; isolation: isolate; }
+.device-shell-hardware { position: absolute; inset: 0; pointer-events: none; }
+.device-shell-hardware span { position: absolute; display: block; background: linear-gradient(90deg, #494949, #aaa69f 48%, #474747); border-radius: 2px; }
+.device-shell-power { right: -5px; top: 24%; width: 3px; height: 11%; }
+.device-shell-volume-up { left: -5px; top: 23%; width: 3px; height: 7%; }
+.device-shell-volume-down { left: -5px; top: 32%; width: 3px; height: 7%; }
+.device-shell-action { left: -5px; top: 15%; width: 3px; height: 4%; }
+.device-shell-hardware .device-shell-camera-control { display: none; }
+.device-shell--camera-control .device-shell-camera-control { display: block; right: -4px; top: 66%; width: 2px; height: 7%; }
+.device-shell-hardware .device-shell-home, .device-shell-hardware .device-shell-speaker, .device-shell-hardware .device-shell-camera { display: none; }
+.device-screen-cutout { display: none; position: absolute; z-index: 4; pointer-events: none; background: #050506; }
+.device-shell--iphone-island .device-screen-cutout { display: block; top: 1.3%; left: 34%; width: 32%; height: 3.8%; border-radius: 999px; }
+.device-shell--iphone-island .device-screen-cutout::after { content: ''; position: absolute; right: 8%; top: 24%; height: 52%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #142034, #07090e 65%); box-shadow: inset 0 0 1px #263047; }
+.device-shell--iphone-notch .device-screen-cutout { display: block; top: 0; left: 25%; width: 50%; height: 3.8%; border-radius: 0 0 15px 15px; }
+.local-replay-root .session-viewer-dashboard .device-shell--iphone-home,
+.local-replay-root .session-viewer-dashboard .device-shell--ipad-home { --shell-radius: 28px; --screen-radius: 2px; padding: 44px 9px; }
+.device-shell--iphone-home .device-shell-home, .device-shell--ipad-home .device-shell-home { display: block; bottom: 8px; left: calc(50% - 14px); width: 28px; height: 28px; border: 2px solid #676767; border-radius: 50%; background: #101114; }
+.device-shell--iphone-home .device-shell-speaker { display: block; top: 20px; left: 42%; width: 16%; height: 4px; background: #28292c; }
+.device-shell--iphone-home .device-shell-camera { display: block; top: 19px; left: 34%; width: 6px; height: 6px; border-radius: 50%; background: #17202d; }
+.local-replay-root .session-viewer-dashboard .device-shell--ipad { --shell-radius: 25px; --screen-radius: 15px; --shell-bezel: 15px; }
+.device-shell--ipad .device-shell-camera, .device-shell--ipad-home .device-shell-camera { display: block; top: 5px; left: calc(50% - 2px); width: 4px; height: 4px; border-radius: 50%; background: #1b2739; }
+.device-shell--ipad .device-shell-action, .device-shell--ipad-home .device-shell-action { display: none; }
+.local-replay-root .session-viewer-dashboard .device-shell--android,
+.local-replay-root .session-viewer-dashboard .device-shell--android-tablet { --shell-radius: 26px; --screen-radius: 20px; --shell-bezel: 6px; border-color: #5f6369; padding-bottom: 10px; }
+.device-shell--android .device-shell-action, .device-shell--android-tablet .device-shell-action { display: none; }
+.device-shell--android .device-shell-volume-up, .device-shell--android-tablet .device-shell-volume-up { left: auto; right: -5px; top: 12%; height: 10%; }
+.device-shell--android .device-shell-volume-down, .device-shell--android-tablet .device-shell-volume-down { display: none; }
+.device-shell--android .device-screen-cutout { display: block; top: 1.3%; left: calc(50% - 4px); width: 8px; height: 8px; border-radius: 50%; }
+.local-replay-root .session-viewer-dashboard .device-shell--landscape { width: min(100%, 620px); max-width: 100%; }
+.device-shell--landscape.device-shell--iphone-island .device-screen-cutout { top: 34%; left: 1.3%; width: 3.8%; height: 32%; }
+.device-shell--landscape.device-shell--iphone-notch .device-screen-cutout { top: 25%; left: 0; width: 3.8%; height: 50%; border-radius: 0 15px 15px 0; }
+.local-replay-root .session-viewer-dashboard .device-shell--landscape.device-shell--iphone-home,
+.local-replay-root .session-viewer-dashboard .device-shell--landscape.device-shell--ipad-home { padding: 9px 44px; }
+.device-shell--landscape .device-shell-home { left: auto; right: 8px; bottom: calc(50% - 14px); }
+/* Rotate hardware placement with landscape captures, without rotating pixels. */
+.device-shell--landscape .device-shell-power { right: auto; left: 24%; top: -5px; width: 11%; height: 3px; }
+.device-shell--landscape .device-shell-volume-up { left: 23%; top: auto; bottom: -5px; width: 7%; height: 3px; }
+.device-shell--landscape .device-shell-volume-down { left: 32%; top: auto; bottom: -5px; width: 7%; height: 3px; }
+.device-shell--landscape .device-shell-action { left: 15%; top: auto; bottom: -5px; width: 4%; height: 3px; }
+.device-shell--landscape .device-shell-camera-control { right: auto; left: 66%; top: -4px; width: 7%; height: 2px; }
+.device-shell--landscape.device-shell--iphone-home .device-shell-speaker { left: 20px; top: 42%; width: 4px; height: 16%; }
+.device-shell--landscape.device-shell--iphone-home .device-shell-camera { left: 19px; top: 34%; }
+.device-shell--landscape.device-shell--android .device-screen-cutout { left: 1.3%; top: calc(50% - 4px); }
+.device-shell--landscape.device-shell--iphone-island .device-screen-cutout::after { right: 24%; top: 8%; width: 52%; height: auto; }
+.device-shell--camera-long-edge .device-shell-camera { top: calc(50% - 2px); left: auto; right: 5px; }
+.device-shell--landscape.device-shell--camera-long-edge .device-shell-camera { top: 5px; left: calc(50% - 2px); right: auto; }

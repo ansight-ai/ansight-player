@@ -1,0 +1,3295 @@
+.app-graphs-panel {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.app-graphs-panel h2,
+.app-graphs-panel h3,
+.app-graphs-panel p {
+  margin-top: 0;
+}
+
+.app-graph-editor-heading,
+.app-graph-editor-footer {
+  align-items: center;
+}
+
+.app-graph-heading-actions,
+.app-graph-editor-actions,
+.app-graph-teach-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.55rem;
+}
+
+.app-graphs-panel > .app-graph-heading-actions {
+  justify-self: end;
+}
+
+.app-graph-notice {
+  margin: 0;
+}
+
+.app-graph-notice--error {
+  color: var(--error);
+}
+
+.app-graph-notice--success {
+  color: var(--success);
+}
+
+.app-graph-workspace {
+  display: grid;
+  grid-template-columns: 238px minmax(0, 1fr);
+  min-height: 780px;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  background: #09101c;
+  box-shadow: 0 22px 70px rgb(0 0 0 / 0.2);
+}
+
+.app-graph-library {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-width: 0;
+  padding: 0.9rem;
+  border-right: 1px solid rgb(132 160 196 / 0.14);
+  background:
+    linear-gradient(180deg, rgb(22 34 52 / 0.98), rgb(10 19 32 / 0.98)),
+    #0d1726;
+  color: #d9e5f6;
+}
+
+.app-graph-library-heading {
+  display: grid;
+  gap: 0.12rem;
+  padding: 0.3rem 0.4rem 1rem;
+  border-bottom: 1px solid rgb(157 181 214 / 0.12);
+}
+
+.app-graph-library-heading > span {
+  color: #6f87a8;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.app-graph-library-heading strong {
+  overflow: hidden;
+  color: #f4f8ff;
+  font-size: 0.92rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-graph-library-heading small {
+  color: #7f93af;
+  font-size: 0.72rem;
+}
+
+.app-graph-list {
+  display: grid;
+  align-content: start;
+  gap: 0.35rem;
+  min-height: 0;
+  padding: 0.75rem 0;
+  overflow: auto;
+}
+
+.app-graph-list-item {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  min-width: 0;
+  padding: 0.65rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #a9bdd8;
+  text-align: left;
+  transition: 140ms ease;
+}
+
+.app-graph-list-item:hover {
+  border-color: rgb(130 167 210 / 0.18);
+  background: rgb(94 128 169 / 0.08);
+}
+
+.app-graph-list-item--active {
+  border-color: rgb(62 169 255 / 0.38);
+  background: linear-gradient(90deg, rgb(34 131 211 / 0.2), rgb(35 102 161 / 0.08));
+  box-shadow: inset 3px 0 #37a9ff;
+}
+
+.app-graph-list-icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid rgb(97 151 212 / 0.22);
+  border-radius: 7px;
+  background: rgb(58 113 174 / 0.12);
+  color: #5bbcff;
+}
+
+.app-graph-list-icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+.app-graph-list-copy {
+  display: grid;
+  min-width: 0;
+}
+
+.app-graph-list-copy strong,
+.app-graph-list-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-graph-list-copy strong {
+  color: #e8f0fb;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.app-graph-list-copy small {
+  color: #7087a4;
+  font-size: 0.65rem;
+}
+
+.app-graph-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #6c7d94;
+  box-shadow: 0 0 0 3px rgb(108 125 148 / 0.12);
+}
+
+.app-graph-status-dot--learning {
+  background: #42b6ff;
+  box-shadow: 0 0 0 3px rgb(66 182 255 / 0.14), 0 0 12px rgb(66 182 255 / 0.5);
+}
+
+.app-graph-status-dot--validated,
+.app-graph-status-dot--published {
+  background: #46d58b;
+  box-shadow: 0 0 0 3px rgb(70 213 139 / 0.14);
+}
+
+.app-graph-status-dot--failed {
+  background: #ff6374;
+}
+
+.app-graph-library-foot {
+  display: flex;
+  gap: 0.55rem;
+  padding: 0.8rem 0.45rem 0.2rem;
+  border-top: 1px solid rgb(157 181 214 / 0.1);
+  color: #6e84a1;
+  font-size: 0.67rem;
+  line-height: 1.45;
+}
+
+.app-graph-library-foot svg {
+  flex: 0 0 auto;
+  width: 15px;
+  margin-top: 0.15rem;
+  color: #61bfff;
+}
+
+.app-graph-editor {
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  min-width: 0;
+  background: #0a1321;
+  color: #dce7f5;
+}
+
+.app-graph-editor-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+  padding: 0.8rem 0.9rem;
+  border-bottom: 1px solid rgb(137 169 207 / 0.14);
+  background: linear-gradient(180deg, #152237, #111c2e);
+}
+
+.app-graph-title-fields {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.55fr) minmax(220px, 1fr) 150px;
+  gap: 0.55rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.app-graph-title-fields label,
+.app-graph-inspector label,
+.app-graph-run-drawer label,
+.app-graph-teach-form label,
+.app-graph-session-range label {
+  display: grid;
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.app-graph-title-fields label > span,
+.app-graph-inspector label > span,
+.app-graph-run-drawer label > span,
+.app-graph-teach-form label > span,
+.app-graph-session-range label > span {
+  color: #7f96b5;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-graph-title-fields input,
+.app-graph-title-fields select,
+.app-graph-inspector input,
+.app-graph-inspector select,
+.app-graph-inspector textarea,
+.app-graph-run-drawer select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgb(132 163 202 / 0.2);
+  border-radius: 6px;
+  outline: none;
+  background: rgb(4 12 24 / 0.48);
+  color: #dfeafb;
+}
+
+.app-graph-title-fields input,
+.app-graph-title-fields select,
+.app-graph-inspector input,
+.app-graph-inspector select,
+.app-graph-run-drawer select {
+  height: 34px;
+  padding: 0 0.58rem;
+}
+
+.app-graph-title-fields input:focus,
+.app-graph-title-fields select:focus,
+.app-graph-inspector input:focus,
+.app-graph-inspector select:focus,
+.app-graph-inspector textarea:focus {
+  border-color: rgb(62 172 255 / 0.6);
+  box-shadow: 0 0 0 2px rgb(62 172 255 / 0.1);
+}
+
+.app-graph-title-fields input:disabled,
+.app-graph-title-fields select:disabled,
+.app-graph-inspector input:disabled,
+.app-graph-inspector select:disabled,
+.app-graph-inspector textarea:disabled {
+  color: #879ab4;
+  opacity: 0.72;
+}
+
+.app-graph-editor-actions {
+  align-items: flex-end;
+  flex: 0 0 auto;
+}
+
+.app-graph-mode-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0 0.85rem;
+  border-bottom: 1px solid rgb(135 164 201 / 0.13);
+  background: #0d1828;
+}
+
+.app-graph-mode-bar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  min-height: 44px;
+  padding: 0.1rem 0.72rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #8198b7;
+  font-size: 0.75rem;
+}
+
+.app-graph-mode-bar button:hover,
+.app-graph-mode-bar button.active {
+  color: #e7f2ff;
+}
+
+.app-graph-mode-bar button.active {
+  border-bottom-color: #3caeff;
+  background: linear-gradient(0deg, rgb(44 158 242 / 0.12), transparent 70%);
+}
+
+.app-graph-mode-bar button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.app-graph-mode-bar button > span {
+  min-width: 18px;
+  padding: 0.1rem 0.32rem;
+  border-radius: 999px;
+  background: rgb(127 157 194 / 0.12);
+  color: #7691b2;
+  font-size: 0.61rem;
+  text-align: center;
+}
+
+.app-graph-learning {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid rgb(61 172 255 / 0.2);
+  background: rgb(39 135 209 / 0.12);
+  color: #66c4ff;
+}
+
+.app-graph-learning--failed {
+  border-color: rgb(255 94 112 / 0.2);
+  background: rgb(219 56 76 / 0.1);
+  color: #ff8290;
+}
+
+.app-graph-learning > svg {
+  width: 21px;
+  height: 21px;
+}
+
+.app-graph-learning > div {
+  display: grid;
+}
+
+.app-graph-learning strong {
+  color: #e2f3ff;
+  font-size: 0.78rem;
+}
+
+.app-graph-learning span {
+  color: #86a6c8;
+  font-size: 0.69rem;
+}
+
+.app-graph-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 318px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.app-graph-canvas-column {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+}
+
+.app-graph-toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.55rem;
+  min-height: 50px;
+  padding: 0.45rem 0.75rem;
+  border-bottom: 1px solid rgb(130 163 204 / 0.12);
+  background: #0b1625;
+  color: #7189a7;
+  font-size: 0.68rem;
+}
+
+.app-graph-toolbar label {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.app-graph-toolbar label > span {
+  color: #617a9a;
+  font-size: 0.56rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-graph-toolbar select {
+  height: 30px;
+  padding: 0 1.7rem 0 0.5rem;
+  border: 1px solid rgb(135 167 205 / 0.18);
+  border-radius: 5px;
+  background: #101e31;
+  color: #c7d7ea;
+  font-size: 0.7rem;
+}
+
+.app-graph-toolbar > span:not(.app-graph-toolbar-tip) {
+  align-self: center;
+  margin-left: 0.25rem;
+}
+
+.app-graph-toolbar-tip {
+  align-self: center;
+  margin-left: auto;
+  color: #506985;
+}
+
+.app-graph-canvas-shell {
+  position: relative;
+  min-width: 0;
+  min-height: 620px;
+  overflow: hidden;
+  background: #07101d;
+}
+
+.app-graph-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 620px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.app-graph-canvas:active {
+  cursor: grabbing;
+}
+
+.app-graph-canvas-controls {
+  position: absolute;
+  z-index: 4;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid rgb(133 170 214 / 0.2);
+  border-radius: 7px;
+  background: rgb(12 26 43 / 0.92);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.3);
+  backdrop-filter: blur(10px);
+}
+
+.app-graph-canvas-controls button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-left: 1px solid rgb(133 170 214 / 0.12);
+  background: transparent;
+  color: #91acd0;
+}
+
+.app-graph-canvas-controls button:first-child {
+  border-left: 0;
+}
+
+.app-graph-canvas-controls button:hover {
+  background: rgb(63 162 238 / 0.14);
+  color: #66c2ff;
+}
+
+.app-graph-canvas-controls button svg {
+  width: 14px;
+}
+
+.app-graph-canvas-controls span {
+  min-width: 48px;
+  color: #7690b1;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  text-align: center;
+}
+
+.app-graph-canvas-legend {
+  position: absolute;
+  z-index: 4;
+  bottom: 14px;
+  left: 14px;
+  display: flex;
+  gap: 0.8rem;
+  color: #58708d;
+  font-size: 0.59rem;
+  pointer-events: none;
+}
+
+.app-graph-canvas-legend span {
+  display: flex;
+  align-items: center;
+  gap: 0.32rem;
+}
+
+.app-graph-legend-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.app-graph-legend-dot--strong {
+  background: #46d58b;
+  box-shadow: 0 0 7px rgb(70 213 139 / 0.6);
+}
+
+.app-graph-legend-dot--weak {
+  border: 1px dashed #ffbd59;
+  background: transparent;
+}
+
+.app-graph-grid {
+  fill: url('#app-graph-grid-large');
+}
+
+.app-graph-grid-dot {
+  fill: rgb(100 137 179 / 0.17);
+}
+
+.app-graph-grid-line {
+  stroke: rgb(80 117 159 / 0.08);
+  stroke-width: 1;
+}
+
+.app-graph-state-group-surface {
+  fill: rgb(13 27 45 / 0.74);
+  stroke: rgb(88 187 255 / 0.34);
+  stroke-width: 1.2;
+  stroke-dasharray: 5 4;
+}
+
+.app-graph-state-group-header {
+  fill: rgb(64 159 228 / 0.12);
+  stroke: none;
+}
+
+.app-graph-state-group-kind,
+.app-graph-state-group-label,
+.app-graph-state-group-count {
+  font-family: var(--font-sans);
+  pointer-events: none;
+}
+
+.app-graph-state-group-kind {
+  fill: #56b8fa;
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.app-graph-state-group-label {
+  fill: #edf5ff;
+  font-size: 15px;
+  font-weight: 720;
+}
+
+.app-graph-state-group-count {
+  fill: #718aa8;
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.app-graph-state-group-drag-handle {
+  fill: transparent;
+  cursor: move;
+}
+
+.app-graph-edge-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 18;
+  cursor: pointer;
+  pointer-events: stroke;
+}
+
+.app-graph-edge {
+  fill: none;
+  stroke: #4e759e;
+  stroke-width: 2.1;
+  transition: 140ms ease;
+  pointer-events: none;
+}
+
+.app-graph-edge--internal {
+  stroke: #55a9df;
+  stroke-width: 1.7;
+}
+
+.app-graph-edge-group:hover .app-graph-edge,
+.app-graph-edge--selected {
+  stroke: #58bbff;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 4px rgb(73 182 255 / 0.65));
+}
+
+.app-graph-edge--weak {
+  stroke-dasharray: 7 5;
+  stroke: #a47748;
+}
+
+.app-graph-edge--preview {
+  stroke: #72c8ff;
+  stroke-dasharray: 6 4;
+  pointer-events: none;
+}
+
+.app-graph-edge--succeeded {
+  stroke: #48dc91;
+  filter: drop-shadow(0 0 4px rgb(72 220 145 / 0.55));
+}
+
+.app-graph-edge--failed {
+  stroke: #ff5e72;
+  stroke-width: 3.2;
+  filter: drop-shadow(0 0 4px rgb(255 94 114 / 0.55));
+}
+
+.app-graph-edge--running {
+  stroke: #42b6ff;
+  stroke-dasharray: 7 4;
+  animation: app-graph-wire-flow 0.7s linear infinite;
+}
+
+.app-graph-edge--skipped,
+.app-graph-edge--pending {
+  opacity: 0.38;
+}
+
+@keyframes app-graph-wire-flow {
+  to { stroke-dashoffset: -11; }
+}
+
+.app-graph-arrow-head {
+  fill: context-stroke;
+}
+
+.app-graph-edge-label rect {
+  fill: rgb(10 23 39 / 0.94);
+  stroke: rgb(108 151 198 / 0.2);
+  stroke-width: 1;
+}
+
+.app-graph-edge-label {
+  pointer-events: none;
+}
+
+.app-graph-edge-label text {
+  fill: #8199b7;
+  font-family: var(--font-sans);
+  font-size: 9px;
+  pointer-events: none;
+}
+
+.app-graph-edge-label--internal rect {
+  fill: rgb(18 37 59 / 0.97);
+  stroke: rgb(86 184 250 / 0.28);
+}
+
+.app-graph-edge-label--internal text {
+  fill: #9ec6e5;
+}
+
+.app-graph-node {
+  --node-color: #4faaf4;
+  outline: none;
+  cursor: move;
+}
+
+.app-graph-canvas--readonly .app-graph-node {
+  cursor: pointer;
+}
+
+.app-graph-node--intent { --node-color: #c884ff; }
+.app-graph-node--screen { --node-color: #57a9ff; }
+.app-graph-node--dialog { --node-color: #c884ff; }
+.app-graph-node--state { --node-color: #57a9ff; }
+.app-graph-node--resolver { --node-color: #42d3c8; }
+.app-graph-node--action { --node-color: #4cc3ff; }
+.app-graph-node--decision { --node-color: #ffbd59; }
+.app-graph-node--wait { --node-color: #a98dff; }
+.app-graph-node--assertion { --node-color: #55da8f; }
+.app-graph-node--recovery { --node-color: #ff8e5e; }
+.app-graph-node--outcome { --node-color: #74e0a5; }
+
+.app-graph-node-surface {
+  fill: #132236;
+  stroke: rgb(135 169 209 / 0.35);
+  stroke-width: 1.2;
+  transition: 120ms ease;
+}
+
+.app-graph-node--internal .app-graph-node-surface {
+  fill: #162a42;
+  stroke: rgb(87 169 255 / 0.46);
+}
+
+.app-graph-node--internal .app-graph-node-kind {
+  fill: #79bff0;
+  font-size: 7.5px;
+}
+
+.app-graph-node:hover .app-graph-node-surface,
+.app-graph-node--selected .app-graph-node-surface {
+  stroke: var(--node-color);
+  stroke-width: 2;
+}
+
+.app-graph-node--selected .app-graph-node-surface {
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--node-color) 50%, transparent));
+}
+
+.app-graph-node--weak .app-graph-node-surface {
+  stroke-dasharray: 5 3;
+}
+
+.app-graph-node-header {
+  fill: color-mix(in srgb, var(--node-color) 25%, #15253a);
+  stroke: none;
+}
+
+.app-graph-node-glyph {
+  fill: var(--node-color);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.app-graph-node-kind {
+  fill: #d9e8f8;
+  font-family: var(--font-sans);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.app-graph-node-label {
+  fill: #edf5ff;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 580;
+  pointer-events: none;
+}
+
+.app-graph-node-parent {
+  fill: #7890ac;
+  font-family: var(--font-sans);
+  font-size: 8px;
+  font-weight: 650;
+  letter-spacing: 0.025em;
+  pointer-events: none;
+}
+
+.app-graph-node-confidence {
+  fill: #617b9a;
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  pointer-events: none;
+}
+
+.app-graph-node-port {
+  fill: #0b1726;
+  stroke: var(--node-color);
+  stroke-width: 2.4;
+  cursor: crosshair;
+  transition: 120ms ease;
+}
+
+.app-graph-node-port:hover {
+  r: 9px;
+  fill: var(--node-color);
+  filter: drop-shadow(0 0 5px var(--node-color));
+}
+
+.app-graph-inspector {
+  display: grid;
+  align-content: start;
+  gap: 0.8rem;
+  min-width: 0;
+  padding: 0.9rem;
+  overflow: auto;
+  border-left: 1px solid rgb(130 163 204 / 0.14);
+  background: linear-gradient(180deg, #111e30, #0d1928);
+}
+
+.app-graph-inspector--empty {
+  place-content: center;
+  justify-items: center;
+  color: #617a99;
+  text-align: center;
+}
+
+.app-graph-inspector--empty > svg {
+  width: 38px;
+  height: 38px;
+  color: #3b628c;
+}
+
+.app-graph-inspector--empty p {
+  max-width: 220px;
+  font-size: 0.73rem;
+}
+
+.app-graph-inspector-heading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.58rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgb(130 163 204 / 0.13);
+}
+
+.app-graph-inspector-heading > svg,
+.app-graph-node-kind-dot {
+  width: 24px;
+  height: 24px;
+  color: #51b8ff;
+}
+
+.app-graph-node-kind-dot {
+  border-radius: 6px;
+  background: #4faaf4;
+}
+
+.app-graph-node-kind-dot--intent { background: #c884ff; }
+.app-graph-node-kind-dot--screen { background: #57a9ff; }
+.app-graph-node-kind-dot--dialog { background: #c884ff; }
+.app-graph-node-kind-dot--state { background: #57a9ff; }
+.app-graph-node-kind-dot--resolver { background: #42d3c8; }
+.app-graph-node-kind-dot--action { background: #4cc3ff; }
+.app-graph-node-kind-dot--decision { background: #ffbd59; }
+.app-graph-node-kind-dot--wait { background: #a98dff; }
+.app-graph-node-kind-dot--assertion { background: #55da8f; }
+.app-graph-node-kind-dot--recovery { background: #ff8e5e; }
+.app-graph-node-kind-dot--outcome { background: #74e0a5; }
+
+.app-graph-inspector-heading > div {
+  display: grid;
+  min-width: 0;
+}
+
+.app-graph-inspector-heading small {
+  color: #6882a2;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.app-graph-inspector-heading strong {
+  overflow: hidden;
+  color: #e0ecfa;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  text-overflow: ellipsis;
+}
+
+.app-graph-confidence-chip {
+  padding: 0.2rem 0.4rem;
+  border: 1px solid rgb(76 197 255 / 0.25);
+  border-radius: 999px;
+  background: rgb(52 159 221 / 0.1);
+  color: #67c7ff;
+  font-family: var(--font-mono);
+  font-size: 0.59rem;
+}
+
+.app-graph-inspector textarea {
+  min-height: 70px;
+  padding: 0.52rem 0.58rem;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.app-graph-code-field {
+  font-family: var(--font-mono) !important;
+  font-size: 0.67rem !important;
+  tab-size: 2;
+}
+
+.app-graph-inspector input[type='range'] {
+  height: 18px;
+  padding: 0;
+  accent-color: #46b8ff;
+}
+
+.app-graph-inspector-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.2rem;
+  padding: 0.6rem 0 0.05rem;
+  border-top: 1px solid rgb(132 166 207 / 0.12);
+  color: #72bff2;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-graph-inspector-divider svg {
+  width: 15px;
+}
+
+.app-graph-provenance-box {
+  display: flex;
+  gap: 0.55rem;
+  padding: 0.65rem;
+  border: 1px solid rgb(74 166 228 / 0.18);
+  border-radius: 7px;
+  background: rgb(52 138 200 / 0.08);
+}
+
+.app-graph-provenance-box > svg {
+  flex: 0 0 auto;
+  width: 17px;
+  color: #50b8fa;
+}
+
+.app-graph-provenance-box > div {
+  display: grid;
+}
+
+.app-graph-provenance-box strong {
+  color: #cce9fb;
+  font-size: 0.68rem;
+}
+
+.app-graph-provenance-box span {
+  color: #7690ae;
+  font-size: 0.63rem;
+}
+
+.app-graph-binding-derived {
+  display: flex;
+  gap: 0.55rem;
+  padding: 0.65rem;
+  border: 1px solid color-mix(in srgb, var(--info) 28%, var(--border));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--info) 8%, var(--surface));
+}
+
+.app-graph-binding-derived > svg {
+  flex: 0 0 auto;
+  width: 17px;
+  color: var(--info);
+}
+
+.app-graph-binding-derived > div {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.app-graph-binding-derived strong {
+  color: var(--text-primary);
+  font-size: 0.68rem;
+}
+
+.app-graph-binding-derived span {
+  color: var(--text-secondary);
+  font-size: 0.63rem;
+  line-height: 1.35;
+}
+
+.app-graph-binding-stack {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.app-graph-binding-stack button {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+  padding: 0.5rem;
+  border: 1px solid rgb(114 150 193 / 0.16);
+  border-radius: 7px;
+  background: rgb(25 45 70 / 0.55);
+  color: #7790ae;
+  text-align: left;
+}
+
+.app-graph-binding-stack button:hover,
+.app-graph-binding-stack button.active {
+  border-color: rgb(66 178 255 / 0.48);
+  background: rgb(36 111 165 / 0.16);
+}
+
+.app-graph-binding-stack button.active {
+  box-shadow: inset 2px 0 #43b8ff;
+}
+
+.app-graph-binding-stack button span {
+  overflow: hidden;
+  font-size: 0.56rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.app-graph-binding-stack button strong {
+  overflow: hidden;
+  color: #d9e9f9;
+  font-size: 0.67rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-graph-binding-stack button small {
+  color: #667f9e;
+  font-family: var(--font-mono);
+  font-size: 0.54rem;
+}
+
+.app-graph-binding-stack .app-graph-binding-stack-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-height: 48px;
+  border-style: dashed;
+  color: #72bff2;
+}
+
+.app-graph-binding-stack-add svg {
+  width: 14px;
+}
+
+.app-graph-binding-actions {
+  display: flex;
+  gap: 0.45rem;
+}
+
+.app-graph-delete-wire {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.35rem;
+  border: 0;
+  background: transparent;
+  color: #8d5c68;
+  font-size: 0.64rem;
+}
+
+.app-graph-delete-wire:hover {
+  color: #ff7182;
+}
+
+.app-graph-editor-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 48px;
+  padding: 0.5rem 0.85rem;
+  border-top: 1px solid rgb(130 163 204 / 0.14);
+  background: #0c1726;
+}
+
+.app-graph-editor-footer > div {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  color: #7188a5;
+  font-size: 0.67rem;
+}
+
+.app-graph-editor-footer strong {
+  color: #ffbd59;
+}
+
+.app-graph-status {
+  display: inline-flex;
+  width: fit-content;
+  padding: 0.18rem 0.44rem;
+  border-radius: 999px;
+  background: rgb(119 143 174 / 0.12);
+  color: #8297b3;
+  font-size: 0.59rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.app-graph-status--learning,
+.app-graph-status--running { background: rgb(52 169 241 / 0.14); color: #5cc2ff; }
+.app-graph-status--validated,
+.app-graph-status--succeeded { background: rgb(65 207 135 / 0.13); color: #54db99; }
+.app-graph-status--published { background: rgb(194 129 255 / 0.13); color: #cf95ff; }
+.app-graph-status--failed { background: rgb(255 83 105 / 0.13); color: #ff7182; }
+
+.app-graph-evidence-view {
+  min-height: 650px;
+  padding: 1.2rem;
+  overflow: auto;
+  background:
+    radial-gradient(circle at 75% -20%, rgb(42 143 219 / 0.13), transparent 35%),
+    #09131f;
+}
+
+.app-graph-evidence-view > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.app-graph-evidence-view h3 {
+  margin-bottom: 0.25rem;
+  color: #ecf5ff;
+}
+
+.app-graph-evidence-view header p:not(.eyebrow) {
+  color: #7c94b1;
+  font-size: 0.75rem;
+}
+
+.app-graph-evidence-actions {
+  display: grid;
+  justify-items: stretch;
+  gap: 0.45rem;
+  min-width: 230px;
+}
+
+.app-graph-evidence-actions > button {
+  justify-content: center;
+}
+
+.app-graph-evidence-actions > small {
+  color: #7087a4;
+  font-size: 0.6rem;
+  text-align: center;
+}
+
+.app-graph-merge-score {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 0.6rem;
+  min-width: 190px;
+  padding: 0.7rem;
+  border: 1px solid rgb(68 179 245 / 0.2);
+  border-radius: 8px;
+  background: rgb(41 137 200 / 0.09);
+}
+
+.app-graph-merge-score svg {
+  grid-row: 1 / 3;
+  width: 26px;
+  height: 26px;
+  color: #51bdff;
+}
+
+.app-graph-merge-score strong {
+  color: #dff3ff;
+  font-size: 0.75rem;
+}
+
+.app-graph-merge-score span {
+  color: #7090ae;
+  font-size: 0.64rem;
+}
+
+.app-graph-observation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 0.8rem;
+}
+
+.app-graph-observation-card {
+  display: grid;
+  gap: 0.58rem;
+  min-width: 0;
+  padding: 0.85rem;
+  border: 1px solid rgb(135 166 204 / 0.16);
+  border-radius: 9px;
+  background: linear-gradient(145deg, rgb(21 36 56 / 0.9), rgb(14 26 43 / 0.9));
+}
+
+.app-graph-observation-card--succeeded {
+  border-color: rgb(66 206 136 / 0.24);
+}
+
+.app-graph-observation-card--failed {
+  border-color: rgb(255 92 112 / 0.24);
+}
+
+.app-graph-observation-card--excluded {
+  border-color: rgb(135 166 204 / 0.22);
+  border-style: dashed;
+  opacity: 0.68;
+}
+
+.app-graph-observation-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #6e87a6;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-graph-observation-card-heading svg {
+  color: #4bd690;
+}
+
+.app-graph-observation-card--failed .app-graph-observation-card-heading svg {
+  color: #ff6d80;
+}
+
+.app-graph-observation-card--excluded .app-graph-observation-card-heading svg {
+  color: #8798ac;
+}
+
+.app-graph-observation-card > strong {
+  overflow: hidden;
+  color: #e3edf9;
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-graph-observation-card > p,
+.app-graph-observation-card > small {
+  margin: 0;
+  color: #758daa;
+  font-size: 0.68rem;
+}
+
+.app-graph-observation-card dl {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+  margin: 0;
+}
+
+.app-graph-observation-card dl > div {
+  display: grid;
+  gap: 0.12rem;
+  padding: 0.45rem;
+  border-radius: 6px;
+  background: rgb(6 15 27 / 0.4);
+}
+
+.app-graph-observation-card dt {
+  color: #59718f;
+  font-size: 0.55rem;
+  text-transform: uppercase;
+}
+
+.app-graph-observation-card dd {
+  margin: 0;
+  color: #cde0f4;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+}
+
+.app-graph-observation-card > a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #57bcfa;
+  font-size: 0.67rem;
+  text-decoration: none;
+}
+
+.app-graph-observation-card > a svg {
+  width: 13px;
+}
+
+.app-graph-observation-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  padding-top: 0.2rem;
+  border-top: 1px solid var(--border);
+}
+
+.app-graph-run-view {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  min-height: 650px;
+}
+
+.app-graph-run-canvas {
+  min-width: 0;
+}
+
+.app-graph-run-drawer {
+  display: grid;
+  align-content: start;
+  gap: 0.8rem;
+  padding: 0.85rem;
+  overflow: auto;
+  border-left: 1px solid rgb(133 167 208 / 0.14);
+  background: #0e1a2a;
+}
+
+.app-graph-run-result {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.7rem;
+  border: 1px solid rgb(126 157 196 / 0.18);
+  border-radius: 7px;
+  background: rgb(91 121 157 / 0.08);
+}
+
+.app-graph-run-result--succeeded { border-color: rgb(69 213 139 / 0.25); background: rgb(45 169 107 / 0.08); }
+.app-graph-run-result--failed { border-color: rgb(255 92 111 / 0.25); background: rgb(201 51 71 / 0.08); }
+
+.app-graph-run-result > svg {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  color: #4edb94;
+}
+
+.app-graph-run-result--failed > svg { color: #ff6b7e; }
+
+.app-graph-run-result > div {
+  display: grid;
+}
+
+.app-graph-run-result strong {
+  color: #e5effa;
+  font-size: 0.72rem;
+}
+
+.app-graph-run-result span {
+  color: #778eaa;
+  font-size: 0.64rem;
+}
+
+.app-graph-step-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.app-graph-run-step {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 0.55rem;
+  padding: 0.62rem;
+  border: 1px solid rgb(132 165 204 / 0.14);
+  border-radius: 7px;
+  background: #111f31;
+}
+
+.app-graph-run-step--succeeded { border-left: 3px solid #48d990; }
+.app-graph-run-step--failed { border-left: 3px solid #ff6377; }
+.app-graph-run-step--running { border-left: 3px solid #49b8ff; }
+
+.app-graph-run-step > div {
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  gap: 0.25rem;
+  color: #617a97;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+}
+
+.app-graph-run-step > div svg {
+  width: 15px;
+  color: #4edb94;
+}
+
+.app-graph-run-step--failed > div svg { color: #ff6478; }
+
+.app-graph-run-step section {
+  min-width: 0;
+}
+
+.app-graph-run-step strong {
+  color: #dbe8f6;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+}
+
+.app-graph-run-step p {
+  margin: 0.15rem 0 0;
+  color: #7188a5;
+  font-size: 0.63rem;
+}
+
+.app-graph-run-step img {
+  width: 100%;
+  margin-top: 0.45rem;
+  border-radius: 5px;
+}
+
+.app-graph-teach-modal {
+  width: min(900px, calc(100vw - 2rem));
+  max-height: min(880px, calc(100vh - 2rem));
+}
+
+.app-graph-teach-form {
+  display: grid;
+  gap: 0.9rem;
+  min-height: 0;
+  overflow: auto;
+}
+
+.app-graph-teach-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.app-graph-session-picker-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--text-primary);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.app-graph-session-picker-heading small {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.app-graph-session-picker-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 420px);
+  align-items: end;
+  gap: 0.75rem;
+}
+
+.app-graph-session-search {
+  min-width: 0;
+}
+
+.app-graph-session-search input {
+  width: 100%;
+  min-height: 36px;
+}
+
+.app-graph-teaching-session-list {
+  display: grid;
+  grid-auto-rows: minmax(66px, auto);
+  align-content: start;
+  gap: 0.45rem;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.app-graph-session-choice {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.app-graph-session-choice--selected {
+  border-color: color-mix(in srgb, var(--info) 50%, var(--border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--info) 8%, transparent);
+}
+
+.app-graph-session-choice > button {
+  display: grid;
+  grid-template-columns: 24px 72px minmax(0, 1fr);
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.55rem;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+}
+
+.app-graph-session-choice-check {
+  display: grid;
+  width: 19px;
+  height: 19px;
+  place-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  color: white;
+}
+
+.app-graph-session-choice--selected .app-graph-session-choice-check {
+  border-color: var(--info);
+  background: var(--info);
+}
+
+.app-graph-session-choice-check svg {
+  width: 13px;
+}
+
+.app-graph-session-choice img,
+.app-graph-session-choice-placeholder {
+  width: 72px;
+  height: 46px;
+  border-radius: 5px;
+  object-fit: cover;
+}
+
+.app-graph-session-choice-placeholder {
+  display: grid;
+  place-items: center;
+  background: var(--surface-raised);
+  color: var(--text-muted);
+}
+
+.app-graph-session-choice > button > span:last-child {
+  display: grid;
+  min-width: 0;
+}
+
+.app-graph-session-choice strong,
+.app-graph-session-choice small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-graph-session-choice strong {
+  font-size: 0.76rem;
+}
+
+.app-graph-session-choice small {
+  color: var(--text-muted);
+  font-size: 0.65rem;
+}
+
+.app-graph-session-choice .app-graph-session-choice-app {
+  margin-top: 0.12rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.56rem;
+}
+
+.app-graph-session-choice .app-graph-session-choice-app--match {
+  color: color-mix(in srgb, var(--success) 78%, var(--text-primary));
+}
+
+.app-graph-session-choice .app-graph-session-choice-app--other {
+  color: color-mix(in srgb, var(--accent) 65%, var(--text-primary));
+}
+
+.app-graph-recording-empty {
+  display: grid;
+  justify-items: center;
+  gap: 0.25rem;
+  padding: 2rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.app-graph-recording-empty svg {
+  width: 28px;
+  height: 28px;
+}
+
+.app-graph-recording-empty strong {
+  color: var(--text-primary);
+  font-size: 0.75rem;
+}
+
+.app-graph-recording-empty span {
+  font-size: 0.65rem;
+}
+
+.app-graph-session-range {
+  display: grid;
+  grid-template-columns: 130px 130px 1fr;
+  align-items: end;
+  gap: 0.55rem;
+  padding: 0.6rem 0.7rem;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--info) 5%, transparent);
+}
+
+.app-graph-session-range input {
+  width: 100%;
+}
+
+.app-graph-session-range > a {
+  display: inline-flex;
+  align-items: center;
+  justify-self: end;
+  gap: 0.3rem;
+  min-height: 34px;
+  color: var(--info);
+  font-size: 0.68rem;
+  text-decoration: none;
+}
+
+.app-graph-session-range > a svg {
+  width: 13px;
+}
+
+.app-graph-teach-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--info) 22%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--info) 7%, transparent);
+}
+
+.app-graph-teach-summary > svg {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  color: var(--info);
+}
+
+.app-graph-teach-summary p {
+  display: grid;
+  gap: 0.12rem;
+  margin: 0;
+}
+
+.app-graph-teach-summary strong {
+  font-size: 0.73rem;
+}
+
+.app-graph-teach-summary span {
+  color: var(--text-secondary);
+  font-size: 0.68rem;
+}
+
+.app-graph-teaching-dialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(1480px, calc(100vw - 2rem));
+  height: min(980px, calc(100dvh - 2rem));
+  max-height: calc(100vh - 2rem);
+  overflow: hidden;
+  border-color: rgb(98 150 206 / 0.3);
+  background: #0a1422;
+  color: #dce8f6;
+}
+
+.app-graph-teaching-heading {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) auto auto;
+  align-items: center;
+  gap: 1rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid rgb(128 163 202 / 0.15);
+}
+
+.app-graph-teaching-heading h2 {
+  color: #f0f6ff;
+}
+
+.app-graph-teaching-heading .muted {
+  max-width: 760px;
+  color: #7890ad;
+}
+
+.app-graph-teaching-steps {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-graph-teaching-steps li {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #617995;
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+
+.app-graph-teaching-steps li::after {
+  width: 22px;
+  height: 1px;
+  margin-left: 0.1rem;
+  background: rgb(130 163 202 / 0.2);
+  content: '';
+}
+
+.app-graph-teaching-steps li:last-child::after {
+  display: none;
+}
+
+.app-graph-teaching-steps li > span {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 1px solid rgb(130 163 202 / 0.24);
+  border-radius: 50%;
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+}
+
+.app-graph-teaching-steps li.active,
+.app-graph-teaching-steps li.complete {
+  color: #70caff;
+}
+
+.app-graph-teaching-steps li.active > span,
+.app-graph-teaching-steps li.complete > span {
+  border-color: #3baeff;
+  background: rgb(45 160 238 / 0.15);
+}
+
+.app-graph-teaching-steps svg {
+  width: 11px;
+}
+
+.app-graph-teaching-select,
+.app-graph-annotation-stage,
+.app-graph-trajectory-review {
+  min-height: 0;
+  padding-top: 0.9rem;
+  overflow: auto;
+}
+
+.app-graph-teaching-dialog .app-graph-teach-form label,
+.app-graph-annotation-fields label {
+  display: grid;
+  gap: 0.28rem;
+}
+
+.app-graph-teaching-dialog .app-graph-teach-form label > span,
+.app-graph-annotation-fields label > span {
+  color: #7891b0;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-graph-teaching-dialog input,
+.app-graph-teaching-dialog select,
+.app-graph-teaching-dialog textarea {
+  border-color: rgb(126 161 203 / 0.22);
+  background: rgb(4 12 24 / 0.62);
+  color: #e1edf9;
+}
+
+.app-graph-teaching-dialog input:focus,
+.app-graph-teaching-dialog select:focus,
+.app-graph-teaching-dialog textarea:focus {
+  border-color: rgb(56 173 255 / 0.65);
+  outline: none;
+  box-shadow: 0 0 0 2px rgb(56 173 255 / 0.11);
+}
+
+.app-graph-teaching-dialog input:disabled,
+.app-graph-teaching-dialog select:disabled,
+.app-graph-teaching-dialog textarea:disabled {
+  opacity: 0.62;
+}
+
+.app-graph-teaching-dialog .app-graph-session-choice {
+  border-color: rgb(125 157 195 / 0.16);
+  background: rgb(18 32 51 / 0.74);
+}
+
+.app-graph-teaching-dialog .app-graph-session-choice--selected {
+  border-color: rgb(58 174 255 / 0.48);
+  background: rgb(27 83 126 / 0.18);
+}
+
+.app-graph-teaching-dialog .app-graph-session-choice > button {
+  color: #e1ebf7;
+}
+
+.app-graph-annotation-stage {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  gap: 0.75rem;
+  overflow: hidden;
+}
+
+.app-graph-teaching-session-tabs {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+}
+
+.app-graph-teaching-session-tabs button {
+  display: grid;
+  grid-template-columns: 22px minmax(150px, 1fr);
+  column-gap: 0.45rem;
+  min-width: 220px;
+  padding: 0.48rem 0.62rem;
+  border: 1px solid rgb(126 159 198 / 0.17);
+  border-radius: 7px;
+  background: rgb(14 27 45 / 0.84);
+  color: #8399b5;
+  text-align: left;
+}
+
+.app-graph-teaching-session-tabs button.active {
+  border-color: rgb(62 177 255 / 0.52);
+  background: rgb(34 117 179 / 0.18);
+  color: #e5f2ff;
+}
+
+.app-graph-teaching-session-tabs button > span {
+  display: grid;
+  grid-row: 1 / 3;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 50%;
+  background: rgb(69 137 196 / 0.14);
+  color: #58beff;
+  font-family: var(--font-mono);
+  font-size: 0.61rem;
+}
+
+.app-graph-teaching-session-tabs strong,
+.app-graph-teaching-session-tabs small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-graph-teaching-session-tabs strong { font-size: 0.7rem; }
+.app-graph-teaching-session-tabs small { color: #617b9a; font-size: 0.59rem; }
+.app-graph-teaching-session-tabs svg { width: 12px; }
+
+.app-graph-timeline-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgb(126 160 199 / 0.17);
+  border-radius: 10px;
+  background: #08111e;
+}
+
+.app-graph-replay-teacher {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  align-content: start;
+  min-width: 0;
+  min-height: 0;
+  padding: 0.8rem;
+  overflow: hidden;
+  border-right: 1px solid rgb(128 161 201 / 0.15);
+}
+
+.app-graph-replay-teacher > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.65rem;
+}
+
+.app-graph-replay-teacher h3 {
+  margin-bottom: 0.15rem;
+  color: #ecf5ff;
+  font-size: 0.9rem;
+}
+
+.app-graph-replay-teacher header p:not(.eyebrow) {
+  margin: 0;
+  color: #6f87a5;
+  font-size: 0.65rem;
+}
+
+.app-graph-replay-teacher header a,
+.app-graph-reviewed-trajectory header a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  color: #54bfff;
+  font-size: 0.63rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.app-graph-replay-teacher header a svg,
+.app-graph-reviewed-trajectory header a svg { width: 12px; }
+
+.app-graph-teaching-player {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+}
+
+.app-graph-teaching-frame {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid rgb(129 160 198 / 0.16);
+  border-radius: 10px;
+  background: #0f0f12;
+  contain: layout paint;
+}
+
+.app-graph-teaching-player .session-frame-stage {
+  justify-self: center;
+}
+
+.app-graph-teaching-player.session-viewer-dashboard .session-frame-stage.app-graph-teaching-frame .session-frame-viewport {
+  width: auto;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.app-graph-teaching-player.session-viewer-dashboard .app-graph-teaching-frame .session-frame-viewport > .session-frame-image-layer {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.app-graph-teaching-frame .session-frame-placeholder > div,
+.app-graph-teaching-frame .session-frame-placeholder > p {
+  display: grid;
+  justify-items: center;
+  gap: 0.4rem;
+  color: #637b98;
+  font-size: 0.66rem;
+}
+
+.app-graph-teaching-frame .session-frame-placeholder svg { width: 24px; height: 24px; }
+
+.app-graph-scrub-controls {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0 0.55rem;
+  border-right: 1px solid transparent;
+  border-left: 1px solid transparent;
+  color: #738aa6;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+}
+
+.app-graph-timeline-stack {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+  padding-top: 0.45rem;
+}
+
+.app-graph-playback-nudges {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.app-graph-playback-nudges strong {
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-graph-scrub-controls button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid rgb(124 159 201 / 0.2);
+  border-radius: 5px;
+  background: #111e30;
+  color: #86a3c3;
+}
+
+.app-graph-scrub-controls button:hover { border-color: #329ee9; color: #66c6ff; }
+.app-graph-scrub-controls button svg { width: 13px; }
+.app-graph-scrub-controls strong { color: #d7e9fa; font-size: 0.63rem; }
+
+.app-graph-scrub-controls .timeline-scrubber {
+  width: 100%;
+}
+
+.app-graph-scrub-controls .timeline-scrub-control::-webkit-slider-thumb {
+  width: 0;
+  height: 0;
+  margin: 0;
+  border: 0;
+}
+
+.app-graph-scrub-controls .timeline-scrub-control::-moz-range-thumb {
+  width: 0;
+  height: 0;
+  border: 0;
+}
+
+.app-graph-scrub-controls .app-graph-scrubber-label {
+  pointer-events: none;
+}
+
+.app-graph-scrub-controls .app-graph-scrubber-label--start {
+  transform: translateX(0);
+}
+
+.app-graph-scrub-controls .app-graph-scrubber-label--end {
+  transform: translateX(-100%);
+}
+
+.app-graph-timeline-end {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  color: var(--text-muted);
+  font-size: 0.56rem;
+}
+
+.app-graph-semantic-timeline {
+  display: grid;
+  gap: 5px;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid rgb(124 158 199 / 0.15);
+  border-radius: 7px;
+  background: rgb(4 11 21 / 0.7);
+}
+
+.app-graph-timeline-lane {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 18px;
+}
+
+.app-graph-timeline-lane--annotations {
+  min-height: 34px;
+}
+
+.app-graph-timeline-lane-label {
+  overflow: hidden;
+  color: #7087a2;
+  font-family: var(--font-mono);
+  font-size: 0.54rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-graph-timeline-lane-label--gestures {
+  color: #d78c30;
+  font-weight: 800;
+}
+
+.app-graph-frame-markers,
+.app-graph-touch-markers,
+.app-graph-annotation-track {
+  position: relative;
+  min-width: 0;
+}
+
+.app-graph-frame-markers,
+.app-graph-touch-markers {
+  height: 14px;
+}
+
+.app-graph-frame-markers i {
+  position: absolute;
+  top: 2px;
+  width: 2px;
+  height: 8px;
+  border-radius: 1px;
+  background: #446b92;
+}
+
+.app-graph-touch-markers button {
+  position: absolute;
+  top: 1px;
+  width: 11px;
+  height: 11px;
+  padding: 0;
+  border: 2px solid #fff4df;
+  border-radius: 50%;
+  background: #f7aa4a;
+  box-shadow: 0 0 0 1px #b36812, 0 0 7px rgb(247 170 74 / 0.72);
+  transform: translateX(-50%);
+}
+
+.app-graph-touch-markers button:hover,
+.app-graph-touch-markers button:focus-visible {
+  outline: 2px solid #f7aa4a;
+  outline-offset: 2px;
+}
+
+.app-graph-touch-markers button > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.app-graph-annotation-track {
+  border-radius: 4px;
+  background:
+    linear-gradient(90deg, rgb(255 255 255 / 0.025) 1px, transparent 1px),
+    #0d1928;
+  background-size: 10% 100%;
+}
+
+.app-graph-timeline-block {
+  position: absolute;
+  top: 5px;
+  min-width: 5px;
+  height: 23px;
+  padding: 0;
+  border: 1px solid rgb(70 175 247 / 0.6);
+  border-radius: 4px;
+  background: rgb(42 139 205 / 0.54);
+}
+
+.app-graph-timeline-block--state {
+  min-width: 12px;
+  overflow: visible;
+}
+
+.app-graph-timeline-block--action { border-color: #f3a949; background: #a65e23; }
+.app-graph-timeline-block--condition { border-color: #c887ff; background: #7039a0; }
+.app-graph-timeline-block--ignore { border-color: #718096; background: #384658; opacity: 0.65; }
+.app-graph-timeline-block.active { outline: 2px solid #edf8ff; outline-offset: 2px; }
+
+.app-graph-timeline-resize-handle {
+  position: absolute;
+  z-index: 4;
+  top: -5px;
+  bottom: -5px;
+  width: 12px;
+  padding: 0;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.app-graph-timeline-resize-handle::before {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: 3px;
+  border-radius: 999px;
+  background: #e7f6ff;
+  box-shadow: 0 0 0 1px rgb(13 25 40 / 0.75), 0 0 5px rgb(85 192 255 / 0.75);
+  content: '';
+  opacity: 0.72;
+}
+
+.app-graph-timeline-resize-handle--start { left: -6px; }
+.app-graph-timeline-resize-handle--end { right: -6px; }
+
+.app-graph-timeline-block:hover .app-graph-timeline-resize-handle::before,
+.app-graph-timeline-block.active .app-graph-timeline-resize-handle::before {
+  background: #fff;
+  opacity: 1;
+}
+
+.app-graph-playhead {
+  position: absolute;
+  z-index: 3;
+  top: -5px;
+  width: 1px;
+  height: 44px;
+  background: #ff6e7d;
+  box-shadow: 0 0 7px rgb(255 91 110 / 0.7);
+  pointer-events: none;
+}
+
+.app-graph-playhead::before {
+  position: absolute;
+  top: -2px;
+  left: -4px;
+  border-width: 5px 4px 0;
+  border-style: solid;
+  border-color: #ff6e7d transparent transparent;
+  content: '';
+}
+
+.app-graph-annotation-inspector {
+  display: grid;
+  grid-template-rows: auto auto minmax(70px, auto) minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+  background: #0d1929;
+}
+
+.app-graph-screen-detector {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.72rem;
+  border-bottom: 1px solid rgb(128 161 202 / 0.14);
+}
+
+.app-graph-screen-detector > div {
+  display: grid;
+}
+
+.app-graph-screen-detector span {
+  color: var(--text-muted);
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.app-graph-screen-detector small {
+  color: var(--text-muted);
+  font-size: 0.58rem;
+}
+
+.app-graph-screen-detector > strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 1.05rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-graph-screen-detector .button {
+  justify-content: center;
+  width: 100%;
+}
+
+.app-graph-screen-detector .app-graph-analyze-workflow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  justify-content: stretch;
+  gap: 0.55rem;
+  min-height: 48px;
+  padding: 0.48rem 0.62rem;
+  text-align: left;
+}
+
+.app-graph-analyze-workflow > svg {
+  align-self: center;
+  width: 19px;
+  height: 19px;
+}
+
+.app-graph-analyze-workflow > span {
+  display: grid;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.app-graph-analyze-workflow strong {
+  overflow: hidden;
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-graph-analyze-workflow small {
+  color: color-mix(in srgb, currentColor 76%, transparent);
+  font-size: 0.57rem;
+  font-weight: 550;
+}
+
+.app-graph-mark-action {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.62rem;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.app-graph-mark-action:hover {
+  color: var(--text-primary);
+}
+
+.app-graph-annotation-list-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.72rem;
+  border-bottom: 1px solid rgb(128 161 202 / 0.14);
+}
+
+.app-graph-annotation-list-heading > div { display: grid; }
+.app-graph-annotation-list-heading span { color: #dce9f7; font-size: 0.7rem; font-weight: 700; }
+.app-graph-annotation-list-heading small { color: #627a97; font-size: 0.58rem; }
+.app-graph-annotation-list-heading svg { width: 19px; color: #49b8fb; }
+
+.app-graph-annotation-list {
+  display: grid;
+  align-content: start;
+  gap: 0.24rem;
+  max-height: 120px;
+  padding: 0.5rem;
+  overflow: auto;
+  border-bottom: 1px solid rgb(128 161 202 / 0.14);
+}
+
+.app-graph-annotation-list button {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 0.4rem;
+  padding: 0.38rem;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: #859bb7;
+  text-align: left;
+}
+
+.app-graph-annotation-list button:hover,
+.app-graph-annotation-list button.active { border-color: rgb(57 169 242 / 0.26); background: rgb(43 135 196 / 0.11); }
+.app-graph-annotation-list button > span { display: grid; width: 22px; height: 22px; place-items: center; border-radius: 4px; background: #17273a; color: #60bdf4; font-family: var(--font-mono); font-size: 0.57rem; }
+.app-graph-annotation-list button > div { display: grid; min-width: 0; }
+.app-graph-annotation-list strong,
+.app-graph-annotation-list small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-graph-annotation-list strong { color: #d7e5f4; font-size: 0.63rem; }
+.app-graph-annotation-list small { color: #647d9b; font-size: 0.56rem; }
+
+.app-graph-annotation-fields {
+  display: grid;
+  align-content: start;
+  gap: 0.55rem;
+  min-height: 0;
+  padding: 0.7rem;
+  overflow: auto;
+}
+
+.app-graph-annotation-fields input { min-height: 36px; }
+
+.app-graph-simple-range {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.58rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--surface-raised) 70%, transparent);
+  color: var(--text-muted);
+  font-size: 0.64rem;
+}
+
+.app-graph-simple-range strong { color: var(--text-primary); }
+
+.app-graph-annotation-range-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+}
+
+.app-graph-simple-range > button,
+.app-graph-annotation-range-actions button {
+  min-height: 32px;
+  padding: 0 0.5rem;
+  border: 1px solid rgb(125 158 198 / 0.19);
+  border-radius: 5px;
+  background: #122034;
+  color: #91a8c3;
+  font-size: 0.58rem;
+}
+
+.app-graph-simple-range > button:hover,
+.app-graph-annotation-range-actions button:hover {
+  border-color: #3babf4;
+  color: #d8edff;
+}
+
+.app-graph-annotation-empty {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0.45rem;
+  padding: 1rem;
+  color: #637b98;
+  text-align: center;
+}
+.app-graph-annotation-empty svg { width: 28px; height: 28px; }
+.app-graph-annotation-empty p { max-width: 210px; margin: 0; font-size: 0.67rem; }
+.app-graph-annotation-empty p strong { color: var(--text-primary); }
+
+.app-graph-trajectory-strip {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  align-items: center;
+  min-width: 0;
+  min-height: 88px;
+  padding: 0.62rem;
+  border-top: 1px solid rgb(128 161 202 / 0.15);
+  background: #0b1726;
+}
+
+.app-graph-trajectory-strip--empty {
+  grid-template-columns: auto 1fr;
+  gap: 0.5rem;
+  min-height: 64px;
+  color: #627b98;
+  font-size: 0.65rem;
+}
+
+.app-graph-trajectory-strip--empty svg { width: 20px; color: #46b4f5; }
+.app-graph-trajectory-strip-heading { display: grid; }
+.app-graph-trajectory-strip-heading span { color: #d8e7f6; font-size: 0.68rem; font-weight: 700; }
+.app-graph-trajectory-strip-heading small { color: #637c99; font-size: 0.56rem; }
+
+.app-graph-trajectory-flow {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0.2rem;
+  overflow-x: auto;
+}
+
+.app-graph-trajectory-unit { display: flex; align-items: center; }
+.app-graph-trajectory-unit article { display: grid; min-width: 130px; max-width: 180px; padding: 0.45rem 0.55rem; border: 1px solid rgb(65 174 244 / 0.3); border-radius: 6px; background: rgb(31 104 153 / 0.15); }
+.app-graph-trajectory-unit article span { color: #56bdf7; font-size: 0.52rem; font-weight: 800; text-transform: uppercase; }
+.app-graph-trajectory-unit article strong { overflow: hidden; color: #e0edf9; font-size: 0.63rem; text-overflow: ellipsis; white-space: nowrap; }
+.app-graph-trajectory-wire { display: grid; justify-items: center; min-width: 96px; color: #e6a64d; }
+.app-graph-trajectory-wire small { max-width: 90px; overflow: hidden; font-size: 0.53rem; text-overflow: ellipsis; white-space: nowrap; }
+.app-graph-trajectory-wire svg { width: 54px; height: 18px; }
+
+.app-graph-trajectory-review {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.app-graph-trajectory-review > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.app-graph-trajectory-review h3 { margin-bottom: 0.2rem; color: #ecf5ff; }
+.app-graph-trajectory-review header p:not(.eyebrow) { max-width: 760px; color: #758eab; font-size: 0.7rem; }
+.app-graph-reviewed-session-list { display: grid; gap: 0.65rem; }
+
+.app-graph-reviewed-trajectory {
+  overflow: hidden;
+  border: 1px solid rgb(126 160 200 / 0.17);
+  border-radius: 8px;
+  background: #0d1929;
+}
+
+.app-graph-reviewed-trajectory > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.62rem 0.75rem;
+  border-bottom: 1px solid rgb(126 160 200 / 0.14);
+}
+
+.app-graph-reviewed-trajectory header > div { display: flex; align-items: center; gap: 0.5rem; }
+.app-graph-reviewed-trajectory header > div > svg { width: 20px; color: #50b9f6; }
+.app-graph-reviewed-trajectory header span { display: grid; }
+.app-graph-reviewed-trajectory header strong { color: #e4eef9; font-size: 0.7rem; }
+.app-graph-reviewed-trajectory header small { color: #647c99; font-size: 0.57rem; }
+.app-graph-reviewed-trajectory ol { display: grid; gap: 0.35rem; margin: 0; padding: 0.6rem; list-style: none; }
+
+.app-graph-reviewed-trajectory li {
+  display: grid;
+  grid-template-columns: 24px minmax(120px, 0.8fr) 30px minmax(150px, 1fr) 30px minmax(120px, 0.8fr);
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.5rem;
+  border: 1px solid rgb(125 158 198 / 0.12);
+  border-radius: 6px;
+  background: rgb(7 16 29 / 0.44);
+}
+
+.app-graph-reviewed-trajectory li > span { display: grid; width: 24px; height: 24px; place-items: center; border-radius: 50%; background: #162a40; color: #57bfff; font-family: var(--font-mono); font-size: 0.58rem; }
+.app-graph-reviewed-trajectory li > svg { width: 22px; color: #627f9e; }
+.app-graph-reviewed-trajectory li > div { display: grid; min-width: 0; }
+.app-graph-reviewed-trajectory li strong,
+.app-graph-reviewed-trajectory li small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-graph-reviewed-trajectory li strong { color: #dbe8f5; font-size: 0.64rem; }
+.app-graph-reviewed-trajectory li small { color: #627b99; font-size: 0.54rem; }
+.app-graph-reviewed-trajectory .app-graph-reviewed-control { padding: 0.38rem 0.5rem; border: 1px solid rgb(235 165 73 / 0.26); border-radius: 5px; background: rgb(148 87 26 / 0.12); }
+.app-graph-reviewed-trajectory .app-graph-reviewed-control strong { color: #f3bb6b; }
+
+.app-graph-observation-trajectory {
+  display: grid;
+  gap: 0.25rem;
+  max-height: 132px;
+  overflow: auto;
+}
+
+.app-graph-observation-trajectory > span {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.4rem;
+  border-radius: 5px;
+  background: rgb(5 14 25 / 0.4);
+}
+
+.app-graph-observation-trajectory strong { overflow: hidden; color: #bfcfe1; font-size: 0.56rem; text-overflow: ellipsis; white-space: nowrap; }
+.app-graph-observation-trajectory small { color: #e2a755; font-size: 0.52rem; }
+
+/* The graph workspace follows the portal theme. Its canvas keeps strong visual
+   hierarchy without forcing a second colour scheme over the surrounding page. */
+.app-graph-workspace {
+  border-color: var(--border-strong);
+  background: var(--surface);
+  color: var(--text-primary);
+  box-shadow: 0 18px 52px color-mix(in srgb, var(--text-primary) 9%, transparent);
+  color-scheme: inherit;
+}
+
+.app-graph-library {
+  border-right-color: var(--border);
+  background: color-mix(in srgb, var(--surface-muted) 86%, var(--surface));
+  color: var(--text-primary);
+}
+
+.app-graph-library-heading,
+.app-graph-library-foot {
+  border-color: var(--border);
+}
+
+.app-graph-library-heading > span,
+.app-graph-library-heading small,
+.app-graph-list-item,
+.app-graph-list-copy small,
+.app-graph-library-foot {
+  color: var(--text-muted);
+}
+
+.app-graph-library-heading strong,
+.app-graph-list-copy strong {
+  color: var(--text-primary);
+}
+
+.app-graph-list-item:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-raised);
+}
+
+.app-graph-list-item--active {
+  border-color: color-mix(in srgb, var(--info) 45%, var(--border));
+  background: color-mix(in srgb, var(--info) 10%, var(--surface));
+  box-shadow: inset 3px 0 var(--info);
+}
+
+.app-graph-list-icon {
+  border-color: color-mix(in srgb, var(--info) 26%, var(--border));
+  background: color-mix(in srgb, var(--info) 10%, var(--surface));
+  color: var(--info);
+}
+
+.app-graph-library-foot svg {
+  color: var(--info);
+}
+
+.app-graph-editor {
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.app-graph-editor-heading,
+.app-graph-mode-bar,
+.app-graph-toolbar,
+.app-graph-editor-footer {
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--surface-muted) 76%, var(--surface));
+}
+
+.app-graph-title-fields label > span,
+.app-graph-inspector label > span,
+.app-graph-run-drawer label > span,
+.app-graph-toolbar label > span {
+  color: var(--text-muted);
+}
+
+.app-graph-title-fields input,
+.app-graph-title-fields select,
+.app-graph-inspector input,
+.app-graph-inspector select,
+.app-graph-inspector textarea,
+.app-graph-run-drawer select,
+.app-graph-toolbar select {
+  border-color: var(--border-strong);
+  background: var(--input-bg);
+  color: var(--text-primary);
+}
+
+.app-graph-title-fields input:focus,
+.app-graph-title-fields select:focus,
+.app-graph-inspector input:focus,
+.app-graph-inspector select:focus,
+.app-graph-inspector textarea:focus {
+  border-color: color-mix(in srgb, var(--info) 65%, var(--border-strong));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--info) 12%, transparent);
+}
+
+.app-graph-title-fields input:disabled,
+.app-graph-title-fields select:disabled,
+.app-graph-inspector input:disabled,
+.app-graph-inspector select:disabled,
+.app-graph-inspector textarea:disabled {
+  color: var(--text-muted);
+}
+
+.app-graph-mode-bar button {
+  color: var(--text-muted);
+}
+
+.app-graph-mode-bar button:hover,
+.app-graph-mode-bar button.active {
+  color: var(--text-primary);
+}
+
+.app-graph-mode-bar button.active {
+  border-bottom-color: var(--info);
+  background: linear-gradient(0deg, color-mix(in srgb, var(--info) 10%, transparent), transparent 70%);
+}
+
+.app-graph-mode-bar button > span {
+  background: var(--surface-raised);
+  color: var(--text-muted);
+}
+
+.app-graph-learning {
+  border-color: color-mix(in srgb, var(--info) 28%, var(--border));
+  background: color-mix(in srgb, var(--info) 10%, var(--surface));
+  color: var(--info);
+}
+
+.app-graph-learning strong { color: var(--text-primary); }
+.app-graph-learning span { color: var(--text-secondary); }
+
+.app-graph-toolbar {
+  color: var(--text-muted);
+}
+
+.app-graph-toolbar-tip {
+  color: var(--text-muted);
+}
+
+.app-graph-canvas-shell {
+  background: color-mix(in srgb, var(--surface-muted) 88%, var(--surface));
+}
+
+.app-graph-canvas-controls {
+  border-color: var(--border-strong);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--text-primary) 12%, transparent);
+}
+
+.app-graph-canvas-controls button {
+  border-left-color: var(--border);
+  color: var(--text-secondary);
+}
+
+.app-graph-canvas-controls button:hover {
+  background: color-mix(in srgb, var(--info) 11%, transparent);
+  color: var(--info);
+}
+
+.app-graph-canvas-controls span,
+.app-graph-canvas-legend {
+  color: var(--text-muted);
+}
+
+.app-graph-grid-dot {
+  fill: color-mix(in srgb, var(--info) 22%, transparent);
+}
+
+.app-graph-grid-line {
+  stroke: color-mix(in srgb, var(--text-muted) 12%, transparent);
+}
+
+.app-graph-state-group-surface {
+  fill: color-mix(in srgb, var(--info) 4%, var(--surface));
+  stroke: color-mix(in srgb, var(--info) 36%, var(--border));
+}
+
+.app-graph-state-group-header {
+  fill: color-mix(in srgb, var(--info) 11%, var(--surface));
+}
+
+.app-graph-state-group-kind {
+  fill: var(--info);
+}
+
+.app-graph-state-group-label {
+  fill: var(--text-primary);
+}
+
+.app-graph-state-group-count {
+  fill: var(--text-muted);
+}
+
+.app-graph-edge {
+  stroke: color-mix(in srgb, var(--info) 45%, var(--text-muted));
+}
+
+.app-graph-edge--internal {
+  stroke: color-mix(in srgb, var(--info) 66%, var(--text-secondary));
+}
+
+.app-graph-edge-group:hover .app-graph-edge,
+.app-graph-edge--selected {
+  stroke: var(--info);
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--info) 55%, transparent));
+}
+
+.app-graph-edge-label rect {
+  fill: var(--surface);
+  stroke: var(--border-strong);
+}
+
+.app-graph-edge-label text {
+  fill: var(--text-secondary);
+}
+
+.app-graph-edge-label--internal rect {
+  fill: var(--surface-raised);
+  stroke: color-mix(in srgb, var(--info) 28%, var(--border));
+}
+
+.app-graph-edge-label--internal text {
+  fill: var(--text-secondary);
+}
+
+.app-graph-node-surface {
+  fill: var(--surface);
+  stroke: var(--border-strong);
+}
+
+.app-graph-node--internal .app-graph-node-surface {
+  fill: var(--surface-raised);
+  stroke: color-mix(in srgb, var(--info) 45%, var(--border));
+}
+
+.app-graph-node--internal .app-graph-node-kind {
+  fill: var(--info);
+}
+
+.app-graph-node-header {
+  fill: color-mix(in srgb, var(--node-color) 20%, var(--surface));
+}
+
+.app-graph-node-kind,
+.app-graph-node-label {
+  fill: var(--text-primary);
+}
+
+.app-graph-node-parent {
+  fill: var(--text-muted);
+}
+
+.app-graph-node-confidence {
+  fill: var(--text-muted);
+}
+
+.app-graph-node-port {
+  fill: var(--surface);
+}
+
+.app-graph-inspector,
+.app-graph-run-drawer {
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--surface-muted) 72%, var(--surface));
+}
+
+.app-graph-inspector--empty,
+.app-graph-inspector--empty > svg,
+.app-graph-inspector-heading small,
+.app-graph-provenance-box span,
+.app-graph-binding-stack button,
+.app-graph-binding-stack button small,
+.app-graph-editor-footer > div {
+  color: var(--text-muted);
+}
+
+.app-graph-inspector-heading,
+.app-graph-inspector-divider {
+  border-color: var(--border);
+}
+
+.app-graph-inspector-heading strong,
+.app-graph-provenance-box strong,
+.app-graph-binding-stack button strong {
+  color: var(--text-primary);
+}
+
+.app-graph-inspector-heading > svg,
+.app-graph-inspector-divider,
+.app-graph-provenance-box > svg,
+.app-graph-binding-stack .app-graph-binding-stack-add {
+  color: var(--info);
+}
+
+.app-graph-confidence-chip,
+.app-graph-provenance-box {
+  border-color: color-mix(in srgb, var(--info) 24%, var(--border));
+  background: color-mix(in srgb, var(--info) 8%, var(--surface));
+  color: var(--info);
+}
+
+.app-graph-binding-stack button {
+  border-color: var(--border);
+  background: var(--surface-raised);
+}
+
+.app-graph-binding-stack button:hover,
+.app-graph-binding-stack button.active {
+  border-color: color-mix(in srgb, var(--info) 48%, var(--border));
+  background: color-mix(in srgb, var(--info) 10%, var(--surface));
+}
+
+.app-graph-editor-footer strong {
+  color: color-mix(in srgb, #d98b16 80%, var(--text-primary));
+}
+
+.app-graph-status {
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+}
+
+.app-graph-evidence-view {
+  background:
+    radial-gradient(circle at 75% -20%, color-mix(in srgb, var(--info) 10%, transparent), transparent 35%),
+    var(--surface);
+}
+
+.app-graph-evidence-view h3,
+.app-graph-merge-score strong,
+.app-graph-observation-card > strong,
+.app-graph-observation-card dd,
+.app-graph-run-result strong,
+.app-graph-run-step strong,
+.app-graph-observation-trajectory strong {
+  color: var(--text-primary);
+}
+
+.app-graph-evidence-view header p:not(.eyebrow),
+.app-graph-evidence-actions > small,
+.app-graph-merge-score span,
+.app-graph-observation-card-heading,
+.app-graph-observation-card > p,
+.app-graph-observation-card > small,
+.app-graph-observation-card dt,
+.app-graph-run-result span,
+.app-graph-run-step,
+.app-graph-run-step p {
+  color: var(--text-muted);
+}
+
+.app-graph-merge-score,
+.app-graph-run-result {
+  border-color: color-mix(in srgb, var(--info) 22%, var(--border));
+  background: color-mix(in srgb, var(--info) 7%, var(--surface));
+}
+
+.app-graph-merge-score svg,
+.app-graph-observation-card > a {
+  color: var(--info);
+}
+
+.app-graph-observation-card,
+.app-graph-run-step {
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--surface-muted) 72%, var(--surface));
+}
+
+.app-graph-observation-card dl > div,
+.app-graph-observation-trajectory > span {
+  background: var(--surface-raised);
+}
+
+/* The teaching workspace follows the portal theme. Kismet structure comes from
+   contrast and accent colour, not from forcing a dark colour scheme. */
+.app-graph-teaching-dialog {
+  border-color: var(--border-strong);
+  background: var(--surface);
+  color: var(--text-primary);
+  color-scheme: inherit;
+}
+
+.app-graph-teaching-heading {
+  border-bottom-color: var(--border);
+}
+
+.app-graph-teaching-heading h2,
+.app-graph-replay-teacher h3,
+.app-graph-trajectory-review h3 {
+  color: var(--text-primary);
+}
+
+.app-graph-teaching-heading .muted,
+.app-graph-replay-teacher header p:not(.eyebrow),
+.app-graph-trajectory-review header p:not(.eyebrow) {
+  color: var(--text-secondary);
+}
+
+.app-graph-teaching-steps li,
+.app-graph-teaching-session-tabs button,
+.app-graph-teaching-session-tabs small,
+.app-graph-teaching-frame .session-frame-placeholder,
+.app-graph-scrub-controls,
+.app-graph-timeline-lane-label,
+.app-graph-annotation-list-heading small,
+.app-graph-annotation-list button,
+.app-graph-annotation-list small,
+.app-graph-annotation-empty,
+.app-graph-trajectory-strip--empty,
+.app-graph-trajectory-strip-heading small,
+.app-graph-reviewed-trajectory header small,
+.app-graph-reviewed-trajectory li small {
+  color: var(--text-muted);
+}
+
+.app-graph-teaching-steps li::after {
+  background: var(--border-strong);
+}
+
+.app-graph-teaching-steps li > span,
+.app-graph-teaching-session-tabs button,
+.app-graph-timeline-editor,
+.app-graph-teaching-frame,
+.app-graph-scrub-controls button,
+.app-graph-semantic-timeline,
+.app-graph-simple-range > button,
+.app-graph-annotation-range-actions button,
+.app-graph-annotation-list-heading,
+.app-graph-annotation-list,
+.app-graph-trajectory-strip,
+.app-graph-reviewed-trajectory,
+.app-graph-reviewed-trajectory > header,
+.app-graph-reviewed-trajectory li {
+  border-color: var(--border);
+}
+
+.app-graph-teaching-steps li.active,
+.app-graph-teaching-steps li.complete,
+.app-graph-replay-teacher header a,
+.app-graph-reviewed-trajectory header a,
+.app-graph-annotation-list-heading svg,
+.app-graph-trajectory-strip--empty svg,
+.app-graph-trajectory-unit article span,
+.app-graph-reviewed-trajectory header > div > svg {
+  color: var(--info);
+}
+
+.app-graph-teaching-steps li.active > span,
+.app-graph-teaching-steps li.complete > span {
+  border-color: var(--info);
+  background: color-mix(in srgb, var(--info) 12%, transparent);
+}
+
+.app-graph-teaching-dialog .app-graph-teach-form label > span,
+.app-graph-annotation-fields label > span {
+  color: var(--text-muted);
+}
+
+.app-graph-teaching-dialog input,
+.app-graph-teaching-dialog select,
+.app-graph-teaching-dialog textarea {
+  border-color: var(--border-strong);
+  background: var(--input-bg);
+  color: var(--text-primary);
+}
+
+.app-graph-teaching-dialog input:focus,
+.app-graph-teaching-dialog select:focus,
+.app-graph-teaching-dialog textarea:focus {
+  border-color: color-mix(in srgb, var(--info) 70%, var(--border-strong));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--info) 12%, transparent);
+}
+
+.app-graph-teaching-dialog .app-graph-session-choice,
+.app-graph-teaching-session-tabs button,
+.app-graph-annotation-inspector,
+.app-graph-reviewed-trajectory {
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--surface-muted) 82%, var(--surface));
+}
+
+.app-graph-teaching-dialog .app-graph-session-choice--selected,
+.app-graph-teaching-session-tabs button.active {
+  border-color: color-mix(in srgb, var(--info) 58%, var(--border));
+  background: color-mix(in srgb, var(--info) 10%, var(--surface));
+}
+
+.app-graph-teaching-dialog .app-graph-session-choice > button,
+.app-graph-teaching-session-tabs button.active,
+.app-graph-annotation-list-heading span,
+.app-graph-annotation-list strong,
+.app-graph-trajectory-strip-heading span,
+.app-graph-trajectory-unit article strong,
+.app-graph-reviewed-trajectory header strong,
+.app-graph-reviewed-trajectory li strong,
+.app-graph-scrub-controls strong {
+  color: var(--text-primary);
+}
+
+.app-graph-teaching-session-tabs button > span,
+.app-graph-annotation-list button > span,
+.app-graph-reviewed-trajectory li > span {
+  background: color-mix(in srgb, var(--info) 11%, var(--surface));
+  color: color-mix(in srgb, var(--info) 80%, var(--text-primary));
+}
+
+.app-graph-timeline-editor {
+  background: color-mix(in srgb, var(--surface-muted) 55%, var(--surface));
+}
+
+.app-graph-replay-teacher {
+  border-right-color: var(--border);
+}
+
+.app-graph-teaching-frame {
+  background: #0f0f12;
+}
+
+.app-graph-scrub-controls button,
+.app-graph-simple-range > button,
+.app-graph-annotation-range-actions button {
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+}
+
+.app-graph-scrub-controls button:hover,
+.app-graph-simple-range > button:hover,
+.app-graph-annotation-range-actions button:hover {
+  border-color: var(--info);
+  color: var(--text-primary);
+}
+
+.app-graph-timeline-lane-label--gestures {
+  color: color-mix(in srgb, #d78c30 82%, var(--text-primary));
+}
+
+.app-graph-semantic-timeline,
+.app-graph-trajectory-strip {
+  background: color-mix(in srgb, var(--surface-muted) 72%, var(--surface));
+}
+
+.app-graph-frame-markers i {
+  background: color-mix(in srgb, var(--info) 48%, var(--text-muted));
+}
+
+.app-graph-annotation-track {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--text-primary) 4%, transparent) 1px, transparent 1px),
+    var(--surface-raised);
+  background-size: 10% 100%;
+}
+
+.app-graph-timeline-block.active {
+  outline-color: var(--text-primary);
+}
+
+.app-graph-annotation-list button:hover,
+.app-graph-annotation-list button.active {
+  border-color: color-mix(in srgb, var(--info) 30%, var(--border));
+  background: color-mix(in srgb, var(--info) 9%, transparent);
+}
+
+.app-graph-trajectory-unit article {
+  border-color: color-mix(in srgb, var(--info) 34%, var(--border));
+  background: color-mix(in srgb, var(--info) 8%, var(--surface));
+}
+
+.app-graph-reviewed-trajectory li {
+  background: color-mix(in srgb, var(--surface-raised) 70%, transparent);
+}
+
+.app-graph-reviewed-trajectory li > svg {
+  color: var(--text-muted);
+}
+
+@media (max-width: 1180px) {
+  .app-graph-workspace {
+    grid-template-columns: 200px minmax(0, 1fr);
+  }
+
+  .app-graph-stage,
+  .app-graph-run-view {
+    grid-template-columns: minmax(0, 1fr) 280px;
+  }
+
+  .app-graph-title-fields {
+    grid-template-columns: 1fr 1.3fr;
+  }
+
+  .app-graph-version-field {
+    grid-column: span 2;
+  }
+
+  .app-graph-teaching-heading {
+    grid-template-columns: minmax(260px, 1fr) auto;
+  }
+
+  .app-graph-teaching-steps {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .app-graph-teaching-heading > button {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+@media (max-width: 900px) {
+  .app-graph-teach-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .app-graph-session-picker-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .app-graph-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .app-graph-library {
+    display: none;
+  }
+
+  .app-graph-editor-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .app-graph-editor-actions {
+    justify-content: flex-start;
+  }
+
+  .app-graph-stage,
+  .app-graph-run-view {
+    grid-template-columns: 1fr;
+  }
+
+  .app-graph-inspector,
+  .app-graph-run-drawer {
+    max-height: 480px;
+    border-top: 1px solid rgb(130 163 204 / 0.14);
+    border-left: 0;
+  }
+
+}
+
+@media (max-width: 650px) {
+  .app-graph-evidence-view > header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .app-graph-evidence-actions {
+    min-width: 0;
+  }
+
+  .app-graph-annotation-stage {
+    overflow: auto;
+  }
+
+  .app-graph-timeline-editor {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    overflow: visible;
+  }
+
+  .app-graph-replay-teacher {
+    overflow: visible;
+    border-right: 0;
+    border-bottom: 1px solid rgb(128 161 201 / 0.15);
+  }
+
+  .app-graph-teaching-frame {
+    height: min(58vh, 480px);
+    min-height: 280px;
+  }
+
+  .app-graph-annotation-inspector {
+    max-height: 620px;
+  }
+
+  .app-graph-trajectory-strip {
+    grid-column: 1;
+  }
+
+  .app-graph-title-fields,
+  .app-graph-teach-fields,
+  .app-graph-session-range {
+    grid-template-columns: 1fr;
+  }
+
+  .app-graph-version-field {
+    grid-column: auto;
+  }
+
+  .app-graph-mode-bar {
+    overflow-x: auto;
+  }
+
+  .app-graph-mode-bar button {
+    flex: 0 0 auto;
+  }
+
+  .app-graph-toolbar-tip,
+  .app-graph-canvas-legend {
+    display: none;
+  }
+
+  .app-graph-session-range > a {
+    justify-self: start;
+  }
+
+  .app-graph-teaching-heading {
+    grid-template-columns: 1fr auto;
+  }
+
+  .app-graph-teaching-steps {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .app-graph-trajectory-strip {
+    grid-template-columns: 1fr;
+    gap: 0.4rem;
+  }
+
+  .app-graph-reviewed-trajectory li {
+    grid-template-columns: 24px minmax(0, 1fr);
+  }
+
+  .app-graph-reviewed-trajectory li > svg {
+    display: none;
+  }
+
+  .app-graph-reviewed-trajectory li > div {
+    grid-column: 2;
+  }
+}
