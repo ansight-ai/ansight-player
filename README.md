@@ -39,9 +39,9 @@ with the embedding application.
 A local viewer supplies its `SessionViewerSource` and requires no cloud adapter
 or account. Cloud operations fail explicitly if no adapter is configured.
 
-The CLI pins `@ansight/player` by npm version and records archive integrity in its
-lockfile. Build and pack here before publishing a package. Version 0.1.0 is
-published on npm; later releases must use a new package version.
+The CLI pins the `@ansight/player` release archive in `vendor/` and records its
+integrity in the lockfile. Build and pack here before updating that archive.
+Version 0.1.0 is published on npm; later npm releases must use a new package version.
 Never replace the contents of an already published version. The cloud portal
 currently retains its earlier vendored archive dependency.
 
