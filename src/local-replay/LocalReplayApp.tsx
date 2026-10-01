@@ -1,6 +1,6 @@
 import { readSessionTimelineLink, sessionTimelineHref, type SessionTimelineLink } from './sessionLinks'
 import { observeLocalActivity } from './usage'
-import { Check, Copy, DownloadSimple, Archive, CaretDown, ChartLineUp, CircleNotch, CloudArrowUp, DeviceMobile, FlowArrow, Gear, Info, Link, NotePencil, Pulse, QrCode, SidebarSimple, SquaresFour, TestTube, Trash, UserCircle, VideoCamera, WifiHigh, X } from '@phosphor-icons/react'
+import { Check, Copy, DownloadSimple, Archive, CaretDown, ChartLineUp, CircleNotch, CloudArrowUp, DeviceMobile, FlowArrow, Gear, Info, Link, NotePencil, Pulse, QrCode, SidebarSimple, Sparkle, SquaresFour, TestTube, Trash, UserCircle, VideoCamera, WifiHigh, X } from '@phosphor-icons/react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type SetStateAction } from 'react'
 import { SessionIcon } from './SessionIcon'
 import { SessionViewerPage, type SessionReplayPanelContext, type TimelineEditSelection } from '../replay/pages/SessionViewerPage'
@@ -32,6 +32,7 @@ const appGraphRefreshIntervalMs = 750
 const isAppGraphToolVisible = false
 const sessionEventRefreshDebounceMs = 250
 const sessionRecoveryRefreshIntervalMs = 60_000
+const sessionFailedRefreshIntervalMs = 3_000
 const TaskExtractionPanel = lazy(async () => {
   const module = await import('./TaskExtractionPanel')
   return { default: module.TaskExtractionPanel }
@@ -209,12 +210,15 @@ export function LocalReplayApp() {
   }, [setSelectedSessionId])
 
   useEffect(() => {
+    if (!bootstrap) return
+
     let isMounted = true
     let eventRefreshTimeout: number | undefined
     let recoveryRefreshTimeout: number | undefined
     let eventSource: EventSource | null = null
     let isRefreshInProgress = false
     let isRefreshPending = false
+    let lastRefreshSucceeded = false
 
     async function refreshSessions() {
       if (isRefreshInProgress) {
@@ -237,6 +241,7 @@ export function LocalReplayApp() {
               return
             }
 
+            lastRefreshSucceeded = true
             setSessions((current) => reconcileSessionSummaries(current, next))
             setSelectedSessionId((current) => {
               // An explicit URL must not silently open another session when its target is missing.
@@ -253,6 +258,7 @@ export function LocalReplayApp() {
             setMessage(null)
           } catch (error) {
             if (isMounted) {
+              lastRefreshSucceeded = false
               setMessage(resolveErrorMessage(error, 'Unable to refresh local sessions.'))
             }
           } finally {
@@ -282,7 +288,7 @@ export function LocalReplayApp() {
       recoveryRefreshTimeout = window.setTimeout(() => {
         recoveryRefreshTimeout = undefined
         void refreshSessions().finally(scheduleRecoveryRefresh)
-      }, sessionRecoveryRefreshIntervalMs)
+      }, lastRefreshSucceeded ? sessionRecoveryRefreshIntervalMs : sessionFailedRefreshIntervalMs)
     }
 
     function scheduleEventRefresh() {
@@ -344,7 +350,7 @@ export function LocalReplayApp() {
         window.clearTimeout(eventRefreshTimeout)
       }
     }
-  }, [sessionLink, sessionRefreshNonce, setSelectedSessionId])
+  }, [bootstrap, sessionLink, sessionRefreshNonce, setSelectedSessionId])
 
   const selectedSession = useMemo(
     () => sessions.find((session) => session.sessionId === selectedSessionId) ?? null,
@@ -854,7 +860,6 @@ export function LocalReplayApp() {
         </div>
       </div>
 
-      {bootstrap?.supportsCloudSessions && selectedSessionId ? <button type="button" onClick={() => setIsOptionalAnalysisOpen(true)}>Cloud analysis</button> : null}
       {isOptionalAnalysisOpen && selectedSessionId ? <OptionalPlayerPanel component="CloudAnalysisPlayer" panelProps={{ sessionId: selectedSessionId, onClose: () => setIsOptionalAnalysisOpen(false) }} /> : null}
       <div className="local-replay-layout">
         {isExplorerOpen ? explorerMode === 'team' && bootstrap?.supportsCloudSessions ? (
@@ -999,6 +1004,17 @@ export function LocalReplayApp() {
                 >
                   <CloudArrowUp aria-hidden="true" />
                   Share
+                </button>
+              ) : null}
+              {bootstrap?.supportsCloudSessions ? (
+                <button
+                  className="local-banner-button"
+                  onClick={() => setIsOptionalAnalysisOpen(true)}
+                  data-tooltip="Cloud analysis"
+                  type="button"
+                >
+                  <Sparkle aria-hidden="true" />
+                  Cloud analysis
                 </button>
               ) : null}
               {canManageSelectedSession ? (

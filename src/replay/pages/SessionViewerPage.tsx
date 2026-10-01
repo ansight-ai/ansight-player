@@ -7896,6 +7896,7 @@ function ArtifactsSection({
 
   const snapshot = selectedArtifactSnapshot ?? artifactSnapshots[0] ?? null
   const entries = sortArtifactEntries(snapshot?.entries ?? [])
+  const isSingleFileSnapshot = entries.length === 1 && !isArtifactDirectory(entries[0])
   const selectedArtifactPath = selectedArtifactEntry ? formatArtifactEntryPath(selectedArtifactEntry) : ''
   const selectedArtifactName = selectedArtifactEntry?.name || selectedArtifactPath
   const showSelectedArtifactPath = !!selectedArtifactPath && selectedArtifactPath !== selectedArtifactName
@@ -7982,22 +7983,22 @@ function ArtifactsSection({
         })}
       </div> : null}
 
-      {snapshot ? <div className={selectedArtifactEntry ? 'artifact-browser artifact-browser--preview-open' : 'artifact-browser'}>
-        <div className="artifact-browser-heading">
+      {snapshot ? <div className={`artifact-browser${selectedArtifactEntry ? ' artifact-browser--preview-open' : ''}${isSingleFileSnapshot ? ' artifact-browser--single-file' : ''}`}>
+        {!isSingleFileSnapshot ? <div className="artifact-browser-heading">
           <div>
             <p className="eyebrow">{snapshot.rootAlias || 'Artifacts'}</p>
             <h3>{formatArtifactSnapshotTitle(snapshot)}</h3>
             <span>{formatArtifactSnapshotPath(snapshot)}</span>
           </div>
           <span className="status-pill">{formatArtifactSnapshotSummary(snapshot)}</span>
-        </div>
+        </div> : null}
 
         {snapshot.truncated ? <p className="inline-message">This artifact snapshot was truncated before every entry could be captured.</p> : null}
 
         {entries.length === 0 ? (
           <EmptyState icon={<Archive aria-hidden="true" />} title="No artifact entries" message="The snapshot metadata was captured without a file listing." />
         ) : (
-          <div className="artifact-entry-list">
+          !isSingleFileSnapshot || !selectedArtifactEntry ? <div className="artifact-entry-list">
             {entries.map((entry, index) => {
               const isDirectory = isArtifactDirectory(entry)
               const entryPath = formatArtifactEntryPath(entry)
@@ -8033,7 +8034,7 @@ function ArtifactsSection({
                 </div>
               ) : entryRow
             })}
-          </div>
+          </div> : null
         )}
 
       {selectedArtifactEntry ? (
@@ -8154,6 +8155,10 @@ function ArtifactFileDetails({
     : entry.sizeBytes ?? 0
   const contentType = content.mimeType || content.contentType || entry.mimeType || 'application/octet-stream'
   const entryPath = formatArtifactEntryPath(entry)
+  const snapshotTitle = formatArtifactSnapshotTitle(snapshot)
+  const entryName = entry.name || entryPath
+  const showSnapshotTitle = snapshotTitle.replace(/[^a-z0-9]/gi, '').toLowerCase()
+    !== entryName.replace(/[^a-z0-9]/gi, '').toLowerCase()
 
   return (
     <details className="artifact-file-details">
@@ -8164,6 +8169,10 @@ function ArtifactFileDetails({
         </span>
       </summary>
       <dl className="artifact-file-details-grid">
+        {showSnapshotTitle ? <div className="artifact-file-details-wide">
+          <dt>Snapshot</dt>
+          <dd>{snapshotTitle}</dd>
+        </div> : null}
         <div>
           <dt>Downloaded</dt>
           <dd>{formatDateTime(details?.downloadedAtUtc || entry.lastModifiedUtc)}</dd>
@@ -9193,7 +9202,10 @@ function formatArtifactSnapshotSummary(snapshot: SessionArtifactSnapshot): strin
 }
 
 function formatArtifactSnapshotPath(snapshot: SessionArtifactSnapshot): string {
-  return joinDisplay(snapshot.rootAlias, snapshot.relativePath, snapshot.rootPath) || 'Root folder'
+  const parts = [snapshot.rootAlias, snapshot.relativePath, snapshot.rootPath]
+    .map((part) => part?.trim())
+    .filter((part): part is string => !!part)
+  return [...new Set(parts)].join(' | ') || 'Root folder'
 }
 
 function formatArtifactEntryPath(entry: SessionArtifactEntry): string {

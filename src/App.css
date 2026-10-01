@@ -10995,6 +10995,12 @@ body.artifact-file-fullscreen-open {
   max-height: 220px;
 }
 
+.session-viewer-dashboard .artifact-browser--single-file {
+  grid-template-rows: auto;
+  min-height: 0;
+  max-height: none;
+}
+
 .session-viewer-dashboard .artifact-browser-heading {
   display: flex;
   align-items: flex-start;

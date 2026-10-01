@@ -1,6 +1,7 @@
 import { useEffect, useState, type ComponentType } from 'react'
 import * as React from 'react'
 import * as JsxRuntime from 'react/jsx-runtime'
+import { CircleNotch, X } from '@phosphor-icons/react'
 
 // Optional bundles share the renderer's React instance, including JSX runtime identity.
 if (typeof window !== 'undefined') Object.assign(window, { __ansightPlayerReact: React, __ansightPlayerJsx: JsxRuntime })
@@ -42,5 +43,21 @@ export function OptionalPlayerPanel({ component, panelProps }: {
     void load()
     return () => { active = false }
   }, [component])
-  return Panel ? <Panel {...panelProps} /> : <div role="status">{message}<button type="button" onClick={panelProps.onClose as (() => void) | undefined}>Close</button></div>
+  if (Panel) return <Panel {...panelProps} />
+
+  const title = component === 'CloudAnalysisPlayer' ? 'Cloud analysis' : 'Optional feature'
+  return (
+    <div className="local-admin-backdrop" role="presentation">
+      <section aria-label={title} className="local-admin-panel">
+        <header className="local-admin-header">
+          <div><p className="eyebrow">{title}</p></div>
+          <div><button aria-label={`Close ${title.toLowerCase()}`} className="local-icon-button" onClick={panelProps.onClose as (() => void) | undefined} type="button"><X aria-hidden="true" /></button></div>
+        </header>
+        <div className="local-admin-empty" role="status">
+          {message === 'Loading optional feature…' ? <CircleNotch className="spin" aria-hidden="true" /> : null}
+          <strong>{message}</strong>
+        </div>
+      </section>
+    </div>
+  )
 }
