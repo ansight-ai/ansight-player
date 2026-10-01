@@ -223,6 +223,29 @@ export type SessionTouchInputRecord = {
   coordinateSpace?: string
   coordinateUnit: string
   surfaceScale?: number | null
+  details?: SessionTouchSampleDetails | null
+}
+
+export type SessionTouchSampleDetails = {
+  tool?: string | null
+  sampleKind?: string | null
+  force?: number | null
+  maximumPossibleForce?: number | null
+  altitudeRadians?: number | null
+  azimuthRadians?: number | null
+  rollRadians?: number | null
+  estimatedProperties?: number | null
+  estimatedPropertiesExpectingUpdates?: number | null
+  estimationUpdateIndex?: number | null
+  pressure?: number | null
+  tiltRadians?: number | null
+  orientationRadians?: number | null
+  distance?: number | null
+  buttonState?: number | null
+  touchMajor?: number | null
+  touchMinor?: number | null
+  toolMajor?: number | null
+  toolMinor?: number | null
 }
 
 export type SessionAnalysisRecord = {

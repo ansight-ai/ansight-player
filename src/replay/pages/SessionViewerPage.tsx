@@ -137,6 +137,7 @@ import {
   type SessionStorageBreakdown,
   type SessionStorageBreakdownItem,
   type SessionTouchInputRecord,
+  type SessionTouchSampleDetails,
   type SessionViewerPayload,
   type SessionVisualTreeSnapshot,
   loadSessionViewerExternalPayload,
@@ -526,10 +527,20 @@ type SessionFrameImageContentBounds = {
 
 type FrameTouchView = {
   action: string
+  tool: string
+  detailsTitle?: string
+  penMarker?: PenMarkerPresentation
   opacity: number
   key: string
   x: number
   y: number
+}
+
+type PenMarkerPresentation = {
+  widthPx: number
+  heightPx: number
+  rotationRadians: number
+  hasDirection: boolean
 }
 
 type SessionFrameViewportKind = 'phone' | 'tablet' | 'desktop'
@@ -3894,12 +3905,17 @@ function SessionFrameTouchOverlay({
     <div aria-hidden="true" className="session-frame-touch-overlay">
       {touchViews.map((touch) => (
         <span
-          className={`session-frame-touch session-frame-touch--${touch.action}`}
+          className={`session-frame-touch session-frame-touch--${touch.action} session-frame-touch--${touch.tool}${touch.penMarker?.hasDirection ? ' session-frame-touch--oriented' : ''}`}
           key={touch.key}
+          title={touch.detailsTitle}
           style={{
             '--session-frame-touch-opacity': touch.opacity,
+            '--session-frame-touch-width': touch.penMarker ? `${touch.penMarker.widthPx}px` : undefined,
+            '--session-frame-touch-height': touch.penMarker ? `${touch.penMarker.heightPx}px` : undefined,
+            '--session-frame-touch-rotation': touch.penMarker ? `${touch.penMarker.rotationRadians}rad` : undefined,
             left: `${touch.x * 100}%`,
             top: `${touch.y * 100}%`,
+            pointerEvents: touch.detailsTitle ? 'auto' : 'none',
           } as CSSProperties}
         />
       ))}
@@ -8772,6 +8788,9 @@ function buildFrameTouchViews(touches: SessionTouchInputRecord[], frame: Session
   }
 
   return touches.flatMap((touch, index) => {
+    if (touch.details?.sampleKind === 'estimatedUpdate') {
+      return []
+    }
     const opacity = resolveTouchOpacity(touch, scrubAtMs)
     if (opacity <= 0) {
       return []
@@ -8782,14 +8801,59 @@ function buildFrameTouchViews(touches: SessionTouchInputRecord[], frame: Session
       return []
     }
 
+    const action = normalizeTouchAction(touch.action)
+    const tool = touch.details?.tool === 'stylus' || touch.details?.tool === 'eraser'
+        ? touch.details.tool
+        : 'finger'
     return [{
-      action: normalizeTouchAction(touch.action),
+      action,
+      tool,
+      penMarker: tool === 'stylus' || tool === 'eraser'
+        ? resolvePenMarkerPresentation(touch.details, tool, action)
+        : undefined,
+      detailsTitle: touch.details
+        ? Object.entries(touch.details)
+          .filter(([, value]) => value !== null && value !== undefined)
+          .map(([name, value]) => `${name}: ${value}`)
+          .join('\n')
+        : undefined,
       key: touch.id || `${touch.capturedAtUtc ?? 'touch'}-${index}`,
       opacity,
       x: point.x,
       y: point.y,
     }]
   })
+}
+
+function resolvePenMarkerPresentation(
+  details: SessionTouchSampleDetails | null | undefined,
+  tool: 'stylus' | 'eraser',
+  action: string,
+): PenMarkerPresentation {
+  const force = finiteNumber(details?.force)
+  const maximumForce = finiteNumber(details?.maximumPossibleForce)
+  const pressure = finiteNumber(details?.pressure)
+    ?? (force !== null && maximumForce !== null && maximumForce > 0 ? force / maximumForce : force)
+  const pressureFraction = action === 'hover' ? 0 : clamp(pressure ?? 0, 0, 1)
+  const altitude = finiteNumber(details?.altitudeRadians)
+  const tilt = altitude !== null
+    ? 1 - altitude / (Math.PI / 2)
+    : (finiteNumber(details?.tiltRadians) ?? 0) / (Math.PI / 2)
+  const tiltFraction = clamp(tilt, 0, 1)
+  const azimuth = finiteNumber(details?.azimuthRadians)
+  const orientation = finiteNumber(details?.orientationRadians)
+  const diameter = (tool === 'eraser' ? 14 : 8) + pressureFraction * 12
+
+  return {
+    widthPx: diameter * (1 + tiltFraction * 0.7),
+    heightPx: diameter * (1 - tiltFraction * 0.3),
+    rotationRadians: azimuth ?? (orientation !== null ? orientation - Math.PI / 2 : 0),
+    hasDirection: azimuth !== null || orientation !== null,
+  }
+}
+
+function finiteNumber(value: number | null | undefined): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
 function resolveTouchPoint(touch: SessionTouchInputRecord, frame: SessionImageFrame): { x: number; y: number } | null {
@@ -8862,6 +8926,10 @@ function normalizeTouchAction(action: string | null | undefined): string {
     case 'cancelled':
     case 'canceled':
       return 'cancel'
+    case 'hoverenter':
+    case 'hovermove':
+    case 'hoverexit':
+      return 'hover'
     default:
       return 'unknown'
   }
