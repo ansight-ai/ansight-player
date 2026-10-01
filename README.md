@@ -39,11 +39,26 @@ with the embedding application.
 A local viewer supplies its `SessionViewerSource` and requires no cloud adapter
 or account. Cloud operations fail explicitly if no adapter is configured.
 
+## Apple Pencil and stylus replay
+
+The session viewer reads optional pen details from the existing touch stream.
+Apple Pencil and Android stylus events use distinct markers; eraser input is
+pink and hover is a dashed outline. For contact, normalized force or pressure
+changes marker size. Altitude or tilt changes its shape, and azimuth or
+orientation rotates it with a direction dot. Hover over a marker to inspect
+the reported values. Ordinary finger touches and recordings without pen
+details retain their existing markers.
+
+The player preserves device-reported fields without inventing values when a
+pen or digitizer does not provide them. Estimated Apple Pencil corrections
+remain in session data but do not draw an extra marker. See the
+[touch-input guide](https://www.ansight.ai/docs/local-player/session-replay-and-review)
+for capture and replay behavior.
+
 The CLI pins the `@ansight/player` release archive in `vendor/` and records its
 integrity in the lockfile. Build and pack here before updating that archive.
-Version 0.1.0 is published on npm; later npm releases must use a new package version.
-Never replace the contents of an already published version. The cloud portal
-currently retains its earlier vendored archive dependency.
+Every npm release uses a new package version; never replace the contents of
+an already published version. The cloud portal pins its own archive dependency.
 
 For local development, build this repository and use the publisher's
 `build --player-source`, or set `ANSIGHT_PLAYER_REPOSITORY` when preparing CLI
