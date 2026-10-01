@@ -8475,6 +8475,42 @@ body.session-replay-resizing {
   background: rgba(245, 158, 11, 0.24);
 }
 
+.session-viewer-dashboard .session-frame-touch--stylus {
+  width: var(--session-frame-touch-width, 8px);
+  height: var(--session-frame-touch-height, 8px);
+  color: rgba(124, 58, 237, 0.98);
+  background: rgba(124, 58, 237, 0.5);
+  border-color: rgba(124, 58, 237, 0.98);
+  transform: translate(-50%, -50%) rotate(var(--session-frame-touch-rotation, 0rad));
+}
+
+.session-viewer-dashboard .session-frame-touch--eraser {
+  width: var(--session-frame-touch-width, 14px);
+  height: var(--session-frame-touch-height, 14px);
+  color: rgba(236, 72, 153, 0.98);
+  background: rgba(236, 72, 153, 0.4);
+  border-color: rgba(236, 72, 153, 0.98);
+  transform: translate(-50%, -50%) rotate(var(--session-frame-touch-rotation, 0rad));
+}
+
+.session-viewer-dashboard .session-frame-touch--oriented::after {
+  position: absolute;
+  top: 50%;
+  right: -4px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.75);
+  content: '';
+  transform: translateY(-50%);
+}
+
+.session-viewer-dashboard .session-frame-touch--hover {
+  background: transparent;
+  border-style: dashed;
+}
+
 .session-viewer-dashboard .session-frame-annotation-shape {
   fill: rgba(250, 68, 31, 0.16);
   stroke: rgba(250, 68, 31, 0.86);
