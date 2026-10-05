@@ -1243,6 +1243,7 @@ function sessionSummariesEqual(left: LocalSessionSummary, right: LocalSessionSum
     && left.isSimulatorOrEmulator === right.isSimulatorOrEmulator
     && left.runtimeDeviceIdentifier === right.runtimeDeviceIdentifier
     && left.runtimePlatform === right.runtimePlatform
+    && left.technology === right.technology
     && left.isHistorical === right.isHistorical
     && left.isPinned === right.isPinned
     && left.createdUtc === right.createdUtc

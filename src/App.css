@@ -9042,6 +9042,44 @@ body.session-replay-resizing {
   outline: 2px solid color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
+.annotation-status-field {
+  display: grid;
+  gap: 8px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.annotation-status-field input {
+  width: 100%;
+  padding: 10px 12px;
+  color: var(--text-primary);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.annotation-status-field input:focus {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--border));
+  outline: 2px solid color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.annotation-status {
+  display: inline-block;
+  width: fit-content;
+  max-width: 100%;
+  padding: 3px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
 .annotation-editor-actions,
 .annotation-editor-actions > div {
   display: flex;

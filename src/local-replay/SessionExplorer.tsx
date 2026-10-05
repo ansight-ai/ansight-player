@@ -1,6 +1,9 @@
-import { CircleNotch, Clock, MagnifyingGlass, MonitorPlay, PushPin, Trash } from '@phosphor-icons/react'
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { CircleNotch, Clock, Funnel, MagnifyingGlass, MonitorPlay, PushPin, Trash } from '@phosphor-icons/react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { SessionFilterModal } from './SessionFilterModal'
 import { SessionIcon } from './SessionIcon'
+import { emptySessionFilters, hasSessionFilters, matchesSessionFilters, type SessionFilters } from './sessionFilters'
+import { addSessionRange } from './sessionSelection'
 import type { LocalSessionSummary } from './types'
 
 const sessionsPerBatch = 6
@@ -29,24 +32,34 @@ export function SessionExplorer({
   supportsCloudSessions: boolean
 }) {
   const [query, setQuery] = useState('')
+  const [filters, setFilters] = useState<SessionFilters>(emptySessionFilters)
+  const [isFilterOpen, setIsFilterOpen] = useState(false)
+  const closeFilters = useCallback(() => setIsFilterOpen(false), [])
+  const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(() => new Set())
+  const [bulkAction, setBulkAction] = useState<'delete' | 'pin' | 'unpin' | null>(null)
   const [visibleSessionCount, setVisibleSessionCount] = useState(sessionsPerBatch)
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null)
   const [pinningSessionIds, setPinningSessionIds] = useState<Set<string>>(() => new Set())
   const [actionError, setActionError] = useState<string | null>(null)
   const sessionListRef = useRef<HTMLDivElement>(null)
   const loadMoreRef = useRef<HTMLDivElement>(null)
+  const selectionAnchorRef = useRef<string | null>(null)
+  const checkboxShiftRef = useRef(false)
   const filteredSessions = useMemo(() => {
     const normalized = query.trim().toLowerCase()
-    const matchingSessions = normalized ? sessions.filter((session) => [
+    const matchingSessions = sessions.filter((session) => matchesSessionFilters(session, filters) && (!normalized || [
       session.name,
       session.clientName,
       session.appName,
       session.appId,
       session.sessionId,
       ...session.tags,
-    ].some((value) => value?.toLowerCase().includes(normalized))) : sessions
+    ].some((value) => value?.toLowerCase().includes(normalized))))
     return [...matchingSessions].sort((left, right) => Number(right.isPinned) - Number(left.isPinned))
-  }, [query, sessions])
+  }, [filters, query, sessions])
+  const selectedSessions = sessions.filter((session) => selectedSessionIds.has(session.sessionId))
+  const hasLiveSelection = selectedSessions.some((session) => session.isConnected)
+  const canPinSelection = selectedSessions.every((session) => canPinSession(session.sessionId))
   const visibleSessions = filteredSessions.slice(0, visibleSessionCount)
   const pinnedSessions = visibleSessions.filter((session) => session.isPinned)
   const sessionGroups = [
@@ -54,6 +67,49 @@ export function SessionExplorer({
     ...groupSessionsByDay(visibleSessions.filter((session) => !session.isPinned)),
   ]
   const hasMoreSessions = visibleSessionCount < filteredSessions.length
+
+  function selectRange(sessionId: string) {
+    const orderedIds = filteredSessions.map((session) => session.sessionId)
+    setSelectedSessionIds((current) => addSessionRange(current, orderedIds, selectionAnchorRef.current, sessionId))
+  }
+
+  function toggleSelection(sessionId: string, shiftKey: boolean) {
+    if (shiftKey) {
+      selectRange(sessionId)
+      return
+    }
+    selectionAnchorRef.current = sessionId
+    setSelectedSessionIds((current) => {
+      const next = new Set(current)
+      if (next.has(sessionId)) next.delete(sessionId)
+      else next.add(sessionId)
+      return next
+    })
+  }
+
+  async function runBulkAction(action: 'delete' | 'pin' | 'unpin') {
+    if (bulkAction || selectedSessions.length === 0) return
+    if (action === 'delete' && (hasLiveSelection || !window.confirm(`Delete ${selectedSessions.length} selected sessions permanently? Their captures, search indexes, metrics, and trends history will be removed.`))) return
+    setActionError(null)
+    setBulkAction(action)
+    const failures: string[] = []
+    for (const session of selectedSessions) {
+      try {
+        if (action === 'delete') await onDeleteSession(session.sessionId)
+        else await onSetSessionPinned(session.sessionId, action === 'pin')
+        setSelectedSessionIds((current) => {
+          const next = new Set(current)
+          next.delete(session.sessionId)
+          return next
+        })
+      } catch (error) {
+        failures.push(`${session.name || session.appName || session.sessionId}: ${error instanceof Error ? error.message : 'Operation failed'}`)
+      }
+    }
+    if (failures.length) setActionError(failures.join(' · '))
+    selectionAnchorRef.current = null
+    setBulkAction(null)
+  }
 
   useEffect(() => {
     const root = sessionListRef.current
@@ -86,21 +142,41 @@ export function SessionExplorer({
         {headingAction}
       </div>
 
-      <label className="local-session-search">
-        <MagnifyingGlass aria-hidden="true" />
-        <input
-          aria-label="Search sessions"
-          disabled={isLoading}
-          onChange={(event) => {
-            setQuery(event.target.value)
-            setVisibleSessionCount(sessionsPerBatch)
-            sessionListRef.current?.scrollTo({ top: 0 })
-          }}
-          placeholder="Search sessions"
-          type="search"
-          value={query}
-        />
-      </label>
+      <div className="local-session-controls">
+        <div className="local-session-search-row">
+          <label className="local-session-search">
+            <MagnifyingGlass aria-hidden="true" />
+            <input
+              aria-label="Search sessions"
+              disabled={isLoading}
+              onChange={(event) => {
+                setQuery(event.target.value)
+                setVisibleSessionCount(sessionsPerBatch)
+                setSelectedSessionIds(new Set())
+                selectionAnchorRef.current = null
+                sessionListRef.current?.scrollTo({ top: 0 })
+              }}
+              placeholder="Search sessions"
+              type="search"
+              value={query}
+            />
+          </label>
+          <button aria-label="Filter sessions" aria-pressed={hasSessionFilters(filters)} className="local-session-filter-trigger" onClick={() => setIsFilterOpen(true)} title="Filter sessions" type="button"><Funnel aria-hidden="true" /></button>
+        </div>
+
+        {selectedSessions.length > 0 ? (
+          <div className="local-session-bulk-toolbar">
+            <strong>{selectedSessions.length} selected</strong>
+            <button disabled={bulkAction !== null || isLoading} onClick={() => setSelectedSessionIds(new Set(filteredSessions.map((session) => session.sessionId)))} type="button">Select all {filteredSessions.length}</button>
+            <button disabled={bulkAction !== null} onClick={() => { setSelectedSessionIds(new Set()); selectionAnchorRef.current = null }} type="button">Clear</button>
+            <div>
+              <button disabled={bulkAction !== null || !canPinSelection} onClick={() => void runBulkAction('pin')} type="button">{bulkAction === 'pin' ? 'Pinning…' : 'Pin'}</button>
+              <button disabled={bulkAction !== null || !canPinSelection} onClick={() => void runBulkAction('unpin')} type="button">{bulkAction === 'unpin' ? 'Unpinning…' : 'Unpin'}</button>
+              <button disabled={bulkAction !== null || hasLiveSelection} onClick={() => void runBulkAction('delete')} title={hasLiveSelection ? 'Disconnect live sessions before deleting them' : undefined} type="button">{bulkAction === 'delete' ? 'Deleting…' : 'Delete'}</button>
+            </div>
+          </div>
+        ) : null}
+      </div>
 
       <div aria-busy={isLoading} className="local-session-list" ref={sessionListRef}>
         {actionError ? <p className="local-session-action-error" role="alert">{actionError}</p> : null}
@@ -114,8 +190,8 @@ export function SessionExplorer({
         ) : filteredSessions.length === 0 ? (
           <div className="local-session-empty">
             <MonitorPlay aria-hidden="true" />
-            <strong>{query.trim() ? 'No matching sessions' : 'No sessions found'}</strong>
-            <span>{query.trim() ? 'Try a different search.' : 'Launch an Ansight-enabled app or import a capture.'}</span>
+            <strong>{query.trim() || hasSessionFilters(filters) ? 'No matching sessions' : 'No sessions found'}</strong>
+            <span>{query.trim() || hasSessionFilters(filters) ? 'Adjust the search or filters.' : 'Launch an Ansight-enabled app or import a capture.'}</span>
           </div>
         ) : (
           <>
@@ -128,12 +204,29 @@ export function SessionExplorer({
                   const isPinning = pinningSessionIds.has(session.sessionId)
                   return (
                     <article
-                      className={isSelected ? 'local-session-card local-session-card--selected' : 'local-session-card'}
+                      className={`local-session-card${isSelected ? ' local-session-card--selected' : ''}${selectedSessionIds.has(session.sessionId) ? ' local-session-card--bulk-selected' : ''}`}
                       key={session.sessionId}
                     >
+                      <input
+                        aria-label={`Select ${sessionTitle} session`}
+                        checked={selectedSessionIds.has(session.sessionId)}
+                        className="local-session-card-checkbox"
+                        disabled={bulkAction !== null}
+                        onChange={() => { toggleSelection(session.sessionId, checkboxShiftRef.current); checkboxShiftRef.current = false }}
+                        onClick={(event) => { checkboxShiftRef.current = event.shiftKey }}
+                        type="checkbox"
+                      />
                       <button
                         className="local-session-card-select"
-                        onClick={() => onSelectSession(session.sessionId)}
+                        onClick={(event) => {
+                          if (event.shiftKey) {
+                            event.preventDefault()
+                            selectRange(session.sessionId)
+                          } else {
+                            selectionAnchorRef.current = session.sessionId
+                            onSelectSession(session.sessionId)
+                          }
+                        }}
                         type="button"
                       >
                         <SessionIcon appIconUrl={session.appIconUrl} platform={session.runtimePlatform} />
@@ -209,6 +302,7 @@ export function SessionExplorer({
           </>
         )}
       </div>
+      {isFilterOpen ? <SessionFilterModal filters={filters} onApply={(next) => { setFilters(next); closeFilters(); setVisibleSessionCount(sessionsPerBatch); setSelectedSessionIds(new Set()); selectionAnchorRef.current = null; sessionListRef.current?.scrollTo({ top: 0 }) }} onClose={closeFilters} sessions={sessions} /> : null}
     </aside>
   )
 }

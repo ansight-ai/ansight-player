@@ -484,6 +484,7 @@ type AnnotationView = {
   label: string
   notes: string
   notesPreview: string
+  status: string | null
   targetDetail: string | null
   targetSummary: string | null
   timeDisplay: string
@@ -1750,6 +1751,13 @@ export function SessionViewerPage({
     }
   }
 
+  function resolveAnnotation(annotationId: string) {
+    const annotation = annotations.find((candidate, index) => resolveAnnotationId(candidate, index) === annotationId)
+    if (annotation) {
+      void saveAnnotation({ ...cloneAnnotationForEditing(annotation), status: 'resolved' })
+    }
+  }
+
   async function deleteAnnotation(annotationId: string) {
     if (!source.deleteAnnotation || !window.confirm('Delete this annotation?')) {
       return
@@ -2786,6 +2794,7 @@ export function SessionViewerPage({
             isSubmitting={isAnnotationSubmitting}
             onDeleteAnnotation={(annotationId) => void deleteAnnotation(annotationId)}
             onEditAnnotation={editAnnotation}
+            onResolveAnnotation={resolveAnnotation}
             selectedAnnotationId={resolvedSelectedAnnotationId}
             onSelectAnnotation={selectAnnotation}
           />
@@ -7501,6 +7510,7 @@ function AnnotationsSection({
   isSubmitting,
   onDeleteAnnotation,
   onEditAnnotation,
+  onResolveAnnotation,
   onSelectAnnotation,
   selectedAnnotationId,
 }: {
@@ -7509,6 +7519,7 @@ function AnnotationsSection({
   isSubmitting: boolean
   onDeleteAnnotation: (annotationId: string) => void
   onEditAnnotation: (annotationId: string) => void
+  onResolveAnnotation: (annotationId: string) => void
   onSelectAnnotation: (annotationId: string, focusMs: number | null) => void
   selectedAnnotationId: string | null
 }) {
@@ -7538,6 +7549,7 @@ function AnnotationsSection({
               </span>
               <span className="annotation-card-body">
                 <strong>{annotation.label}</strong>
+                {annotation.status ? <span className="annotation-status">{annotation.status}</span> : null}
                 <span>{annotation.timeDisplay}</span>
                 <small>{annotation.notesPreview}</small>
               </span>
@@ -7554,10 +7566,17 @@ function AnnotationsSection({
             </span>
             <div>
               <h3>{selectedAnnotation.label}</h3>
+              {selectedAnnotation.status ? <span className="annotation-status">{selectedAnnotation.status}</span> : null}
               <span>{selectedAnnotation.timeDisplay}</span>
             </div>
             {canEdit ? (
               <div className="annotation-detail-actions">
+                {selectedAnnotation.status?.toLowerCase() !== 'resolved' ? (
+                  <button className="button button--secondary button--compact" disabled={isSubmitting} onClick={() => onResolveAnnotation(selectedAnnotation.id)} type="button">
+                    <Check aria-hidden="true" />
+                    Mark resolved
+                  </button>
+                ) : null}
                 <button className="button button--secondary button--compact" disabled={isSubmitting} onClick={() => onEditAnnotation(selectedAnnotation.id)} type="button">
                   <NotePencil aria-hidden="true" />
                   Edit
@@ -7605,6 +7624,7 @@ function AnnotationEditorModal({
   onSave: (annotation: SessionAnnotation) => void
 }) {
   const [comment, setComment] = useState(() => buildAnnotationComment(draft.annotation))
+  const [status, setStatus] = useState(draft.annotation.status ?? '')
   const normalizedComment = normalizeAnnotationComment(comment)
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -7622,6 +7642,7 @@ function AnnotationEditorModal({
       ...draft.annotation,
       label,
       notes,
+      status: status.trim() || null,
       source: draft.annotation.source || 'localPortal',
       customData: Object.keys(customData).length > 0 ? customData : null,
     })
@@ -7665,6 +7686,16 @@ function AnnotationEditorModal({
               placeholder="Describe the issue…"
               rows={7}
               value={comment}
+            />
+          </label>
+          <label className="annotation-status-field">
+            <span>Status</span>
+            <input
+              disabled={isSubmitting}
+              onChange={(event) => setStatus(event.target.value)}
+              placeholder="e.g. resolved"
+              type="text"
+              value={status}
             />
           </label>
         </div>
@@ -8499,6 +8530,7 @@ function buildAnnotationView(annotation: SessionAnnotation, index: number): Anno
     label: firstNonEmpty(annotation.label, targetSummary, `Annotation ${index + 1}`) ?? `Annotation ${index + 1}`,
     notes,
     notesPreview: notes ? formatAnnotationNotesPreview(notes) : 'No notes',
+    status: annotation.status?.trim() || null,
     targetDetail: formatAnnotationTargetDetail(annotation.target),
     targetSummary,
     timeDisplay: formatAnnotationTimeDisplay(startMs, endMs),

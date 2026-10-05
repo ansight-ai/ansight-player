@@ -269,6 +269,7 @@ export type SessionAnnotation = {
   label?: string
   source?: string
   notes?: string | null
+  status?: string | null
   captureGroupId?: string | null
   customData?: Record<string, unknown> | null
   geometry?: SessionAnnotationGeometry[]

@@ -1157,6 +1157,30 @@ button.local-runner-status:hover {
   border-radius: 8px;
 }
 
+.local-session-controls { display: grid; gap: 8px; min-width: 0; }
+.local-session-search-row { display: grid; grid-template-columns: minmax(0, 1fr) 38px; gap: 7px; }
+.local-session-filter-trigger {
+  display: grid; place-items: center; width: 38px; height: 38px; padding: 0;
+  color: var(--text-secondary); background: var(--input-bg); border: 1px solid var(--border); border-radius: 8px;
+}
+.local-session-filter-trigger:hover, .local-session-filter-trigger[aria-pressed='true'] {
+  color: var(--accent); background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+.local-session-filter-trigger svg { width: 17px; height: 17px; }
+.local-session-bulk-toolbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 8px;
+  background: var(--surface-muted); border: 1px solid var(--border); border-radius: 8px;
+}
+.local-session-bulk-toolbar strong { margin-right: auto; color: var(--text-primary); font-size: 11px; }
+.local-session-bulk-toolbar > div { display: flex; width: 100%; gap: 5px; }
+.local-session-bulk-toolbar button {
+  min-height: 26px; padding: 3px 7px; color: var(--text-secondary); background: var(--surface-raised);
+  border: 1px solid var(--border); border-radius: 6px; font-size: 10px; font-weight: 700;
+}
+.local-session-bulk-toolbar button:hover:not(:disabled) { color: var(--text-primary); border-color: var(--accent); }
+.local-session-bulk-toolbar button:disabled { cursor: not-allowed; opacity: .5; }
+.local-session-bulk-toolbar > div button:last-child { color: var(--danger); }
+
 .local-session-search:focus-within {
   border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
   box-shadow: 0 0 0 2px var(--accent-soft);
@@ -1892,6 +1916,13 @@ button.local-runner-status:hover {
   border-color: color-mix(in srgb, var(--accent) 36%, transparent);
 }
 
+.local-session-card--bulk-selected { border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: var(--accent-soft); }
+.local-session-card-checkbox {
+  position: absolute; z-index: 1; top: 50%; left: 10px; width: 15px; height: 15px; margin: 0;
+  accent-color: var(--accent); transform: translateY(-50%); cursor: pointer;
+}
+.local-session-card .local-session-card-select { padding-left: 34px; grid-template-columns: 38px minmax(0, 1fr); }
+
 .local-session-card-select {
   display: grid;
   grid-template-columns: 38px minmax(0, 1fr);
@@ -2039,6 +2070,61 @@ button.local-runner-status:hover {
   border-radius: 7px;
   font-size: 10px;
   line-height: 1.35;
+}
+
+.local-session-filter-backdrop {
+  position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center;
+  padding: 20px; background: rgb(0 0 0 / .62);
+}
+.local-session-filter-modal {
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto; width: min(690px, 100%); max-height: min(760px, calc(100vh - 40px));
+  color: var(--text-primary); background: var(--bg-primary); border: 1px solid var(--border);
+  border-radius: 14px; box-shadow: 0 24px 80px rgb(0 0 0 / .45);
+}
+.local-session-filter-modal > header, .local-session-filter-modal > footer {
+  display: flex; align-items: center; gap: 9px; padding: 16px 20px;
+}
+.local-session-filter-modal > header { justify-content: space-between; border-bottom: 1px solid var(--border); }
+.local-session-filter-modal > footer { border-top: 1px solid var(--border); }
+.local-session-filter-modal > footer > span { flex: 1; }
+.local-session-filter-title { display: flex; align-items: center; gap: 9px; font-size: 17px; }
+.local-session-filter-title svg { width: 19px; height: 19px; color: var(--accent); }
+.local-session-filter-close { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; color: var(--text-muted); background: transparent; border: 0; border-radius: 6px; }
+.local-session-filter-close:hover { color: var(--text-primary); background: var(--surface-muted); }
+.local-session-filter-fields { display: grid; gap: 20px; min-height: 0; padding: 20px; overflow-y: auto; }
+.local-session-filter-fields fieldset { display: grid; gap: 9px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.local-session-filter-fields legend { margin-bottom: 8px; color: var(--text-primary); font-size: 12px; font-weight: 800; }
+.local-session-filter-fields small { color: var(--text-muted); font-size: 11px; line-height: 1.4; }
+.local-session-filter-fields input {
+  width: 100%; min-width: 0; min-height: 36px; padding: 7px 10px; color: var(--text-primary);
+  background: var(--input-bg); border: 1px solid var(--border); border-radius: 7px;
+}
+.local-session-filter-range { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.local-session-filter-range label { display: grid; gap: 6px; color: var(--text-secondary); font-size: 11px; }
+.local-session-filter-chips, .local-session-technology-choices { display: flex; flex-wrap: wrap; gap: 7px; }
+.local-session-filter-chips button, .local-session-technology-choices button {
+  min-height: 31px; padding: 6px 10px; color: var(--text-secondary); background: var(--surface-muted);
+  border: 1px solid var(--border); border-radius: 7px; font-size: 11px;
+}
+.local-session-filter-chips button:hover, .local-session-technology-choices button:hover { border-color: var(--accent); }
+.local-session-filter-chips button[aria-pressed='true'], .local-session-technology-choices button[aria-pressed='true'] {
+  color: var(--text-primary); background: var(--accent-soft); border-color: var(--accent);
+}
+.local-session-technology-choices button { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; }
+.local-session-technology-choices img { width: 23px; height: 23px; object-fit: contain; }
+.local-session-filter-modal > footer button {
+  min-height: 33px; padding: 6px 12px; color: var(--text-secondary); background: var(--surface-muted);
+  border: 1px solid var(--border); border-radius: 7px; font-size: 11px; font-weight: 750;
+}
+.local-session-filter-modal > footer button:hover:not(:disabled) { color: var(--text-primary); border-color: var(--accent); }
+.local-session-filter-modal > footer .local-session-filter-apply { color: #fff; background: var(--accent); border-color: var(--accent); }
+.local-session-filter-modal > footer button:disabled { cursor: not-allowed; opacity: .45; }
+@media (max-width: 520px) {
+  .local-session-filter-backdrop { padding: 9px; }
+  .local-session-filter-modal { max-height: calc(100vh - 18px); }
+  .local-session-filter-fields { padding: 14px; }
+  .local-session-filter-range { grid-template-columns: 1fr; }
+  .local-session-filter-modal > footer { flex-wrap: wrap; padding: 12px 14px; }
 }
 
 .local-session-card-title,

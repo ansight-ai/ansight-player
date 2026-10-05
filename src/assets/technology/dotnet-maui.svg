@@ -1,0 +1,18 @@
+<svg width="320" height="192" viewBox="0 0 320 192" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="320" height="192" rx="28" fill="#2B0B3F"/>
+  <rect x="8" y="8" width="304" height="176" rx="22" stroke="#C084FC" stroke-opacity="0.18" stroke-width="2"/>
+  <g opacity="0.95">
+    <rect x="30" y="34" width="122" height="122" rx="26" fill="url(#paint0_linear_maui)"/>
+    <path d="M59 119V72H74L91 103L108 72H123V119H110V93L94 119H88L72 93V119H59Z" fill="white"/>
+  </g>
+  <path d="M177 70H194L214 120L234 70H251L223 140H205L177 70Z" fill="#F8FAFC"/>
+  <path d="M257 70H271V140H257V70Z" fill="#F8FAFC"/>
+  <path d="M177 53H274" stroke="#F97316" stroke-width="6" stroke-linecap="round"/>
+  <path d="M177 155H260" stroke="#A855F7" stroke-width="6" stroke-linecap="round"/>
+  <defs>
+    <linearGradient id="paint0_linear_maui" x1="30" y1="34" x2="152" y2="156" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A855F7"/>
+      <stop offset="1" stop-color="#6D28D9"/>
+    </linearGradient>
+  </defs>
+</svg>

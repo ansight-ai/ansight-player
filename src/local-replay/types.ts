@@ -1047,6 +1047,7 @@ export type LocalSessionSummary = {
   isSimulatorOrEmulator: boolean
   runtimeDeviceIdentifier?: string | null
   runtimePlatform?: string | null
+  technology?: string | null
   isHistorical: boolean
   isPinned: boolean
   createdUtc: string
