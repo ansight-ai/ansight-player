@@ -44,7 +44,6 @@ export function SessionExplorer({
   const sessionListRef = useRef<HTMLDivElement>(null)
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const selectionAnchorRef = useRef<string | null>(null)
-  const checkboxShiftRef = useRef(false)
   const filteredSessions = useMemo(() => {
     const normalized = query.trim().toLowerCase()
     const matchingSessions = sessions.filter((session) => matchesSessionFilters(session, filters) && (!normalized || [
@@ -71,13 +70,12 @@ export function SessionExplorer({
   function selectRange(sessionId: string) {
     const orderedIds = filteredSessions.map((session) => session.sessionId)
     setSelectedSessionIds((current) => addSessionRange(current, orderedIds, selectionAnchorRef.current, sessionId))
+    if (!selectionAnchorRef.current || !orderedIds.includes(selectionAnchorRef.current)) {
+      selectionAnchorRef.current = sessionId
+    }
   }
 
-  function toggleSelection(sessionId: string, shiftKey: boolean) {
-    if (shiftKey) {
-      selectRange(sessionId)
-      return
-    }
+  function toggleSelection(sessionId: string) {
     selectionAnchorRef.current = sessionId
     setSelectedSessionIds((current) => {
       const next = new Set(current)
@@ -89,7 +87,9 @@ export function SessionExplorer({
 
   async function runBulkAction(action: 'delete' | 'pin' | 'unpin') {
     if (bulkAction || selectedSessions.length === 0) return
-    if (action === 'delete' && (hasLiveSelection || !window.confirm(`Delete ${selectedSessions.length} selected sessions permanently? Their captures, search indexes, metrics, and trends history will be removed.`))) return
+    if (action === 'delete' && (hasLiveSelection || !window.confirm(
+      `Delete only the ${selectedSessions.length} selected session${selectedSessions.length === 1 ? '' : 's'} permanently?\n\nOther sessions will remain. The selected sessions' captures, search indexes, metrics, and trends history will be removed.`,
+    ))) return
     setActionError(null)
     setBulkAction(action)
     const failures: string[] = []
@@ -172,7 +172,7 @@ export function SessionExplorer({
             <div>
               <button disabled={bulkAction !== null || !canPinSelection} onClick={() => void runBulkAction('pin')} type="button">{bulkAction === 'pin' ? 'Pinning…' : 'Pin'}</button>
               <button disabled={bulkAction !== null || !canPinSelection} onClick={() => void runBulkAction('unpin')} type="button">{bulkAction === 'unpin' ? 'Unpinning…' : 'Unpin'}</button>
-              <button disabled={bulkAction !== null || hasLiveSelection} onClick={() => void runBulkAction('delete')} title={hasLiveSelection ? 'Disconnect live sessions before deleting them' : undefined} type="button">{bulkAction === 'delete' ? 'Deleting…' : 'Delete'}</button>
+              <button aria-label={`Delete ${selectedSessions.length} selected session${selectedSessions.length === 1 ? '' : 's'}`} disabled={bulkAction !== null || hasLiveSelection} onClick={() => void runBulkAction('delete')} title={hasLiveSelection ? 'Disconnect live sessions before deleting them' : `Delete only the ${selectedSessions.length} selected session${selectedSessions.length === 1 ? '' : 's'}`} type="button">{bulkAction === 'delete' ? 'Deleting…' : `Delete selected (${selectedSessions.length})`}</button>
             </div>
           </div>
         ) : null}
@@ -200,36 +200,34 @@ export function SessionExplorer({
                 <h2>{group.label}</h2>
                 {group.sessions.map((session) => {
                   const isSelected = session.sessionId === selectedSessionId
+                  const isBulkSelected = selectedSessionIds.has(session.sessionId)
                   const sessionTitle = session.name?.trim() || session.appName?.trim() || session.clientName?.trim() || session.appId
                   const isPinning = pinningSessionIds.has(session.sessionId)
                   return (
                     <article
-                      className={`local-session-card${isSelected ? ' local-session-card--selected' : ''}${selectedSessionIds.has(session.sessionId) ? ' local-session-card--bulk-selected' : ''}`}
+                      className={`local-session-card${isSelected ? ' local-session-card--selected' : ''}${isBulkSelected ? ' local-session-card--bulk-selected' : ''}`}
                       key={session.sessionId}
                     >
-                      <input
-                        aria-label={`Select ${sessionTitle} session`}
-                        checked={selectedSessionIds.has(session.sessionId)}
-                        className="local-session-card-checkbox"
-                        disabled={bulkAction !== null}
-                        onChange={() => { toggleSelection(session.sessionId, checkboxShiftRef.current); checkboxShiftRef.current = false }}
-                        onClick={(event) => { checkboxShiftRef.current = event.shiftKey }}
-                        type="checkbox"
-                      />
                       <button
+                        aria-label={`${sessionTitle} session${isBulkSelected ? ', selected for bulk actions' : ''}`}
                         className="local-session-card-select"
                         onClick={(event) => {
                           if (event.shiftKey) {
                             event.preventDefault()
                             selectRange(session.sessionId)
+                          } else if (event.metaKey || event.ctrlKey) {
+                            event.preventDefault()
+                            toggleSelection(session.sessionId)
                           } else {
                             selectionAnchorRef.current = session.sessionId
+                            setSelectedSessionIds(new Set())
                             onSelectSession(session.sessionId)
                           }
                         }}
+                        title="Shift-click to select a range; Command/Control-click to select one session"
                         type="button"
                       >
-                        <SessionIcon appIconUrl={session.appIconUrl} platform={session.runtimePlatform} />
+                        <SessionIcon appIconUrl={session.appIconUrl} platform={session.runtimePlatform} selectionTick={isBulkSelected} />
                         <span className="local-session-card-content">
                           <span className="local-session-card-title">
                             <strong title={sessionTitle}>{sessionTitle}</strong>
@@ -265,28 +263,30 @@ export function SessionExplorer({
                       >
                         {isPinning ? <CircleNotch aria-hidden="true" className="spin" /> : <PushPin aria-hidden="true" weight={session.isPinned ? 'fill' : 'regular'} />}
                       </button>
-                      <button
-                        aria-label={`Delete ${sessionTitle} session`}
-                        className="local-session-delete-button"
-                        disabled={session.isConnected || isPinning || deletingSessionId === session.sessionId}
-                        onClick={() => {
-                          if (!window.confirm('Delete this session permanently? Its capture, search index, metrics, and trends history will be removed.')) {
-                            return
-                          }
+                      {selectedSessions.length === 0 ? (
+                        <button
+                          aria-label={`Delete only ${sessionTitle} session`}
+                          className="local-session-delete-button"
+                          disabled={session.isConnected || isPinning || deletingSessionId === session.sessionId}
+                          onClick={() => {
+                            if (!window.confirm(`Delete only this session permanently?\n\n${sessionTitle}\n${session.sessionId}\n\nOther sessions will remain. Its capture, search index, metrics, and trends history will be removed.`)) {
+                              return
+                            }
 
-                          setActionError(null)
-                          setDeletingSessionId(session.sessionId)
-                          void onDeleteSession(session.sessionId)
-                            .catch((error: unknown) => {
-                              setActionError(error instanceof Error ? error.message : 'Unable to delete the session.')
-                            })
-                            .finally(() => setDeletingSessionId(null))
-                        }}
-                        title={session.isConnected ? 'Disconnect the live session before deleting it' : 'Delete session'}
-                        type="button"
-                      >
-                        <Trash aria-hidden="true" />
-                      </button>
+                            setActionError(null)
+                            setDeletingSessionId(session.sessionId)
+                            void onDeleteSession(session.sessionId)
+                              .catch((error: unknown) => {
+                                setActionError(error instanceof Error ? error.message : 'Unable to delete the session.')
+                              })
+                              .finally(() => setDeletingSessionId(null))
+                          }}
+                          title={session.isConnected ? 'Disconnect the live session before deleting it' : 'Delete only this session'}
+                          type="button"
+                        >
+                          <Trash aria-hidden="true" />
+                        </button>
+                      ) : null}
                     </article>
                   )
                 })}

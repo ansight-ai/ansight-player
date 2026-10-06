@@ -1,13 +1,15 @@
-import { AndroidLogo, AppleLogo, AppWindow, WindowsLogo, type Icon } from '@phosphor-icons/react'
+import { AndroidLogo, AppleLogo, AppWindow, Check, WindowsLogo, type Icon } from '@phosphor-icons/react'
 
 export function SessionIcon({
   appIconUrl,
   fallbackIcon: FallbackIcon = AppWindow,
   platform,
+  selectionTick = false,
 }: {
   appIconUrl?: string | null
   fallbackIcon?: Icon
   platform?: string | null
+  selectionTick?: boolean
 }) {
   const badge = resolvePlatformBadge(platform)
 
@@ -33,6 +35,7 @@ export function SessionIcon({
           <badge.icon aria-hidden="true" weight="fill" />
         </span>
       ) : null}
+      {selectionTick ? <span aria-hidden="true" className="local-session-selection-tick"><Check weight="bold" /></span> : null}
     </span>
   )
 }

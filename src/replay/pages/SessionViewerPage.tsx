@@ -684,6 +684,8 @@ export function SessionViewerPage({
   onBack,
   onSessionExtracted,
   onReplayPanelWidthChange,
+  aiViewKind,
+  onAiViewKindChange,
   onSessionInfoOpenChange,
   onTaskExtractionRequested,
   replayPanelOverride,
@@ -701,6 +703,8 @@ export function SessionViewerPage({
   onSessionExtracted?: (sessionId: string) => void | Promise<void>
   /** Reports the device column's width so an embedding shell can align its own chrome with the player's cards. */
   onReplayPanelWidthChange?: (width: number) => void
+  aiViewKind?: SessionAiExtractionKind | null
+  onAiViewKindChange?: (kind: SessionAiExtractionKind | null) => void
   onSessionInfoOpenChange?: (isOpen: boolean) => void
   onTaskExtractionRequested?: (selection: TimelineEditSelection) => void
   replayPanelOverride?: ReactNode | ((context: SessionReplayPanelContext) => ReactNode)
@@ -736,7 +740,12 @@ export function SessionViewerPage({
   const [selectedVisualTreeSnapshotKey, setSelectedVisualTreeSnapshotKey] = useState<string | null>(null)
   const [selectedArtifactSnapshotKey, setSelectedArtifactSnapshotKey] = useState<string | null>(null)
   const [internalSessionInfoOpen, setInternalSessionInfoOpen] = useState(false)
-  const [sessionInfoAiKind, setSessionInfoAiKind] = useState<SessionAiExtractionKind | null>(null)
+  const [internalSessionInfoAiKind, setInternalSessionInfoAiKind] = useState<SessionAiExtractionKind | null>(null)
+  const sessionInfoAiKind = aiViewKind === undefined ? internalSessionInfoAiKind : aiViewKind
+  const setSessionInfoAiKind = useCallback((kind: SessionAiExtractionKind | null) => {
+    if (aiViewKind === undefined) setInternalSessionInfoAiKind(kind)
+    else onAiViewKindChange?.(kind)
+  }, [aiViewKind, onAiViewKindChange])
   const [isShareModalOpen, setIsShareModalOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [message, setMessage] = useState<string | null>(null)
@@ -761,7 +770,7 @@ export function SessionViewerPage({
     if (!isOpen) setSessionInfoAiKind(null)
     setInternalSessionInfoOpen(isOpen)
     onSessionInfoOpenChange?.(isOpen)
-  }, [onSessionInfoOpenChange])
+  }, [onSessionInfoOpenChange, setSessionInfoAiKind])
   const [isSessionActionPending, setIsSessionActionPending] = useState(false)
   const [timelineEditProgress, setTimelineEditProgress] = useState<SessionOperationProgress | null>(null)
   const timelineEditInFlightRef = useRef<string | null>(null)
@@ -775,6 +784,7 @@ export function SessionViewerPage({
   const [showTouchLocations, setShowTouchLocations] = useState(true)
   const [visualTreeOverlay, setVisualTreeOverlay] = useState<VisualTreeOverlaySelection | null>(null)
   const [replayPanelWidth, setReplayPanelWidth] = useState(readStoredSessionReplayPanelWidth)
+  const { loadPayload, hydratePayload } = source
   useEffect(() => {
     onReplayPanelWidthChange?.(replayPanelWidth)
   }, [onReplayPanelWidthChange, replayPanelWidth])
@@ -1010,7 +1020,7 @@ export function SessionViewerPage({
       pendingVisualTreeSnapshotRequestsRef.current.clear()
 
       try {
-        const nextPayload = await source.loadPayload(sessionId, superAdminMode)
+        const nextPayload = await loadPayload(sessionId, superAdminMode)
         if (isMounted) {
           setPayload(nextPayload)
           if (initialArtifactId) {
@@ -1023,7 +1033,7 @@ export function SessionViewerPage({
           }
         }
 
-        void (source.hydratePayload?.(nextPayload) ?? Promise.resolve(nextPayload))
+        void (hydratePayload?.(nextPayload) ?? Promise.resolve(nextPayload))
           .then((hydratedPayload) => {
             if (isMounted && activeSessionIdRef.current === sessionId && hydratedPayload !== nextPayload) {
               setPayload(hydratedPayload)
@@ -1050,7 +1060,7 @@ export function SessionViewerPage({
     return () => {
       isMounted = false
     }
-  }, [initialArtifactId, resetImageCache, sessionId, source, superAdminMode])
+  }, [hydratePayload, initialArtifactId, loadPayload, resetImageCache, sessionId, superAdminMode])
 
   useEffect(() => {
     const previous = refreshRequestRef.current
@@ -2144,7 +2154,7 @@ export function SessionViewerPage({
     : undefined)
   const artifactDownloadCommand = !isLocalReplay ? `ansight cloud session download ${session.id}` : undefined
   const hasCloudAiSource = !!source.loadAiReadState
-  const showCloudAiActions = !isLocalReplay && hasCloudAiSource
+  const showCloudAiActions = hasCloudAiSource
   const canRunCloudAi = hasCloudAiSource
     && !!source.createAiExtraction
     && !!source.archiveAiExtraction

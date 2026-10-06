@@ -3,7 +3,7 @@ import { observeLocalActivity } from './usage'
 import { Check, Copy, DownloadSimple, Archive, CaretDown, ChartLineUp, CircleNotch, CloudArrowUp, DeviceMobile, FlowArrow, Gear, Info, Link, NotePencil, Pulse, QrCode, SidebarSimple, Sparkle, SquaresFour, TestTube, Trash, UserCircle, VideoCamera, WifiHigh, X } from '@phosphor-icons/react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type SetStateAction } from 'react'
 import { SessionIcon } from './SessionIcon'
-import { SessionViewerPage, type SessionReplayPanelContext, type TimelineEditSelection } from '../replay/pages/SessionViewerPage'
+import { SessionViewerPage, type SessionReplayPanelContext, type SessionViewerSource, type TimelineEditSelection } from '../replay/pages/SessionViewerPage'
 import { AccountCompanionPanel } from './AccountCompanionPanel'
 import { RemoteRunnerPanel } from './RemoteRunnerPanel'
 import { AboutInstallationPanel } from './AboutInstallationPanel'
@@ -15,7 +15,7 @@ import { DeviceLocationPanel } from './DeviceLocationPanel'
 import { EditSessionMetadataPanel } from './EditSessionMetadataPanel'
 import { HostHealthPanel } from './HostHealthPanel'
 import { HostManagementPanel } from './HostManagementPanel'
-import { OptionalPlayerPanel } from './OptionalPlayerPanel'
+import { loadOptionalPlayerFeature } from './loadOptionalPlayerFeature'
 import { localReplaySource } from './localSessionData'
 import { TrendsPanel } from './TrendsPanel'
 import { SessionExplorer } from './SessionExplorer'
@@ -45,7 +45,12 @@ interface LocalSessionSelection {
 
 export function LocalReplayApp() {
   useEffect(observeLocalActivity, [])
-  const [isOptionalAnalysisOpen, setIsOptionalAnalysisOpen] = useState(false)
+  const [cloudAnalysisSource, setCloudAnalysisSource] = useState<Pick<SessionViewerSource, 'loadAiReadState' | 'createAiExtraction' | 'archiveAiExtraction'> | null>(null)
+  const [isCloudAnalysisLoading, setIsCloudAnalysisLoading] = useState(false)
+  const [aiViewKind, setAiViewKind] = useState<'analysis' | 'mermaid' | null>(null)
+  const sessionViewerSource = useMemo<SessionViewerSource>(() => cloudAnalysisSource
+    ? { ...localReplaySource, ...cloudAnalysisSource }
+    : localReplaySource, [cloudAnalysisSource])
   const [bootstrap, setBootstrap] = useState<LocalReplayBootstrap | null>(null)
   const [sessions, setSessions] = useState<LocalSessionSummary[]>([])
   const [isSessionsLoading, setIsSessionsLoading] = useState(true)
@@ -70,6 +75,10 @@ export function LocalReplayApp() {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false)
   const [isSessionMetadataOpen, setIsSessionMetadataOpen] = useState(false)
   const [isSessionInfoOpen, setIsSessionInfoOpen] = useState(false)
+  const handleSessionInfoOpenChange = useCallback((isOpen: boolean) => {
+    setIsSessionInfoOpen(isOpen)
+    if (!isOpen) setAiViewKind(null)
+  }, [])
   const [isLocationOpen, setIsLocationOpen] = useState(false)
   const [activePanel, setActivePanel] = useState<LocalGlobalPanel>(null)
   const runnerStatus: LocalRemoteRunnerStatus | null = null
@@ -91,6 +100,22 @@ export function LocalReplayApp() {
   } | null>(null)
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null)
   const [sessionActionError, setSessionActionError] = useState<string | null>(null)
+
+  async function openCloudAnalysis() {
+    if (isCloudAnalysisLoading) return
+    setIsCloudAnalysisLoading(true)
+    setSessionActionError(null)
+    try {
+      const source = cloudAnalysisSource ?? await loadOptionalPlayerFeature<Pick<SessionViewerSource, 'loadAiReadState' | 'createAiExtraction' | 'archiveAiExtraction'>>('CloudAnalysisSource')
+      setCloudAnalysisSource(source)
+      setAiViewKind('analysis')
+      setIsSessionInfoOpen(true)
+    } catch (error) {
+      setSessionActionError(error instanceof Error ? error.message : 'Unable to open cloud analysis.')
+    } finally {
+      setIsCloudAnalysisLoading(false)
+    }
+  }
   const [copiedSessionId, setCopiedSessionId] = useState<string | null>(null)
   const [copiedSessionLinkId, setCopiedSessionLinkId] = useState<string | null>(null)
   const [exportingSessionId, setExportingSessionId] = useState<string | null>(null)
@@ -860,7 +885,6 @@ export function LocalReplayApp() {
         </div>
       </div>
 
-      {isOptionalAnalysisOpen && selectedSessionId ? <OptionalPlayerPanel component="CloudAnalysisPlayer" panelProps={{ sessionId: selectedSessionId, onClose: () => setIsOptionalAnalysisOpen(false) }} /> : null}
       <div className="local-replay-layout">
         {isExplorerOpen ? explorerMode === 'team' && bootstrap?.supportsCloudSessions ? (
           <TeamSessionExplorer
@@ -976,7 +1000,7 @@ export function LocalReplayApp() {
               </button>
               <button
                 className="local-banner-button"
-                onClick={() => setIsSessionInfoOpen(true)}
+                onClick={() => { setAiViewKind(null); setIsSessionInfoOpen(true) }}
                 data-tooltip="View session information"
                 type="button"
               >
@@ -1009,12 +1033,13 @@ export function LocalReplayApp() {
               {bootstrap?.supportsCloudSessions ? (
                 <button
                   className="local-banner-button"
-                  onClick={() => setIsOptionalAnalysisOpen(true)}
+                  disabled={isCloudAnalysisLoading}
+                  onClick={() => void openCloudAnalysis()}
                   data-tooltip="Cloud analysis"
                   type="button"
                 >
-                  <Sparkle aria-hidden="true" />
-                  Cloud analysis
+                  {isCloudAnalysisLoading ? <CircleNotch className="spin" aria-hidden="true" /> : <Sparkle aria-hidden="true" />}
+                  {isCloudAnalysisLoading ? 'Opening…' : 'Cloud analysis'}
                 </button>
               ) : null}
               {canManageSelectedSession ? (
@@ -1040,12 +1065,14 @@ export function LocalReplayApp() {
             </div>
           ) : selectedSessionId && sessions.length > 0 ? (
             <SessionViewerPage
+              aiViewKind={aiViewKind}
               initialArtifactId={sessionLink?.sessionId === selectedSessionId ? sessionLink.artifactId : undefined}
               isEmbedded
               isLiveSession={selectedSession?.isConnected === true}
               onReplayPanelWidthChange={setReplayPanelWidth}
               isSignedIn={false}
-              onSessionInfoOpenChange={setIsSessionInfoOpen}
+              onSessionInfoOpenChange={handleSessionInfoOpenChange}
+              onAiViewKindChange={setAiViewKind}
               onSessionExtracted={(sessionId) => {
                 setSessionActionError(null)
                 setIsSessionInfoOpen(false)
@@ -1058,7 +1085,7 @@ export function LocalReplayApp() {
               refreshKey={refreshKey}
               sessionId={selectedSessionId}
               sessionInfoOpen={isSessionInfoOpen}
-              source={localReplaySource}
+              source={sessionViewerSource}
             />
           ) : (
             <div className="local-replay-welcome">
