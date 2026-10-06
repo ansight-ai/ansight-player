@@ -277,6 +277,17 @@
   color: var(--success);
 }
 
+button.local-cache-status {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.local-cache-status--warning {
+  color: var(--danger);
+}
+
 .local-runner-status--idle {
   color: var(--success);
 }
@@ -2999,6 +3010,11 @@ button.local-runner-status:hover {
   .local-host-status,
   .local-replay-actions > strong {
     display: none;
+  }
+
+  button.local-cache-status {
+    display: flex;
+    font-size: 0;
   }
 }
 

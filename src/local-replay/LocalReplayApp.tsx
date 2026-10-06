@@ -1,6 +1,6 @@
 import { readSessionTimelineLink, sessionTimelineHref, type SessionTimelineLink } from './sessionLinks'
 import { observeLocalActivity } from './usage'
-import { Check, Copy, DownloadSimple, Archive, CaretDown, ChartLineUp, CircleNotch, CloudArrowUp, DeviceMobile, FlowArrow, Gear, Info, Link, NotePencil, Pulse, QrCode, SidebarSimple, Sparkle, SquaresFour, TestTube, Trash, UserCircle, VideoCamera, WifiHigh, X } from '@phosphor-icons/react'
+import { Check, Copy, DownloadSimple, Archive, CaretDown, ChartLineUp, CircleNotch, CloudArrowUp, DeviceMobile, FlowArrow, Gear, HardDrives, Info, Link, NotePencil, Pulse, QrCode, SidebarSimple, Sparkle, SquaresFour, TestTube, Trash, UserCircle, VideoCamera, WifiHigh, X } from '@phosphor-icons/react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type SetStateAction } from 'react'
 import { SessionIcon } from './SessionIcon'
 import { SessionViewerPage, type SessionReplayPanelContext, type SessionViewerSource, type TimelineEditSelection } from '../replay/pages/SessionViewerPage'
@@ -25,7 +25,7 @@ import { SimulatorControlView } from './SimulatorControlView'
 import { TeamSessionExplorer } from './TeamSessionExplorer'
 import { TestHistoryPanel } from './TestHistoryPanel'
 import { TestExecutionPanel } from './TestExecutionPanel'
-import type { LocalAppGraphLiveRun, LocalEnrollmentInviteResult, LocalOperationResult, LocalRemoteRunnerRegistration, LocalRemoteRunnerStatus, LocalReplayBootstrap, LocalSessionSummary, LocalTestHistory, LocalTestRunSummary } from './types'
+import type { LocalAppGraphLiveRun, LocalEnrollmentInviteResult, LocalOperationResult, LocalRemoteRunnerRegistration, LocalRemoteRunnerStatus, LocalReplayBootstrap, LocalSessionCachePlan, LocalSessionSummary, LocalTestHistory, LocalTestRunSummary } from './types'
 
 const linkedTraceRefreshIntervalMs = 8000
 const appGraphRefreshIntervalMs = 750
@@ -55,6 +55,20 @@ export function LocalReplayApp() {
   const [sessions, setSessions] = useState<LocalSessionSummary[]>([])
   const [isSessionsLoading, setIsSessionsLoading] = useState(true)
   const [sessionRefreshNonce, setSessionRefreshNonce] = useState(0)
+  const [cachePlan, setCachePlan] = useState<LocalSessionCachePlan | null>(null)
+  useEffect(() => {
+    if (bootstrap?.mode !== 'explorer') return undefined
+    let active = true
+    async function refreshCachePlan() {
+      try {
+        const response = await fetch('api/session-cache', { cache: 'no-store' })
+        if (response.ok && active) setCachePlan(await response.json() as LocalSessionCachePlan)
+      } catch { /* Session storage stays available through its own panel if a poll fails. */ }
+    }
+    void refreshCachePlan()
+    const timer = window.setInterval(() => void refreshCachePlan(), 60_000)
+    return () => { active = false; window.clearInterval(timer) }
+  }, [bootstrap?.mode, sessionRefreshNonce])
   const [sessionSelection, setSessionSelection] = useState<LocalSessionSelection>(() => {
     const link = readSessionTimelineLink(window.location.href)
     if (link) return { sessionId: link.sessionId, link }
@@ -699,6 +713,17 @@ export function LocalReplayApp() {
     || activePanel === 'session_admin'
     || activePanel === 'health'
     || activePanel === 'settings'
+  const cacheUsagePercent = cachePlan && cachePlan.maximumCacheSizeBytes > 0
+    ? Math.round(cachePlan.totalCacheSizeBytes / cachePlan.maximumCacheSizeBytes * 100)
+    : 0
+  const isCacheApproachingLimit = cachePlan?.autoCleanupEnabled === true && cacheUsagePercent >= 80
+  const cacheFeedback = isCacheApproachingLimit
+    ? cacheUsagePercent > 100
+      ? 'Session storage is over its limit. Pinned or live sessions may be preventing cleanup.'
+      : `Session storage is ${cacheUsagePercent}% full. Old, unpinned sessions will be removed above the limit.`
+    : cachePlan?.lastAutoCleanupDeletedCount
+      ? `Ansight removed ${cachePlan.lastAutoCleanupDeletedCount} old, unpinned session(s) after the cache exceeded its limit.`
+      : null
   const rootClassName = [
     'local-replay-root',
     isExplorerOpen ? '' : 'local-replay-root--collapsed',
@@ -737,6 +762,16 @@ export function LocalReplayApp() {
           <small>Local</small>
         </div>
         <div className="local-replay-actions">
+          {cacheFeedback ? <button
+            aria-label={cacheFeedback}
+            className={isCacheApproachingLimit ? 'local-host-status local-cache-status local-cache-status--warning' : 'local-host-status local-cache-status'}
+            onClick={() => setActivePanel('session_admin')}
+            type="button"
+          >
+            <HardDrives aria-hidden="true" />
+            {isCacheApproachingLimit ? `Storage ${cacheUsagePercent}%` : 'Storage cleaned'}
+            <span className="local-host-status-tooltip" role="tooltip">{cacheFeedback} Open session storage for details.</span>
+          </button> : null}
           <button
             aria-describedby="local-runner-status-tooltip"
             aria-label="Manage remote runner"

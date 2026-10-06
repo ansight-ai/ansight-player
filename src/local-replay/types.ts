@@ -1206,6 +1206,9 @@ export type LocalSessionCachePlan = {
   maximumCacheSizeBytes: number
   totalCacheSizeBytes: number
   projectedCacheSizeBytes: number
+  autoCleanupEnabled: boolean
+  lastAutoCleanupUtc: string | null
+  lastAutoCleanupDeletedCount: number
   sessionCount: number
   pinnedSessionCount: number
   liveSessionCount: number

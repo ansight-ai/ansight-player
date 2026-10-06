@@ -223,13 +223,13 @@ export function CoreSettingsPanel({ onClose }: CoreSettingsPanelProps) {
               >
                 <SettingToggle
                   checked={draft.sessionAutoCleanupEnabled}
-                  description="Compact and delete eligible sessions using the limits below."
+                  description="Compact older sessions, warn at 80% of the limit, and remove old unpinned sessions only when the limit is exceeded."
                   onChange={(value) => updateSetting('sessionAutoCleanupEnabled', value)}
                   title="Automatic cleanup"
                 />
                 <div className="local-settings-field-row">
                   <label className="local-control-field">
-                    Retain sessions (days)
+                    Manual cleanup age (days)
                     <input
                       disabled={!draft.sessionAutoCleanupEnabled}
                       max="365"
