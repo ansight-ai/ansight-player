@@ -74,13 +74,15 @@ export const localReplaySource: SessionViewerSource = {
   upsertAnnotation: upsertLocalAnnotation,
 }
 
-async function runLocalSummary(sessionId: string): Promise<void> {
+async function runLocalSummary(sessionId: string, onProgress: (progress: SessionOperationProgress) => void): Promise<void> {
   const response = await fetch(`api/sessions/${encodeURIComponent(sessionId)}/local-summary`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson' },
     body: '{}',
   })
-  const result = await response.json().catch(() => null) as { isSuccess: boolean; message?: string } | null
+  const result = response.headers.get('Content-Type')?.includes('application/x-ndjson')
+    ? await readSessionOperationStream<{ isSuccess: boolean; message?: string }>(response, onProgress)
+    : await response.json().catch(() => null) as { isSuccess: boolean; message?: string } | null
   if (!response.ok || !result?.isSuccess) {
     throw new Error(result?.message || `Unable to run a local session summary: HTTP ${response.status}`)
   }

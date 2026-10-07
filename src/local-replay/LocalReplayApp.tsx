@@ -1123,7 +1123,7 @@ export function LocalReplayApp() {
               <button
                 className="local-banner-button"
                 onClick={() => void openSummary()}
-                data-tooltip="Summarise this local session with brokered AI"
+                data-tooltip="Summarise this local session"
                 type="button"
               >
                 <Sparkle aria-hidden="true" />

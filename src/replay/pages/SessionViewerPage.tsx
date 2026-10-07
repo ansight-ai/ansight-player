@@ -340,7 +340,7 @@ type SessionImageUrlBatch = {
 export type SessionViewerSource = {
   mode: 'cloud' | 'local'
   loadPayload: (sessionId: string, superAdminMode: boolean) => Promise<SessionViewerPayload>
-  runLocalSummary?: (sessionId: string) => Promise<void>
+  runLocalSummary?: (sessionId: string, onProgress: (progress: SessionOperationProgress) => void) => Promise<void>
   loadAiReadState?: (sessionId: string) => Promise<SessionAiReadState>
   createAiExtraction?: (request: CreateSessionAiExtractionRequest) => Promise<string>
   invokeAiExtraction?: (runId: string) => Promise<void>
@@ -765,6 +765,7 @@ export function SessionViewerPage({
   const [aiMessage, setAiMessage] = useState<string | null>(null)
   const [isLocalSummaryRunning, setIsLocalSummaryRunning] = useState(false)
   const [localSummaryMessage, setLocalSummaryMessage] = useState<string | null>(null)
+  const [localSummaryProgress, setLocalSummaryProgress] = useState<string | null>(null)
   const [attachments, setAttachments] = useState<SessionAttachment[]>([])
   const [canAttachToSession, setCanAttachToSession] = useState(false)
   const [canManageSession, setCanManageSession] = useState(false)
@@ -1837,8 +1838,12 @@ export function SessionViewerPage({
     if (!source.runLocalSummary || isLocalSummaryRunning) return
     setIsLocalSummaryRunning(true)
     setLocalSummaryMessage(null)
+    setLocalSummaryProgress('Starting analysis…')
     try {
-      await source.runLocalSummary(sessionId)
+      await source.runLocalSummary(sessionId, (progress) => {
+        if (activeSessionIdRef.current === sessionId) setLocalSummaryProgress(progress.message)
+      })
+      setLocalSummaryProgress('Loading saved summary…')
       const nextPayload = await source.loadPayload(sessionId, superAdminMode)
       const hydratedPayload = await (source.hydratePayload?.(nextPayload) ?? Promise.resolve(nextPayload))
       if (activeSessionIdRef.current === sessionId) {
@@ -1849,6 +1854,7 @@ export function SessionViewerPage({
       setLocalSummaryMessage(getErrorMessage(error, 'Unable to run a local session summary.'))
     } finally {
       setIsLocalSummaryRunning(false)
+      setLocalSummaryProgress(null)
     }
   }
 
@@ -2914,6 +2920,7 @@ export function SessionViewerPage({
             isAiLoading={isAiLoading}
             isAiSubmitting={isAiSubmitting}
             isLocalSummaryRunning={isLocalSummaryRunning}
+            localSummaryProgress={localSummaryProgress}
             kind={sessionInfoAiKind}
             onArchiveAiExtraction={(run, shouldArchive) => void handleArchiveAiExtraction(run, shouldArchive)}
             onCreateAiExtraction={(kind) => void handleCreateAiExtraction(kind)}
@@ -6476,6 +6483,7 @@ function AnalysisSection({
   isAiLoading,
   isAiSubmitting,
   isLocalSummaryRunning,
+  localSummaryProgress,
   kind,
   localSummaryMessage,
   onArchiveAiExtraction,
@@ -6503,6 +6511,7 @@ function AnalysisSection({
   isAiLoading: boolean
   isAiSubmitting: boolean
   isLocalSummaryRunning: boolean
+  localSummaryProgress: string | null
   kind: SessionAiExtractionKind
   localSummaryMessage: string | null
   onArchiveAiExtraction: (run: SessionAiExtractionSummary, shouldArchive: boolean) => void
@@ -6552,7 +6561,8 @@ function AnalysisSection({
               {isLocalSummaryRunning ? 'Summarising…' : 'Run summary'}
             </button>
           </div>
-          <p className="muted">Uses the existing brokered agent model. Selected evidence is sent for model processing; the result is saved with this local session. No team share is needed.</p>
+          <p className="muted">Analyzes session evidence and selected screenshots, then saves the summary with this local session.</p>
+          {isLocalSummaryRunning ? <p className="inline-message" role="status"><CircleNotch className="spin" aria-hidden="true" /> {localSummaryProgress ?? 'Analyzing session…'}</p> : null}
           {localSummaryMessage ? <p className="inline-message" role="status">{localSummaryMessage}</p> : null}
         </section>
       ) : null}
