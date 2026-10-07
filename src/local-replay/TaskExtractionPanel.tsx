@@ -66,6 +66,7 @@ export function TaskExtractionPanel({
   const [description, setDescription] = useState('')
   const [reasoning, setReasoning] = useState<AgentReasoning>(defaultAgentReasoning)
   const [testReasoning, setTestReasoning] = useState<AgentReasoning>(defaultAgentReasoning)
+  const [draftRunReasoning, setDraftRunReasoning] = useState<AgentReasoning>(defaultAgentReasoning)
   const [maestroReasoning, setMaestroReasoning] = useState<AgentReasoning>(defaultAgentReasoning)
   const [validateSelectors, setValidateSelectors] = useState(true)
   const [capabilities, setCapabilities] = useState<LocalTaskExtractionCapabilities | null>(null)
@@ -1033,7 +1034,7 @@ export function TaskExtractionPanel({
           deviceIdentifier: selectedDraftRunDevice.identifier,
           deviceKind: selectedDraftRunDevice.kind,
           applicationPath: draftRunApplicationPath.trim() || null,
-          reasoning: testReasoning,
+          reasoning: draftRunReasoning,
           captureTrace: true,
         }),
         headers: { 'Content-Type': 'application/json' },
@@ -1416,7 +1417,7 @@ export function TaskExtractionPanel({
                   <textarea id="local-test-generation-notes" maxLength={maximumGenerationNotesCharacters} onChange={(event) => setGenerationNotes(event.target.value)} placeholder="For example: Start from the Explore tab, use the location name shown in the recording, and verify the clipboard confirmation." rows={3} value={generationNotes} />
                   <small>Optional. Describe the starting state, test values, important steps, or expected outcome.</small>
                 </label> : null}
-                {format === 'test' ? <label>AI reasoning mode
+                {format === 'test' ? <label>Generation reasoning
                   <select disabled={isTestDraftBusy} onChange={(event) => setTestReasoning(event.target.value as AgentReasoning)} value={testReasoning}>
                     {agentReasoningModes.map((mode) => <option key={mode.value} value={mode.value}>{mode.label}</option>)}
                   </select>
@@ -1589,6 +1590,7 @@ export function TaskExtractionPanel({
                   {format === 'test' ? <div className="local-task-extraction-test">
                     <div className="local-admin-section-heading"><div><Play /><span><strong>Run draft</strong></span></div></div>
                     <div className="local-draft-run-device-target"><span>Device or simulator</span><button className="button button--secondary" disabled={isStartingDraftRun} onClick={() => { setIsDraftDevicePickerOpen(true); void refreshDraftRunInventory() }} ref={draftDeviceTriggerRef} type="button"><span>{selectedDraftRunDevice ? `${selectedDraftRunDevice.name} · ${friendlyDraftRuntime(selectedDraftRunDevice)}` : 'Choose a target'}</span><span>{selectedDraftRunDevice ? 'Change' : 'Choose'}</span></button></div>
+                    <label>Run reasoning depth<select disabled={isStartingDraftRun || !!draftRun && ['queued', 'running'].includes(draftRun.status)} onChange={(event) => setDraftRunReasoning(event.target.value as AgentReasoning)} value={draftRunReasoning}>{agentReasoningModes.map((mode) => <option key={mode.value} value={mode.value}>{mode.label}</option>)}</select></label>
                     <label>Application artifact (optional)<input disabled={isStartingDraftRun} onChange={(event) => setDraftRunApplicationPath(event.target.value)} placeholder="Host path to the app build, if it is not already installed" value={draftRunApplicationPath} /></label>
                     {readyTaskDrafts.length ? <fieldset className="local-draft-run-task-picker"><legend>Include Draft Tasks</legend><div className="local-draft-run-task-list">{readyTaskDrafts.map((item) => <label key={item.extractionId}><input checked={!excludedDraftTaskIds.includes(item.extractionId)} onChange={(event) => setExcludedDraftTaskIds((current) => event.target.checked ? current.filter((id) => id !== item.extractionId) : [...current, item.extractionId])} type="checkbox" />{item.taskName}</label>)}</div></fieldset> : <p className="local-task-extraction-hint">No ready task drafts belong to these sections. The YAML journey can still run.</p>}
                     <button className="button button--primary" disabled={isStartingDraftRun || isExternalGenerating || isTestDraftStale || externalValidation?.status !== 'passed' || !selectedDraftRunDevice?.isAvailable || !!draftRun && ['queued', 'running'].includes(draftRun.status)} onClick={() => void runDraftTest()} type="button">{isStartingDraftRun ? <CircleNotch className="spin" /> : <Play />}Run draft test</button>
