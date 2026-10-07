@@ -1,5 +1,5 @@
 import { ArrowClockwise, Bug, ChartBar, CheckCircle, CircleNotch, Clock, Code, Coins, FloppyDisk, Info, Play, Robot, Stop, TestTube, Trash, WarningCircle, X, XCircle } from '@phosphor-icons/react'
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { agentReasoningModes, defaultAgentReasoning, type AgentReasoning } from '../agentReasoning'
 import { TypeScriptTaskEditor, type TypeScriptEditorDiagnostics } from './TypeScriptTaskEditor'
 import { TestHistoryPanel } from './TestHistoryPanel'
@@ -7,7 +7,7 @@ import { YamlTestEditor } from './YamlTestEditor'
 import { TestTaskSectionIntake } from './TestTaskSectionIntake'
 import { readSessionOperationStream } from './sessionOperationStream'
 import type { SessionAnnotation } from '../replay/sessionViewerData'
-import type { AppiumScriptExtraction, LocalDevice, LocalDeviceInventory, LocalOperationResult, LocalSessionSummary, LocalTaskAuthoringReference, LocalTaskAuthoringReferenceCatalog, LocalTaskExtraction, LocalTaskExtractionCapabilities, LocalTaskExtractionFailureDebugResult, LocalTaskExtractionTrace, LocalTestExecution, LocalTestHistory, LocalTestRunSummary, MaestroFlowExtraction, WorkspaceTestExtraction } from './types'
+import type { AppiumScriptExtraction, LocalDevice, LocalDeviceInventory, LocalOperationResult, LocalSessionSummary, LocalTaskAuthoringReference, LocalTaskAuthoringReferenceCatalog, LocalTaskExtraction, LocalTaskExtractionCapabilities, LocalTaskExtractionFailureDebugResult, LocalTaskExtractionTrace, LocalTestExecution, LocalTestHistory, LocalTestRunSummary, MaestroFlowExtraction, WorkspaceTestDraft, WorkspaceTestExtraction } from './types'
 
 type SelectedPeriod = {
   startMs: number
@@ -18,8 +18,13 @@ type SelectedPeriod = {
 type ExtractionFormat = 'ansight' | 'test' | 'maestro' | 'appium'
 type ExternalDraftResult = { status: 'passed' | 'failed'; message: string; output: string }
 const maximumGenerationNotesCharacters = 4000
+const defaultPanelSplitRatio = 0.42
+const minimumPanelWidthPx = 320
+const panelDividerWidthPx = 10
+const panelSplitStorageKey = 'ansight.extraction-panel-split'
 
 export function TaskExtractionPanel({
+  initialDraftId,
   initialFormat,
   initialSelectedTaskSectionIds,
   initialSkipTaskSections,
@@ -28,11 +33,13 @@ export function TaskExtractionPanel({
   initialGenerationNotes,
   onAnnotateOnReplay,
   onClose,
+  onOpenSavedTestDraft,
   onOpenTests,
   period,
   session,
   sessions,
 }: {
+  initialDraftId?: string
   initialFormat?: ExtractionFormat
   initialSelectedTaskSectionIds?: string[]
   initialSkipTaskSections?: boolean
@@ -41,12 +48,20 @@ export function TaskExtractionPanel({
   initialGenerationNotes?: string
   onAnnotateOnReplay: (annotationId: string | null, returnTest: { name: string; assertions: string; generationNotes: string; selectedTaskSectionIds: string[]; skipTaskSections: boolean }) => void
   onClose: () => void
+  onOpenSavedTestDraft: (draft: WorkspaceTestDraft) => void
   onOpenTests: (appId: string, testId: string) => void
   period: SelectedPeriod
   session: LocalSessionSummary
   sessions: LocalSessionSummary[]
 }) {
   const [taskName, setTaskName] = useState(initialTaskName ?? '')
+  const [panelSplitRatio, setPanelSplitRatio] = useState(() => {
+    try {
+      const saved = Number(window.localStorage.getItem(panelSplitStorageKey))
+      return Number.isFinite(saved) && saved > 0 && saved < 1 ? saved : defaultPanelSplitRatio
+    } catch { return defaultPanelSplitRatio }
+  })
+  const extractionGridRef = useRef<HTMLDivElement | null>(null)
   const [format, setFormat] = useState<ExtractionFormat>(initialFormat ?? 'ansight')
   const [description, setDescription] = useState('')
   const [reasoning, setReasoning] = useState<AgentReasoning>(defaultAgentReasoning)
@@ -77,6 +92,11 @@ export function TaskExtractionPanel({
   const [appiumSavedPath, setAppiumSavedPath] = useState('')
   const [isAppiumBusy, setIsAppiumBusy] = useState(false)
   const [workspaceTestDraft, setWorkspaceTestDraft] = useState<WorkspaceTestExtraction | null>(null)
+  const [savedTestDrafts, setSavedTestDrafts] = useState<WorkspaceTestDraft[]>([])
+  const [activeTestDraftId, setActiveTestDraftId] = useState<string | null>(null)
+  const [testDraftSaveStatus, setTestDraftSaveStatus] = useState<'saved' | 'saving' | 'failed' | null>(null)
+  const lastSavedTestDraftFingerprintRef = useRef('')
+  const loadedSavedTestDraftsRef = useRef(false)
   const [testTitle, setTestTitle] = useState('')
   const [testSource, setTestSource] = useState('')
   const [testSavedPath, setTestSavedPath] = useState('')
@@ -102,6 +122,9 @@ export function TaskExtractionPanel({
   const [draftRunApplicationPath, setDraftRunApplicationPath] = useState('')
   const [excludedDraftTaskIds, setExcludedDraftTaskIds] = useState<string[]>([])
   const [draftRun, setDraftRun] = useState<LocalTestExecution | null>(null)
+  const [lastDraftRunExecutionId, setLastDraftRunExecutionId] = useState<string | null>(null)
+  const [lastDraftTraceRunId, setLastDraftTraceRunId] = useState<string | null>(null)
+  const [isDraftRunDetailsOpen, setIsDraftRunDetailsOpen] = useState(false)
   const [draftTraceRun, setDraftTraceRun] = useState<LocalTestRunSummary | null>(null)
   const [isStartingDraftRun, setIsStartingDraftRun] = useState(false)
   const [taskSectionExtractions, setTaskSectionExtractions] = useState<Record<string, LocalTaskExtraction>>({})
@@ -153,6 +176,20 @@ export function TaskExtractionPanel({
     ? { startMs: Date.parse(reviewAnnotation.startUtc!), endMs: Date.parse(reviewAnnotation.endUtc!), focusMs: Date.parse(reviewAnnotation.startUtc!) }
     : period
 
+  function updatePanelSplit(clientX: number): number {
+    const bounds = extractionGridRef.current?.getBoundingClientRect()
+    if (!bounds) return panelSplitRatio
+    const minimumRatio = Math.min(0.5, minimumPanelWidthPx / bounds.width)
+    const maximumRatio = Math.max(0.5, 1 - (minimumPanelWidthPx + panelDividerWidthPx) / bounds.width)
+    const next = Math.min(maximumRatio, Math.max(minimumRatio, (clientX - bounds.left) / bounds.width))
+    setPanelSplitRatio(next)
+    return next
+  }
+
+  function storePanelSplit(ratio: number) {
+    try { window.localStorage.setItem(panelSplitStorageKey, String(ratio)) } catch { /* Resizing still works without storage. */ }
+  }
+
   function clearExternalChecks() {
     validationRevisionRef.current += 1
     setExternalValidation(null)
@@ -165,6 +202,120 @@ export function TaskExtractionPanel({
     setDraftRun(null)
     clearExternalChecks()
   }
+
+  const testDraftSavePayload = useCallback((extraction: WorkspaceTestExtraction, source: string, draftId: string | null, title: string, needsRegeneration: boolean, lastExecutionId = lastDraftRunExecutionId, lastTraceRunId = lastDraftTraceRunId) => ({
+      draftId,
+      sessionId: session.sessionId,
+      startUtc: new Date(period.startMs).toISOString(),
+      endUtc: new Date(period.endMs).toISOString(),
+      title,
+      extraction,
+      source,
+      taskSectionIds: selectedTaskSectionIds,
+      skipTaskSections,
+      assertions: testAssertions,
+      generationNotes,
+      reasoning: testReasoning,
+      needsRegeneration,
+      lastExecutionId,
+      lastTraceRunId,
+    }), [generationNotes, lastDraftRunExecutionId, lastDraftTraceRunId, period.endMs, period.startMs, selectedTaskSectionIds, session.sessionId, skipTaskSections, testAssertions, testReasoning])
+
+  const persistTestDraft = useCallback(async (extraction: WorkspaceTestExtraction, source: string, draftId: string | null, title: string, needsRegeneration: boolean, lastExecutionId?: string | null, lastTraceRunId?: string | null) => {
+    const payload = testDraftSavePayload(extraction, source, draftId, title, needsRegeneration, lastExecutionId, lastTraceRunId)
+    setTestDraftSaveStatus('saving')
+    try {
+      const response = await fetch('api/task-extractions/test-drafts/save', {
+        body: JSON.stringify(payload),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      })
+      const body = await response.json() as WorkspaceTestDraft | LocalOperationResult
+      if (!response.ok || !('draftId' in body)) throw new Error('message' in body ? body.message : `HTTP ${response.status}`)
+      setActiveTestDraftId(body.draftId)
+      setSavedTestDrafts((current) => [body, ...current.filter((item) => item.draftId !== body.draftId)]
+        .sort((left, right) => Date.parse(right.updatedAtUtc) - Date.parse(left.updatedAtUtc)))
+      lastSavedTestDraftFingerprintRef.current = JSON.stringify({ ...payload, draftId: body.draftId })
+      setTestDraftSaveStatus('saved')
+      return body
+    } catch (error) {
+      setTestDraftSaveStatus('failed')
+      throw error
+    }
+  }, [testDraftSavePayload])
+
+  useEffect(() => {
+    if (format !== 'test' || isLoadingTaskSections || loadedSavedTestDraftsRef.current) return
+    loadedSavedTestDraftsRef.current = true
+    let active = true
+    void (async () => {
+      try {
+        const response = await fetch(`api/task-extractions/test-drafts?sessionId=${encodeURIComponent(session.sessionId)}`, { cache: 'no-store' })
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+        const drafts = await response.json() as WorkspaceTestDraft[]
+        if (!active) return
+        setSavedTestDrafts(drafts)
+        const chosen = initialDraftId
+          ? drafts.find((draft) => draft.draftId === initialDraftId)
+          : drafts.find((draft) => Date.parse(draft.startUtc) === period.startMs && Date.parse(draft.endUtc) === period.endMs)
+        if (!chosen) return
+        setActiveTestDraftId(chosen.draftId)
+        setWorkspaceTestDraft(chosen.extraction)
+        setTestSource(chosen.source)
+        setTestTitle(chosen.title)
+        setTaskName(chosen.title)
+        const restoredSectionIds = chosen.skipTaskSections ? [] : chosen.taskSectionIds.filter((id) => taskSectionAnnotations.some((annotation) => annotation.annotationId === id))
+        setSelectedTaskSectionIds(restoredSectionIds)
+        setSkipTaskSections(restoredSectionIds.length === 0)
+        setTestAssertions(chosen.assertions)
+        setGenerationNotes(chosen.generationNotes)
+        setTestReasoning(agentReasoningModes.some((mode) => mode.value === chosen.reasoning) ? chosen.reasoning as AgentReasoning : defaultAgentReasoning)
+        setIsTestDraftStale(chosen.needsRegeneration)
+        setLastDraftRunExecutionId(chosen.lastExecutionId ?? null)
+        setLastDraftTraceRunId(chosen.lastTraceRunId ?? null)
+        setTestDraftSaveStatus('saved')
+        lastSavedTestDraftFingerprintRef.current = JSON.stringify({
+          draftId: chosen.draftId,
+          sessionId: chosen.sessionId,
+          startUtc: chosen.startUtc,
+          endUtc: chosen.endUtc,
+          title: chosen.title,
+          extraction: chosen.extraction,
+          source: chosen.source,
+          taskSectionIds: chosen.taskSectionIds,
+          skipTaskSections: chosen.skipTaskSections,
+          assertions: chosen.assertions,
+          generationNotes: chosen.generationNotes,
+          reasoning: chosen.reasoning,
+          needsRegeneration: chosen.needsRegeneration,
+          lastExecutionId: chosen.lastExecutionId ?? null,
+          lastTraceRunId: chosen.lastTraceRunId ?? null,
+        })
+        if (chosen.lastExecutionId) {
+          void fetch('api/tests/executions', { cache: 'no-store' }).then(async (executionResponse) => {
+            if (!executionResponse.ok || !active) return
+            const executions = await executionResponse.json() as LocalTestExecution[]
+            const run = executions.find((item) => item.executionId === chosen.lastExecutionId)
+            if (run && active) setDraftRun(run)
+          }).catch(() => undefined)
+        }
+      } catch (error) {
+        if (active) setMessage(resolveError(error, 'Unable to load saved YAML drafts.'))
+      }
+    })()
+    return () => { active = false }
+  }, [format, initialDraftId, isLoadingTaskSections, period.endMs, period.startMs, session.sessionId, taskSectionAnnotations])
+
+  useEffect(() => {
+    if (!activeTestDraftId || !workspaceTestDraft || isTestDraftBusy) return
+    const payload = testDraftSavePayload(workspaceTestDraft, testSource, activeTestDraftId, taskName.trim() || testTitle, isTestDraftStale)
+    if (JSON.stringify(payload) === lastSavedTestDraftFingerprintRef.current) return
+    const timer = window.setTimeout(() => {
+      void persistTestDraft(workspaceTestDraft, testSource, activeTestDraftId, payload.title, isTestDraftStale)
+        .catch((error) => setMessage(resolveError(error, 'Unable to save YAML draft.')))
+    }, 600)
+    return () => window.clearTimeout(timer)
+  }, [activeTestDraftId, isTestDraftBusy, isTestDraftStale, persistTestDraft, taskName, testDraftSavePayload, testSource, testTitle, workspaceTestDraft])
 
   useEffect(() => {
     if (format !== 'test' || !workspaceTestDraft || isTestDraftBusy || isTestDraftStale || !testSource.trim()) {
@@ -203,6 +354,54 @@ export function TaskExtractionPanel({
   function markTestDraftStale() {
     if (workspaceTestDraft) setIsTestDraftStale(true)
     clearExternalChecks()
+  }
+
+  async function saveCurrentTestDraftIfNeeded(): Promise<boolean> {
+    if (activeTestDraftId && workspaceTestDraft) {
+      const title = taskName.trim() || testTitle
+      const payload = testDraftSavePayload(workspaceTestDraft, testSource, activeTestDraftId, title, isTestDraftStale)
+      if (JSON.stringify(payload) !== lastSavedTestDraftFingerprintRef.current) {
+        try {
+          await persistTestDraft(workspaceTestDraft, testSource, activeTestDraftId, title, isTestDraftStale)
+        } catch (error) {
+          setMessage(resolveError(error, 'Unable to save YAML draft.'))
+          return false
+        }
+      }
+    }
+    return true
+  }
+
+  async function closeWithDraftSave() {
+    if (!await saveCurrentTestDraftIfNeeded()) return
+    onClose()
+  }
+
+  async function openSavedTestDraft(draft: WorkspaceTestDraft) {
+    if (draft.draftId === activeTestDraftId) return
+    if (!await saveCurrentTestDraftIfNeeded()) return
+    onOpenSavedTestDraft(draft)
+  }
+
+  async function discardSavedTestDraft(draft: WorkspaceTestDraft) {
+    try {
+      const response = await fetch('api/task-extractions/test-drafts/discard', {
+        body: JSON.stringify({ sessionId: session.sessionId, draftId: draft.draftId }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      })
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      setSavedTestDrafts((current) => current.filter((item) => item.draftId !== draft.draftId))
+      if (activeTestDraftId === draft.draftId) {
+        setActiveTestDraftId(null)
+        setWorkspaceTestDraft(null)
+        setTestSource('')
+        setTestDraftSaveStatus(null)
+        lastSavedTestDraftFingerprintRef.current = ''
+      }
+    } catch (error) {
+      setMessage(resolveError(error, 'Unable to discard YAML draft.'))
+    }
   }
 
   const refreshDraftRunInventory = useCallback(async () => {
@@ -248,7 +447,10 @@ export function TaskExtractionPanel({
         if (!response.ok) return
         const executions = await response.json() as LocalTestExecution[]
         const updated = executions.find((item) => item.executionId === draftRun.executionId)
-        if (updated) setDraftRun(updated)
+        if (updated) {
+          setDraftRun(updated)
+          if (updated.result?.traceRunId) setLastDraftTraceRunId(updated.result.traceRunId)
+        }
       }).catch(() => undefined)
     }, 900)
     return () => window.clearInterval(interval)
@@ -337,9 +539,11 @@ export function TaskExtractionPanel({
         loadedTaskSectionsForSessionRef.current = session.sessionId
         setTaskSectionAnnotations(annotations)
         const availableIds = annotations.map((annotation) => annotation.annotationId!)
-        setSelectedTaskSectionIds(initialSelectedTaskSectionIds
+        const nextSelectedIds = initialSkipTaskSections ? [] : initialSelectedTaskSectionIds
           ? initialSelectedTaskSectionIds.filter((id) => availableIds.includes(id))
-          : availableIds)
+          : availableIds
+        setSelectedTaskSectionIds(nextSelectedIds)
+        setSkipTaskSections(nextSelectedIds.length === 0)
       } catch (error) {
         if (active) setMessage(resolveError(error, 'Unable to load range annotations.'))
       } finally {
@@ -348,7 +552,7 @@ export function TaskExtractionPanel({
     }
     void loadTaskSections()
     return () => { active = false }
-  }, [format, initialSelectedTaskSectionIds, period.endMs, period.startMs, session.sessionId])
+  }, [format, initialSelectedTaskSectionIds, initialSkipTaskSections, period.endMs, period.startMs, session.sessionId])
 
   useEffect(() => {
     if (format !== 'test' || isLoadingTaskSections) return undefined
@@ -402,8 +606,10 @@ export function TaskExtractionPanel({
       if (event.key !== 'Escape' || event.defaultPrevented) return
       event.preventDefault()
       if (isTraceOpen) setIsTraceOpen(false)
+      else if (draftTraceRun) setDraftTraceRun(null)
+      else if (isDraftRunDetailsOpen) setIsDraftRunDetailsOpen(false)
       else if (reviewTaskSectionId) leaveTaskReview()
-      else onClose()
+      else void closeWithDraftSave()
     }
     window.addEventListener('keydown', handleEscape)
     return () => window.removeEventListener('keydown', handleEscape)
@@ -737,6 +943,8 @@ export function TaskExtractionPanel({
     clearExternalChecks()
     setTestSavedPath('')
     setDraftRun(null)
+    setLastDraftRunExecutionId(null)
+    setLastDraftTraceRunId(null)
     try {
       const title = taskName.trim() || session.name || `Recorded ${session.appId} workflow`
       const response = await fetch('api/task-extractions/test-preview', {
@@ -761,11 +969,17 @@ export function TaskExtractionPanel({
         })
         : await response.json() as WorkspaceTestExtraction | LocalOperationResult
       if (!response.ok || !('source' in body)) throw new Error('message' in body ? body.message : `HTTP ${response.status}`)
+      setActiveTestDraftId(null)
       setWorkspaceTestDraft(body)
       setTestTitle(body.testName || title)
       setTaskName(body.testName || title)
       setTestSource(body.source)
       setIsTestDraftStale(false)
+      try {
+        await persistTestDraft(body, body.source, null, body.testName || title, false, null, null)
+      } catch (error) {
+        setMessage(resolveError(error, 'YAML generated, but the draft could not be saved for later review.'))
+      }
       await startAnnotatedTasks()
     } catch (error) {
       setMessage(resolveError(error, 'Unable to generate Ansight test.'))
@@ -828,6 +1042,8 @@ export function TaskExtractionPanel({
       const body = await response.json() as LocalTestExecution | LocalOperationResult
       if (!response.ok || !('executionId' in body)) throw new Error(body.message || `HTTP ${response.status}`)
       setDraftRun(body)
+      setLastDraftRunExecutionId(body.executionId)
+      setLastDraftTraceRunId(body.result?.traceRunId ?? null)
     } catch (error) {
       setMessage(resolveError(error, 'Unable to start draft test.'))
     } finally {
@@ -842,6 +1058,7 @@ export function TaskExtractionPanel({
       const history = await response.json() as LocalTestHistory
       const run = history.runs.find((item) => item.runId === runId)
       if (!run) throw new Error('The test trace is not available in history yet.')
+      setIsDraftRunDetailsOpen(false)
       setDraftTraceRun(run)
     } catch (error) {
       setMessage(resolveError(error, 'Unable to open the test trace.'))
@@ -1068,21 +1285,23 @@ export function TaskExtractionPanel({
   }
 
   return (
-    <div className="local-admin-backdrop local-task-extraction-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target && !isSubmitting) onClose() }}>
+    <div className="local-admin-backdrop local-task-extraction-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target && !isSubmitting) void closeWithDraftSave() }}>
       <section aria-label="Extraction explorer" className="local-admin-panel local-task-extraction-panel">
         <header className="local-admin-header">
           {(format === 'test' || reviewTaskSectionId) && draftTabAnnotations.length > 0 ? (
             <nav aria-label="Generated test and task drafts" className="local-extraction-draft-tabs">
               <button aria-current={!reviewTaskSectionId ? 'page' : undefined} className={!reviewTaskSectionId ? 'is-selected' : ''} onClick={() => { if (reviewTaskSectionId) leaveTaskReview(); else setFormat('test') }} type="button"><TestTube />Test draft</button>
+              <span className="local-extraction-task-group-label">Automation tasks</span>
               {draftTabAnnotations.map((annotation) => {
                 const annotationId = annotation.annotationId!
                 const taskExtraction = taskSectionExtractions[annotationId]
-                return <button aria-current={reviewTaskSectionId === annotationId ? 'page' : undefined} className={`local-extraction-task-tab${reviewTaskSectionId === annotationId ? ' is-selected' : ''}`} disabled={!taskExtraction} key={annotationId} onClick={() => openTaskReview(annotationId)} title={`${taskExtraction?.taskName ?? annotation.label} · ${taskExtraction?.draft ? 'Draft ready' : taskExtraction?.status ?? 'No draft yet'}`} type="button"><Robot /><span><strong>{taskExtraction?.taskName ?? annotation.label}</strong></span></button>
+                const taskName = taskExtraction?.taskName ?? annotation.label
+                return <button aria-current={reviewTaskSectionId === annotationId ? 'page' : undefined} aria-label={`Automation task: ${taskName}`} className={`local-extraction-task-tab${reviewTaskSectionId === annotationId ? ' is-selected' : ''}`} disabled={!taskExtraction} key={annotationId} onClick={() => openTaskReview(annotationId)} title={`Automation task: ${taskName} · ${taskExtraction?.draft ? 'Draft ready' : taskExtraction?.status ?? 'No draft yet'}`} type="button"><Robot /><span><strong>{taskName}</strong></span></button>
               })}
             </nav>
           ) : <strong className="local-extraction-header-title">Extraction explorer</strong>}
           <div className="local-admin-actions">
-            <button aria-label="Close extraction explorer" className="button button--secondary" onClick={onClose} type="button"><X />Close explorer</button>
+            <button aria-label="Close extraction explorer" className="button button--secondary" onClick={() => void closeWithDraftSave()} type="button"><X />Close explorer</button>
           </div>
         </header>
 
@@ -1107,7 +1326,7 @@ export function TaskExtractionPanel({
           ))}
         </nav> : null}
 
-        <div className={`local-task-extraction-grid${format === 'test' && !workspaceTestDraft ? ' local-task-extraction-grid--test-intake' : ''}`}>
+        <div className={`local-task-extraction-grid${format === 'test' && !workspaceTestDraft ? ' local-task-extraction-grid--test-intake' : ''}`} ref={extractionGridRef} style={{ '--extraction-left-width': `${panelSplitRatio * 100}%` } as CSSProperties}>
           <main className="local-admin-content">
             {message ? <p className="inline-message local-admin-message">{message}</p> : null}
             {format === 'ansight' ? (
@@ -1166,6 +1385,14 @@ export function TaskExtractionPanel({
             </section>
             ) : (
               <section className="local-admin-section local-external-extraction-form">
+                {format === 'test' && savedTestDrafts.length ? <details className="local-saved-test-drafts">
+                  <summary>Saved YAML drafts ({savedTestDrafts.length})</summary>
+                  <div className="local-saved-test-draft-list">{savedTestDrafts.map((draft) => <div className="local-saved-test-draft" key={draft.draftId}>
+                    <span><strong>{draft.title}</strong><small>{new Date(draft.updatedAtUtc).toLocaleString()}{draft.draftId === activeTestDraftId ? ' · Open now' : ''}</small></span>
+                    <button className="button button--secondary" disabled={draft.draftId === activeTestDraftId} onClick={() => void openSavedTestDraft(draft)} type="button">{draft.draftId === activeTestDraftId ? 'Open' : 'Review'}</button>
+                    <button aria-label={`Discard saved YAML draft ${draft.title}`} className="button button--secondary" onClick={() => void discardSavedTestDraft(draft)} title="Discard saved YAML draft" type="button"><Trash /></button>
+                  </div>)}</div>
+                </details> : null}
                 {format === 'test' ? <TestTaskSectionIntake
                   annotations={taskSectionAnnotations}
                   isLoading={isLoadingTaskSections}
@@ -1173,10 +1400,8 @@ export function TaskExtractionPanel({
                   onEditAnnotation={(annotationId) => onAnnotateOnReplay(annotationId, { name: taskName, assertions: testAssertions, generationNotes, selectedTaskSectionIds, skipTaskSections })}
                   onExtractTask={extractAnnotatedTask}
                   onJumpToTask={openTaskReview}
-                  onSelectedIdsChange={(ids) => { setSelectedTaskSectionIds(ids); markTestDraftStale() }}
-                  onSkipChange={(skip) => { setSkipTaskSections(skip); markTestDraftStale() }}
+                  onSelectedIdsChange={(ids) => { setSelectedTaskSectionIds(ids); setSkipTaskSections(ids.length === 0); markTestDraftStale() }}
                   selectedIds={selectedTaskSectionIds}
-                  skip={skipTaskSections}
                   taskExtractions={taskSectionExtractions}
                 /> : null}
                 <div className="local-admin-section-heading"><div><Code /><span><strong>{format === 'test' ? '' : '1. '}Generate {format === 'test' ? 'Ansight test' : format === 'maestro' ? 'Maestro flow' : 'Appium test'}</strong><small>Use the interactions in this timeline period</small></span></div></div>
@@ -1197,7 +1422,7 @@ export function TaskExtractionPanel({
                   </select>
                 </label> : null}
                 {format === 'test' && capabilities && !capabilities.canUseModel ? <p className="local-task-extraction-hint"><WarningCircle />AI test generation needs a configured model provider.</p> : null}
-                {format === 'test' && selectedTaskAnnotations.length > 0 ? <p className="local-task-extraction-hint">Generate with AI creates one YAML test draft and starts {selectedTaskAnnotations.length} separate AI task extraction{selectedTaskAnnotations.length === 1 ? '' : 's'} from the selected annotations.</p> : null}
+                {format === 'test' && selectedTaskAnnotations.length > 0 ? <p className="local-task-extraction-hint">Generation saves the YAML draft for later review and creates {selectedTaskAnnotations.length} automation task draft{selectedTaskAnnotations.length === 1 ? '' : 's'}.</p> : null}
                 <div className="local-admin-actions">
                   <button className="button button--primary" disabled={isExternalGenerating || isExternalBusy || (format === 'test' && (!capabilities?.canUseModel || isLoadingTaskSections || isLoadingTaskDrafts || (!skipTaskSections && selectedTaskSectionIds.length === 0)))} onClick={() => void (format === 'test' ? previewTest() : format === 'maestro' ? previewMaestro() : previewAppium())} type="button">
                     {isExternalGenerating ? <CircleNotch className="spin" /> : format === 'test' ? <Robot /> : <Code />}{externalDraft ? 'Regenerate draft' : format === 'test' ? 'Generate with AI' : 'Generate draft'}
@@ -1214,7 +1439,7 @@ export function TaskExtractionPanel({
                   <div className="local-test-generation-result" role="status">
                     {isTestDraftStale ? <WarningCircle aria-hidden="true" /> : <CheckCircle aria-hidden="true" />}
                     <span>
-                      <strong>{isTestDraftStale ? 'Draft needs regeneration' : testSavedPath ? 'Test saved to workspace' : 'Test draft generated'}</strong>
+                      <strong>{isTestDraftStale ? 'Draft needs regeneration' : testSavedPath ? 'Test saved to workspace' : 'Test draft generated'}{testDraftSaveStatus === 'saved' ? ' · Saved for later' : testDraftSaveStatus === 'saving' ? ' · Saving…' : testDraftSaveStatus === 'failed' ? ' · Save failed' : ''}</strong>
                       <small>{workspaceTestDraft.testName || workspaceTestDraft.suggestedName} · {workspaceTestDraft.suggestedName}{testSavedPath ? ` · ${testSavedPath}` : ' · review and validate before running'}</small>
                     </span>
                   </div>
@@ -1270,6 +1495,14 @@ export function TaskExtractionPanel({
             ) : null}
           </main>
 
+          <div aria-label="Resize extraction panels" aria-orientation="vertical" aria-valuemax={100} aria-valuemin={0} aria-valuenow={Math.round(panelSplitRatio * 100)} className="local-task-extraction-divider" onKeyDown={(event) => {
+            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+            event.preventDefault()
+            const bounds = extractionGridRef.current?.getBoundingClientRect()
+            if (!bounds) return
+            const change = event.key === 'ArrowLeft' ? -0.025 : 0.025
+            storePanelSplit(updatePanelSplit(bounds.left + (panelSplitRatio + change) * bounds.width))
+          }} onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); updatePanelSplit(event.clientX) }} onPointerMove={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) updatePanelSplit(event.clientX) }} onPointerUp={(event) => { if (!event.currentTarget.hasPointerCapture(event.pointerId)) return; storePanelSplit(updatePanelSplit(event.clientX)); event.currentTarget.releasePointerCapture(event.pointerId) }} role="separator" tabIndex={0} />
           <aside className="local-admin-content">
             {format === 'ansight' ? (
             <section className="local-admin-section local-admin-section--grow">
@@ -1357,12 +1590,17 @@ export function TaskExtractionPanel({
                     <div className="local-admin-section-heading"><div><Play /><span><strong>Run draft</strong></span></div></div>
                     <div className="local-draft-run-device-target"><span>Device or simulator</span><button className="button button--secondary" disabled={isStartingDraftRun} onClick={() => { setIsDraftDevicePickerOpen(true); void refreshDraftRunInventory() }} ref={draftDeviceTriggerRef} type="button"><span>{selectedDraftRunDevice ? `${selectedDraftRunDevice.name} · ${friendlyDraftRuntime(selectedDraftRunDevice)}` : 'Choose a target'}</span><span>{selectedDraftRunDevice ? 'Change' : 'Choose'}</span></button></div>
                     <label>Application artifact (optional)<input disabled={isStartingDraftRun} onChange={(event) => setDraftRunApplicationPath(event.target.value)} placeholder="Host path to the app build, if it is not already installed" value={draftRunApplicationPath} /></label>
-                    <p className="local-task-extraction-hint">Only ready drafts from this test’s selected sections can be used. Editor changes to a task draft must be applied before starting.</p>
-                    {readyTaskDrafts.length ? <div className="local-draft-run-task-list" aria-label="Task drafts for this test">{readyTaskDrafts.map((item) => <label key={item.extractionId}><input checked={!excludedDraftTaskIds.includes(item.extractionId)} onChange={(event) => setExcludedDraftTaskIds((current) => event.target.checked ? current.filter((id) => id !== item.extractionId) : [...current, item.extractionId])} type="checkbox" />{item.taskName}</label>)}</div> : <p className="local-task-extraction-hint">No ready task drafts belong to these sections. The YAML journey can still run.</p>}
-                    <p className="local-task-extraction-hint">{includedTaskDrafts.length} task draft{includedTaskDrafts.length === 1 ? '' : 's'} included in this run.</p>
+                    {readyTaskDrafts.length ? <fieldset className="local-draft-run-task-picker"><legend>Include Draft Tasks</legend><div className="local-draft-run-task-list">{readyTaskDrafts.map((item) => <label key={item.extractionId}><input checked={!excludedDraftTaskIds.includes(item.extractionId)} onChange={(event) => setExcludedDraftTaskIds((current) => event.target.checked ? current.filter((id) => id !== item.extractionId) : [...current, item.extractionId])} type="checkbox" />{item.taskName}</label>)}</div></fieldset> : <p className="local-task-extraction-hint">No ready task drafts belong to these sections. The YAML journey can still run.</p>}
                     <button className="button button--primary" disabled={isStartingDraftRun || isExternalGenerating || isTestDraftStale || externalValidation?.status !== 'passed' || !selectedDraftRunDevice?.isAvailable || !!draftRun && ['queued', 'running'].includes(draftRun.status)} onClick={() => void runDraftTest()} type="button">{isStartingDraftRun ? <CircleNotch className="spin" /> : <Play />}Run draft test</button>
                     {!draftRunInventory?.devices.some((device) => device.isAvailable) ? <p className="local-task-extraction-hint"><WarningCircle />Connect a device or start a simulator/emulator to run this draft.</p> : null}
-                    {draftRun ? <div className="local-test-generation-result" role="status"><TestTube /><span><strong>{draftRun.status === 'succeeded' ? 'Test passed' : draftRun.status === 'failed' ? 'Test failed' : draftRun.status === 'cancelled' ? 'Test cancelled' : 'Test running'}</strong><small>{draftRun.progress.at(-1)?.message || draftRun.message}</small>{draftRun.result?.traceRunId ? <button className="local-text-button" onClick={() => void openDraftTrace(draftRun.result!.traceRunId!)} type="button"><ChartBar />View test trace</button> : null}{draftRun.result?.traceError ? <small>{draftRun.result.traceError}</small> : null}{draftRun.progress.length ? <details className="local-draft-run-log"><summary>Run log · {draftRun.progress.length} steps</summary><ol>{draftRun.progress.map((step, index) => <li key={`${index}:${step.occurredAtUtc}`}><time>{new Date(step.occurredAtUtc).toLocaleTimeString()}</time><span>{step.message}</span></li>)}</ol></details> : null}<small>{draftRun.executionId}</small></span></div> : null}
+                    {draftRun || lastDraftTraceRunId ? <div className="local-draft-run-summary" role="status">
+                      <TestTube aria-hidden="true" />
+                      <span><strong>{draftRun ? draftRun.status === 'succeeded' ? 'Test passed' : draftRun.status === 'failed' ? 'Test failed' : draftRun.status === 'cancelled' ? 'Test cancelled' : 'Test running' : 'Previous test run'}</strong><small>{draftRun?.progress.at(-1)?.message || draftRun?.message || 'The test trace is available for review.'}</small></span>
+                      <div className="local-draft-run-summary-actions">
+                        {draftRun ? <button className="button button--secondary" onClick={() => setIsDraftRunDetailsOpen(true)} type="button">View run details</button> : null}
+                        {draftRun?.result?.traceRunId || lastDraftTraceRunId ? <button className="button button--secondary" onClick={() => void openDraftTrace((draftRun?.result?.traceRunId || lastDraftTraceRunId)!)} type="button"><ChartBar />View trace</button> : null}
+                      </div>
+                    </div> : null}
                   </div> : null}
                   {format !== 'test' ? <div className="local-task-extraction-test">
                     <div className="local-admin-section-heading"><div><TestTube /><span><strong>4. Test on device</strong><small>Plays the draft against a connected device</small></span></div></div>
@@ -1374,7 +1612,7 @@ export function TaskExtractionPanel({
                   </div> : null}
                   <div className="local-task-extraction-test">
                     <div className="local-admin-section-heading"><div><FloppyDisk /><span><strong>{format === 'test' ? '' : '5. '}Save or download</strong><small>Keep the reviewed source</small></span></div></div>
-                    {format === 'test' ? <p className="local-task-extraction-hint">Saving this YAML saves the test only. Ready task drafts remain here for review and must be saved individually to become workspace tasks.</p> : null}
+                    {format === 'test' ? <p className="local-task-extraction-hint">Save to ansight/tests adds the reviewed YAML to your workspace.</p> : null}
                     <div className="local-admin-actions">
                       <button className="button button--secondary" disabled={!externalSource.trim() || (format === 'test' && isTestDraftStale)} onClick={format === 'test' ? downloadTest : format === 'maestro' ? downloadMaestro : downloadAppium} type="button">Download {format === 'appium' ? 'JavaScript' : 'YAML'}</button>
                       <button className="button button--primary" disabled={isExternalBusy || isExternalGenerating || externalValidation?.status !== 'passed' || !!externalSavedPath || (format === 'test' && isTestDraftStale)} onClick={() => void (format === 'test' ? saveTest() : format === 'maestro' ? saveMaestro() : saveAppium())} type="button"><FloppyDisk />Save to {format === 'test' ? 'ansight/tests' : format === 'maestro' ? '.maestro' : 'appium'}</button>
@@ -1395,9 +1633,28 @@ export function TaskExtractionPanel({
       </section>
       {isTraceOpen && extraction?.trace ? <TaskExtractionTraceModal onClose={() => setIsTraceOpen(false)} trace={extraction.trace} /> : null}
       {isDraftDevicePickerOpen ? <DraftRunDevicePicker appId={session.appId} devices={draftRunInventory?.devices ?? []} installedDeviceKeys={draftInstalledDeviceKeys} unknownDeviceKeys={draftUnknownDeviceKeys} hasApplicationArtifact={!!draftRunApplicationPath.trim()} onClose={closeDraftDevicePicker} onRefresh={() => void refreshDraftRunInventory()} onSelect={(key) => { setDraftRunDeviceKey(key); closeDraftDevicePicker() }} selectedKey={draftRunDeviceKey} /> : null}
+      {isDraftRunDetailsOpen && draftRun ? <DraftRunDetailsModal onClose={() => setIsDraftRunDetailsOpen(false)} onViewTrace={draftRun.result?.traceRunId || lastDraftTraceRunId ? () => void openDraftTrace((draftRun.result?.traceRunId || lastDraftTraceRunId)!) : null} run={draftRun} /> : null}
       {draftTraceRun ? <TestHistoryPanel appId={session.appId} initialRun={draftTraceRun} onClose={() => setDraftTraceRun(null)} /> : null}
     </div>
   )
+}
+
+function DraftRunDetailsModal({ onClose, onViewTrace, run }: {
+  onClose: () => void
+  onViewTrace: (() => void) | null
+  run: LocalTestExecution
+}) {
+  return <div className="modal-backdrop local-draft-run-details-backdrop" onMouseDown={onClose}>
+    <section aria-label="Draft test run details" aria-modal="true" className="session-info-modal local-draft-run-details-modal" onMouseDown={(event) => event.stopPropagation()} role="dialog">
+      <header className="local-draft-run-details-header">
+        <span><strong>{run.status === 'succeeded' ? 'Test passed' : run.status === 'failed' ? 'Test failed' : run.status === 'cancelled' ? 'Test cancelled' : 'Test running'}</strong><small>Started {new Date(run.createdAtUtc).toLocaleString()} · {run.progress.length} updates</small></span>
+        <div>{onViewTrace ? <button className="button button--secondary" onClick={onViewTrace} type="button"><ChartBar />View trace</button> : null}<button aria-label="Close run details" className="button button--secondary" onClick={onClose} type="button"><X /></button></div>
+      </header>
+      <p className="local-draft-run-details-message">{run.progress.at(-1)?.message || run.message}</p>
+      {run.result?.traceError ? <p className="local-draft-run-details-error">{run.result.traceError}</p> : null}
+      <ol className="local-draft-run-details-timeline">{run.progress.map((step, index) => <li key={`${index}:${step.occurredAtUtc}`}><time>{new Date(step.occurredAtUtc).toLocaleTimeString()}</time><span>{step.message}</span></li>)}</ol>
+    </section>
+  </div>
 }
 
 function draftDeviceKey(device: LocalDevice): string {

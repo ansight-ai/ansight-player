@@ -69,6 +69,27 @@ export type WorkspaceTestExtraction = {
   diagnostics: string[]
 }
 
+export type WorkspaceTestDraft = {
+  draftId: string
+  sessionId: string
+  appId: string
+  startUtc: string
+  endUtc: string
+  title: string
+  extraction: WorkspaceTestExtraction
+  source: string
+  taskSectionIds: string[]
+  skipTaskSections: boolean
+  assertions: string
+  generationNotes: string
+  reasoning: string
+  needsRegeneration: boolean
+  lastExecutionId?: string | null
+  lastTraceRunId?: string | null
+  createdAtUtc: string
+  updatedAtUtc: string
+}
+
 export type LocalTaskAuthoringReference = {
   kind: 'tool' | 'artifactProvider' | 'artifact'
   mention: string

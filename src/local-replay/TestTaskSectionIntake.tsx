@@ -12,9 +12,7 @@ export function TestTaskSectionIntake({
   onExtractTask,
   onJumpToTask,
   onSelectedIdsChange,
-  onSkipChange,
   selectedIds,
-  skip,
   taskExtractions,
 }: {
   annotations: SessionAnnotation[]
@@ -24,9 +22,7 @@ export function TestTaskSectionIntake({
   onExtractTask: (section: { period: TimelinePeriod; name: string; description: string }) => void
   onJumpToTask: (annotationId: string) => void
   onSelectedIdsChange: (ids: string[]) => void
-  onSkipChange: (skip: boolean) => void
   selectedIds: string[]
-  skip: boolean
   taskExtractions: Record<string, LocalTaskExtraction>
 }) {
   return <div className="local-test-intake">
@@ -46,9 +42,9 @@ export function TestTaskSectionIntake({
         const endMs = Date.parse(annotation.endUtc!)
         const label = annotation.label!.trim()
         const linkedTask = taskExtractions[annotationId]
-        return <article className={`local-test-intake-card${selectedIds.includes(annotationId) && !skip ? ' is-selected' : ''}`} key={annotationId}>
+        return <article className={`local-test-intake-card${selectedIds.includes(annotationId) ? ' is-selected' : ''}`} key={annotationId}>
           <label className="local-test-intake-card-main">
-            <input aria-label={`Include ${label} in the test`} checked={selectedIds.includes(annotationId) && !skip} disabled={skip} onChange={(event) => onSelectedIdsChange(event.target.checked ? [...selectedIds, annotationId] : selectedIds.filter((id) => id !== annotationId))} type="checkbox" />
+            <input aria-label={`Include ${label} in the test`} checked={selectedIds.includes(annotationId)} onChange={(event) => onSelectedIdsChange(event.target.checked ? [...selectedIds, annotationId] : selectedIds.filter((id) => id !== annotationId))} type="checkbox" />
             <span className="local-test-intake-card-number">{String(index + 1).padStart(2, '0')}</span>
             <span className="local-test-intake-card-copy"><strong>{label}</strong><small>{annotation.notes || 'No description'}</small><time>{formatTime(startMs)} – {formatTime(endMs)}</time></span>
           </label>
@@ -63,8 +59,7 @@ export function TestTaskSectionIntake({
     </div> : <div className="local-test-intake-empty"><NotePencil /><span><strong>No range annotations in this period</strong><small>Annotate a core step on the replay timeline, then return here to include it in the test.</small></span></div>}
 
     <div className="local-test-intake-footer">
-      <span>{skip ? 'The test will use the full replay without marked steps or task drafts.' : selectedIds.length ? `${selectedIds.length} annotation${selectedIds.length === 1 ? '' : 's'} will guide the test and generate task drafts.` : 'Select an annotation or choose to use the full replay.'}</span>
-      <label><input checked={skip} onChange={(event) => onSkipChange(event.target.checked)} type="checkbox" />Use full replay without marked steps</label>
+      <span>{selectedIds.length ? `${selectedIds.length} marked step${selectedIds.length === 1 ? '' : 's'} will guide the test and generate task drafts.` : 'No marked steps selected. The test will use the entire selected timeline range.'}</span>
     </div>
   </div>
 }

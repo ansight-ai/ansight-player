@@ -26,7 +26,7 @@ import { SimulatorControlView } from './SimulatorControlView'
 import { TeamSessionExplorer } from './TeamSessionExplorer'
 import { TestHistoryPanel } from './TestHistoryPanel'
 import { TestExecutionPanel } from './TestExecutionPanel'
-import type { LocalAppGraphLiveRun, LocalEnrollmentInviteResult, LocalOperationResult, LocalRemoteRunnerRegistration, LocalRemoteRunnerStatus, LocalReplayBootstrap, LocalSessionCachePlan, LocalSessionSummary, LocalTaskExtraction, LocalTestHistory, LocalTestRunSummary } from './types'
+import type { LocalAppGraphLiveRun, LocalEnrollmentInviteResult, LocalOperationResult, LocalRemoteRunnerRegistration, LocalRemoteRunnerStatus, LocalReplayBootstrap, LocalSessionCachePlan, LocalSessionSummary, LocalTaskExtraction, LocalTestHistory, LocalTestRunSummary, WorkspaceTestDraft } from './types'
 import type { SessionAnnotation } from '../replay/sessionViewerData'
 
 const linkedTraceRefreshIntervalMs = 8000
@@ -50,6 +50,7 @@ type TaskExtractionRequest = {
   period: TimelineEditSelection
   sessionId: string
   format?: 'ansight' | 'test'
+  draftId?: string
   returnTest?: TestExtractionReturn
 }
 
@@ -130,21 +131,27 @@ export function LocalReplayApp() {
     if (!selectedSessionId) return
     setSessionActionError(null)
     try {
-      const response = await fetch('api/task-extractions', { cache: 'no-store' })
-      if (!response.ok) throw new Error(`HTTP ${response.status}`)
-      const extractions = await response.json() as LocalTaskExtraction[]
+      const [taskResponse, testResponse] = await Promise.all([
+        fetch('api/task-extractions', { cache: 'no-store' }),
+        fetch(`api/task-extractions/test-drafts?sessionId=${encodeURIComponent(selectedSessionId)}`, { cache: 'no-store' }),
+      ])
+      if (!taskResponse.ok || !testResponse.ok) throw new Error('Unable to load saved drafts.')
+      const extractions = await taskResponse.json() as LocalTaskExtraction[]
+      const testDrafts = await testResponse.json() as WorkspaceTestDraft[]
       const drafts = extractions.filter((item) => item.sessionId === selectedSessionId && item.draft)
-      if (drafts.length === 0) {
-        setSessionActionError('No generated task drafts for this session yet.')
+      if (drafts.length === 0 && testDrafts.length === 0) {
+        setSessionActionError('No generated drafts for this session yet.')
         return
       }
-      const startMs = Math.min(...drafts.map((item) => Date.parse(item.startUtc)))
-      const endMs = Math.max(...drafts.map((item) => Date.parse(item.endUtc)))
+      const latestTestDraft = testDrafts[0]
+      const startMs = latestTestDraft ? Date.parse(latestTestDraft.startUtc) : Math.min(...drafts.map((item) => Date.parse(item.startUtc)))
+      const endMs = latestTestDraft ? Date.parse(latestTestDraft.endUtc) : Math.max(...drafts.map((item) => Date.parse(item.endUtc)))
       if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
-        throw new Error('The saved task periods could not be read.')
+        throw new Error('The saved draft period could not be read.')
       }
       setTaskExtractionRequest({
         format: 'test',
+        draftId: latestTestDraft?.draftId,
         period: { startMs, endMs, focusMs: startMs + (endMs - startMs) / 2 },
         sessionId: selectedSessionId,
       })
@@ -1157,11 +1164,11 @@ export function LocalReplayApp() {
               {bootstrap?.supportsTaskExtraction ? <button
                 className="local-banner-button"
                 onClick={() => void openSessionTaskDrafts()}
-                data-tooltip="Open generated task drafts for this session"
+                data-tooltip="Open saved YAML and automation task drafts for this session"
                 type="button"
               >
                 <TestTube aria-hidden="true" />
-                Task drafts
+                Drafts
               </button> : null}
               {canManageSelectedSession ? (
                 <button
@@ -1341,7 +1348,8 @@ export function LocalReplayApp() {
           <TaskExtractionErrorBoundary onClose={() => setTaskExtractionRequest(null)}>
             <Suspense fallback={<TaskExtractionLoadingPanel />}>
               <TaskExtractionPanel
-              key={`${extractionSession.sessionId}:${taskExtractionRequest.period.startMs}:${taskExtractionRequest.period.endMs}:${taskExtractionRequest.format ?? 'ansight'}`}
+              key={`${extractionSession.sessionId}:${taskExtractionRequest.period.startMs}:${taskExtractionRequest.period.endMs}:${taskExtractionRequest.format ?? 'ansight'}:${taskExtractionRequest.draftId ?? ''}`}
+              initialDraftId={taskExtractionRequest.draftId}
               initialFormat={taskExtractionRequest.format}
               initialSelectedTaskSectionIds={taskExtractionRequest.returnTest?.selectedTaskSectionIds}
               initialSkipTaskSections={taskExtractionRequest.returnTest?.skipTaskSections}
@@ -1358,6 +1366,12 @@ export function LocalReplayApp() {
                 setTaskExtractionRequest(null)
               }}
               onClose={() => setTaskExtractionRequest(null)}
+              onOpenSavedTestDraft={(draft) => setTaskExtractionRequest({
+                format: 'test',
+                draftId: draft.draftId,
+                period: { startMs: Date.parse(draft.startUtc), endMs: Date.parse(draft.endUtc), focusMs: Date.parse(draft.startUtc) },
+                sessionId: draft.sessionId,
+              })}
               onOpenTests={(appId, testId) => {
                 setTestExecutionTarget({ appId, testId })
                 setTaskExtractionRequest(null)
