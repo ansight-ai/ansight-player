@@ -8066,49 +8066,48 @@ button.local-runner-status:hover {
   box-shadow: none;
 }
 
-.local-task-extraction-panel .local-admin-header { flex: none; align-items: center; }
-.local-task-extraction-panel .local-admin-header > div:first-child { min-width: 0; }
-.local-task-extraction-panel .local-admin-header > div:first-child > span { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.local-task-extraction-panel .local-admin-header { flex: none; align-items: center; gap: 12px; padding: 8px 14px; }
+.local-extraction-header-title { white-space: nowrap; }
 .local-task-extraction-panel .local-admin-header > .local-admin-actions { flex: none; flex-wrap: wrap; justify-content: flex-end; }
+.local-task-extraction-panel .local-admin-content > .local-admin-message { margin: 0; }
 
 .local-extraction-draft-tabs {
   display: flex;
-  flex: none;
+  flex: 1;
   gap: 6px;
   min-width: 0;
-  padding: 10px 18px;
+  padding: 0;
   overflow-x: auto;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-muted);
+  border: 0;
+  background: transparent;
 }
 .local-extraction-draft-tabs button {
   display: flex;
   flex: none;
   align-items: center;
   gap: 7px;
-  min-width: 110px;
-  padding: 8px 11px;
+  min-width: 0;
+  padding: 7px 10px;
   color: var(--text-secondary);
   background: var(--bg-primary);
   border: 1px solid var(--border);
   border-radius: 8px;
   cursor: pointer;
   font: inherit;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   text-align: left;
 }
 .local-extraction-draft-tabs button.is-selected { color: var(--text-primary); border-color: var(--accent); background: var(--accent-soft); }
 .local-extraction-draft-tabs button:disabled { cursor: not-allowed; opacity: .55; }
 .local-extraction-draft-tabs button > svg { width: 17px; height: 17px; flex: none; color: var(--accent); }
-.local-extraction-draft-tabs .local-extraction-task-tab { width: min(310px, 70vw); }
+.local-extraction-draft-tabs .local-extraction-task-tab { max-width: 230px; }
 .local-extraction-draft-tabs button > span { display: grid; gap: 2px; min-width: 0; }
-.local-extraction-draft-tabs button > span > strong { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.local-extraction-draft-tabs button small { color: var(--text-muted); font-size: 9px; font-weight: 400; }
+.local-extraction-draft-tabs button > span > strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 @media (max-width: 700px) {
-  .local-task-extraction-panel .local-admin-header { align-items: flex-start; flex-wrap: wrap; }
-  .local-task-extraction-panel .local-admin-header > .local-admin-actions { width: 100%; justify-content: flex-start; }
+  .local-task-extraction-panel .local-admin-header { flex-wrap: nowrap; }
+  .local-task-extraction-panel .local-admin-header > .local-admin-actions { width: auto; flex-wrap: nowrap; }
 }
 
 .local-task-extraction-formats {
@@ -8487,6 +8486,15 @@ button.local-runner-status:hover {
   overflow: hidden;
   background: var(--surface);
 }
+.local-yaml-test-editor {
+  width: 100%;
+  height: min(48vh, 560px);
+  min-height: 320px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
 
 .local-task-extraction-editor-status {
   display: flex;
@@ -8729,6 +8737,7 @@ button.local-runner-status:hover {
   padding-top: 14px;
   border-top: 1px solid var(--border);
 }
+.local-task-extraction-validation .local-validation-passed svg { color: var(--success); }
 
 .local-draft-run-task-list { display: grid; gap: 6px; }
 .local-draft-run-task-list label { display: flex; align-items: center; gap: 7px; font-size: 11px; }
@@ -8739,6 +8748,12 @@ button.local-runner-status:hover {
 .local-draft-run-device-target > button > span:last-child { color: var(--accent); }
 
 .local-draft-device-backdrop { z-index: 70; }
+.local-task-extraction-backdrop .local-test-history-backdrop { z-index: 80; }
+.local-draft-run-log { margin-top: 8px; font-size: 13px; }
+.local-draft-run-log summary { cursor: pointer; }
+.local-draft-run-log ol { display: grid; gap: 5px; margin: 8px 0 0; padding-left: 20px; }
+.local-draft-run-log li { padding-left: 4px; }
+.local-draft-run-log time { margin-right: 9px; color: var(--text-secondary); }
 .local-draft-device-modal { width: min(900px, 100%); color: var(--text-primary); background: var(--bg-primary); }
 .local-draft-device-picker { margin-top: 18px; }
 .local-draft-device-picker .local-draft-device-search { display: grid; gap: 6px; color: var(--text-secondary); font-size: 12px; font-weight: 700; }

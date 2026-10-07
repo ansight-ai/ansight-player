@@ -1255,6 +1255,8 @@ export type LocalTestExecution = {
     failedCount: number
     skippedCount: number
     wasCancelled: boolean
+    traceRunId?: string | null
+    traceError?: string | null
   } | null
 }
 

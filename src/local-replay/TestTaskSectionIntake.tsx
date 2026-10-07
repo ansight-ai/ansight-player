@@ -1,5 +1,6 @@
 import { CircleNotch, NotePencil, Robot } from '@phosphor-icons/react'
 import type { SessionAnnotation } from '../replay/sessionViewerData'
+import type { LocalTaskExtraction } from './types'
 
 type TimelinePeriod = { startMs: number; endMs: number; focusMs: number }
 
@@ -9,20 +10,24 @@ export function TestTaskSectionIntake({
   onAddAnnotation,
   onEditAnnotation,
   onExtractTask,
+  onJumpToTask,
   onSelectedIdsChange,
   onSkipChange,
   selectedIds,
   skip,
+  taskExtractions,
 }: {
   annotations: SessionAnnotation[]
   isLoading: boolean
   onAddAnnotation: () => void
   onEditAnnotation: (annotationId: string) => void
   onExtractTask: (section: { period: TimelinePeriod; name: string; description: string }) => void
+  onJumpToTask: (annotationId: string) => void
   onSelectedIdsChange: (ids: string[]) => void
   onSkipChange: (skip: boolean) => void
   selectedIds: string[]
   skip: boolean
+  taskExtractions: Record<string, LocalTaskExtraction>
 }) {
   return <div className="local-test-intake">
     <div className="local-test-intake-heading">
@@ -40,6 +45,7 @@ export function TestTaskSectionIntake({
         const startMs = Date.parse(annotation.startUtc!)
         const endMs = Date.parse(annotation.endUtc!)
         const label = annotation.label!.trim()
+        const linkedTask = taskExtractions[annotationId]
         return <article className={`local-test-intake-card${selectedIds.includes(annotationId) && !skip ? ' is-selected' : ''}`} key={annotationId}>
           <label className="local-test-intake-card-main">
             <input aria-label={`Include ${label} in the test`} checked={selectedIds.includes(annotationId) && !skip} disabled={skip} onChange={(event) => onSelectedIdsChange(event.target.checked ? [...selectedIds, annotationId] : selectedIds.filter((id) => id !== annotationId))} type="checkbox" />
@@ -48,7 +54,9 @@ export function TestTaskSectionIntake({
           </label>
           <div className="local-test-intake-card-actions">
             <button className="button button--secondary" onClick={() => onEditAnnotation(annotationId)} type="button"><NotePencil />Edit annotation</button>
-            <button className="button button--secondary" onClick={() => onExtractTask({ period: { startMs, endMs, focusMs: startMs }, name: label, description: annotation.notes?.trim() || label })} type="button"><Robot />Extract task</button>
+            <button className="button button--secondary" onClick={() => linkedTask
+              ? onJumpToTask(annotationId)
+              : onExtractTask({ period: { startMs, endMs, focusMs: startMs }, name: label, description: annotation.notes?.trim() || label })} type="button"><Robot />{linkedTask?.draft ? 'Jump to task' : linkedTask ? 'View extraction' : 'Extract task'}</button>
           </div>
         </article>
       })}

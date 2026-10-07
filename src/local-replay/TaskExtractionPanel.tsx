@@ -2,10 +2,12 @@ import { ArrowClockwise, Bug, ChartBar, CheckCircle, CircleNotch, Clock, Code, C
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { agentReasoningModes, defaultAgentReasoning, type AgentReasoning } from '../agentReasoning'
 import { TypeScriptTaskEditor, type TypeScriptEditorDiagnostics } from './TypeScriptTaskEditor'
+import { TestHistoryPanel } from './TestHistoryPanel'
+import { YamlTestEditor } from './YamlTestEditor'
 import { TestTaskSectionIntake } from './TestTaskSectionIntake'
 import { readSessionOperationStream } from './sessionOperationStream'
 import type { SessionAnnotation } from '../replay/sessionViewerData'
-import type { AppiumScriptExtraction, LocalDevice, LocalDeviceInventory, LocalOperationResult, LocalSessionSummary, LocalTaskAuthoringReference, LocalTaskAuthoringReferenceCatalog, LocalTaskExtraction, LocalTaskExtractionCapabilities, LocalTaskExtractionFailureDebugResult, LocalTaskExtractionTrace, LocalTestExecution, MaestroFlowExtraction, WorkspaceTestExtraction } from './types'
+import type { AppiumScriptExtraction, LocalDevice, LocalDeviceInventory, LocalOperationResult, LocalSessionSummary, LocalTaskAuthoringReference, LocalTaskAuthoringReferenceCatalog, LocalTaskExtraction, LocalTaskExtractionCapabilities, LocalTaskExtractionFailureDebugResult, LocalTaskExtractionTrace, LocalTestExecution, LocalTestHistory, LocalTestRunSummary, MaestroFlowExtraction, WorkspaceTestExtraction } from './types'
 
 type SelectedPeriod = {
   startMs: number
@@ -92,12 +94,15 @@ export function TaskExtractionPanel({
   const [testGenerationElapsedSeconds, setTestGenerationElapsedSeconds] = useState(0)
   const [isTestDraftStale, setIsTestDraftStale] = useState(false)
   const [draftRunInventory, setDraftRunInventory] = useState<LocalDeviceInventory | null>(null)
+  const [draftInstalledDeviceKeys, setDraftInstalledDeviceKeys] = useState<string[] | null>(null)
+  const [draftUnknownDeviceKeys, setDraftUnknownDeviceKeys] = useState<string[]>([])
   const [draftRunDeviceKey, setDraftRunDeviceKey] = useState('')
   const [isDraftDevicePickerOpen, setIsDraftDevicePickerOpen] = useState(false)
   const draftDeviceTriggerRef = useRef<HTMLButtonElement | null>(null)
   const [draftRunApplicationPath, setDraftRunApplicationPath] = useState('')
   const [excludedDraftTaskIds, setExcludedDraftTaskIds] = useState<string[]>([])
   const [draftRun, setDraftRun] = useState<LocalTestExecution | null>(null)
+  const [draftTraceRun, setDraftTraceRun] = useState<LocalTestRunSummary | null>(null)
   const [isStartingDraftRun, setIsStartingDraftRun] = useState(false)
   const [taskSectionExtractions, setTaskSectionExtractions] = useState<Record<string, LocalTaskExtraction>>({})
   const [previousTaskSectionExtractions, setPreviousTaskSectionExtractions] = useState<Record<string, LocalTaskExtraction>>({})
@@ -114,6 +119,8 @@ export function TaskExtractionPanel({
     isDraftDirty: boolean
   } | null>(null)
   const [externalValidation, setExternalValidation] = useState<ExternalDraftResult | null>(null)
+  const [isAutoValidating, setIsAutoValidating] = useState(false)
+  const validationRevisionRef = useRef(0)
   const [externalTest, setExternalTest] = useState<ExternalDraftResult | null>(null)
   const [isExternalBusy, setIsExternalBusy] = useState(false)
 
@@ -139,14 +146,59 @@ export function TaskExtractionPanel({
   const includedTaskDrafts = readyTaskDrafts.filter((item) => !excludedDraftTaskIds.includes(item.extractionId))
   const selectedDraftRunDevice = draftRunInventory?.devices.find((device) => `${device.platform}:${device.identifier}` === draftRunDeviceKey)
   const reviewAnnotation = taskSectionAnnotations.find((annotation) => annotation.annotationId === reviewTaskSectionId)
+  const draftTabAnnotations = reviewAnnotation && !selectedTaskAnnotations.some((annotation) => annotation.annotationId === reviewTaskSectionId)
+    ? [...selectedTaskAnnotations, reviewAnnotation]
+    : selectedTaskAnnotations
   const visiblePeriod = reviewAnnotation
     ? { startMs: Date.parse(reviewAnnotation.startUtc!), endMs: Date.parse(reviewAnnotation.endUtc!), focusMs: Date.parse(reviewAnnotation.startUtc!) }
     : period
 
   function clearExternalChecks() {
+    validationRevisionRef.current += 1
     setExternalValidation(null)
     setExternalTest(null)
   }
+
+  function updateTestSource(source: string) {
+    setTestSource(source)
+    setTestSavedPath('')
+    setDraftRun(null)
+    clearExternalChecks()
+  }
+
+  useEffect(() => {
+    if (format !== 'test' || !workspaceTestDraft || isTestDraftBusy || isTestDraftStale || !testSource.trim()) {
+      setIsAutoValidating(false)
+      return
+    }
+    const controller = new AbortController()
+    const revision = validationRevisionRef.current
+    setIsAutoValidating(true)
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const response = await fetch('api/task-extractions/test-validate', {
+            body: JSON.stringify({ sessionId: session.sessionId, source: testSource }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST',
+            signal: controller.signal,
+          })
+          const body = await response.json() as ExternalDraftResult | LocalOperationResult
+          if (controller.signal.aborted || revision !== validationRevisionRef.current) return
+          setExternalValidation(response.ok && 'status' in body
+            ? body
+            : { status: 'failed', message: body.message || `HTTP ${response.status}`, output: '' })
+        } catch (error) {
+          if (!controller.signal.aborted && revision === validationRevisionRef.current) {
+            setExternalValidation({ status: 'failed', message: resolveError(error, 'Unable to validate YAML.'), output: '' })
+          }
+        } finally {
+          if (!controller.signal.aborted && revision === validationRevisionRef.current) setIsAutoValidating(false)
+        }
+      })()
+    }, 450)
+    return () => { controller.abort(); window.clearTimeout(timer) }
+  }, [format, isTestDraftBusy, isTestDraftStale, session.sessionId, testSource, workspaceTestDraft])
 
   function markTestDraftStale() {
     if (workspaceTestDraft) setIsTestDraftStale(true)
@@ -154,20 +206,30 @@ export function TaskExtractionPanel({
   }
 
   const refreshDraftRunInventory = useCallback(async () => {
+    setDraftInstalledDeviceKeys(null)
     try {
       const response = await fetch('api/devices', { cache: 'no-store' })
       if (!response.ok) throw new Error('Unable to load devices and simulators.')
       const inventory = await response.json() as LocalDeviceInventory
       setDraftRunInventory(inventory)
+      const installedResponse = await fetch(`api/devices/installed?appId=${encodeURIComponent(session.appId)}`, { cache: 'no-store' })
+      if (!installedResponse.ok) throw new Error(`Unable to check where ${session.appId} is installed.`)
+      const installed = await installedResponse.json() as { installedDeviceKeys: string[]; unknownDeviceKeys: string[] }
+      setDraftInstalledDeviceKeys(installed.installedDeviceKeys)
+      setDraftUnknownDeviceKeys(installed.unknownDeviceKeys)
       setDraftRunDeviceKey((current) => {
         if (inventory.devices.some((device) => device.isAvailable && draftDeviceKey(device) === current)) return current
-        const booted = inventory.devices.find((device) => device.isBooted && device.isAvailable)
-        return booted ? draftDeviceKey(booted) : ''
+        const preferred = inventory.devices.find((device) => device.isBooted && device.isAvailable
+          && installed.installedDeviceKeys.includes(draftDeviceKey(device)))
+          ?? inventory.devices.find((device) => device.isAvailable
+            && installed.installedDeviceKeys.includes(draftDeviceKey(device)))
+        return preferred ? draftDeviceKey(preferred) : ''
       })
     } catch (error) {
+      setDraftInstalledDeviceKeys([])
       setMessage(resolveError(error, 'Unable to load devices and simulators.'))
     }
-  }, [])
+  }, [session.appId])
 
   const closeDraftDevicePicker = useCallback(() => {
     setIsDraftDevicePickerOpen(false)
@@ -766,11 +828,23 @@ export function TaskExtractionPanel({
       const body = await response.json() as LocalTestExecution | LocalOperationResult
       if (!response.ok || !('executionId' in body)) throw new Error(body.message || `HTTP ${response.status}`)
       setDraftRun(body)
-      setMessage(`Draft test started on ${selectedDraftRunDevice.name}.`)
     } catch (error) {
       setMessage(resolveError(error, 'Unable to start draft test.'))
     } finally {
       setIsStartingDraftRun(false)
+    }
+  }
+
+  async function openDraftTrace(runId: string) {
+    try {
+      const response = await fetch(`api/test-history?appId=${encodeURIComponent(session.appId)}&limit=250`, { cache: 'no-store' })
+      if (!response.ok) throw new Error('Unable to load test trace history.')
+      const history = await response.json() as LocalTestHistory
+      const run = history.runs.find((item) => item.runId === runId)
+      if (!run) throw new Error('The test trace is not available in history yet.')
+      setDraftTraceRun(run)
+    } catch (error) {
+      setMessage(resolveError(error, 'Unable to open the test trace.'))
     }
   }
 
@@ -788,6 +862,7 @@ export function TaskExtractionPanel({
     if (!externalSource.trim() || isExternalBusy || isExternalGenerating || (format === 'test' && isTestDraftStale)) return
     if (play && (externalValidation?.status !== 'passed' || !selectedLiveTarget?.runtimeDeviceIdentifier)) return
     setIsExternalBusy(true)
+    const validationRevision = validationRevisionRef.current
     setMessage(null)
     if (play) setExternalTest(null)
     else { setExternalValidation(null); setExternalTest(null) }
@@ -806,11 +881,11 @@ export function TaskExtractionPanel({
       const body = await response.json() as ExternalDraftResult | LocalOperationResult
       if (!response.ok || !('status' in body)) throw new Error('message' in body ? body.message : `HTTP ${response.status}`)
       if (play) setExternalTest(body)
-      else setExternalValidation(body)
+      else if (validationRevision === validationRevisionRef.current) setExternalValidation(body)
     } catch (error) {
       const result: ExternalDraftResult = { status: 'failed', message: resolveError(error, play ? 'Unable to play the draft.' : 'Unable to validate the draft.'), output: '' }
       if (play) setExternalTest(result)
-      else setExternalValidation(result)
+      else if (validationRevision === validationRevisionRef.current) setExternalValidation(result)
     } finally {
       setIsExternalBusy(false)
     }
@@ -996,17 +1071,20 @@ export function TaskExtractionPanel({
     <div className="local-admin-backdrop local-task-extraction-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target && !isSubmitting) onClose() }}>
       <section aria-label="Extraction explorer" className="local-admin-panel local-task-extraction-panel">
         <header className="local-admin-header">
-          <div>
-            <p className="eyebrow">Extraction explorer</p>
-            <span>{reviewAnnotation ? `${reviewAnnotation.label} · ` : ''}{formatDate(visiblePeriod.startMs)} – {formatDate(visiblePeriod.endMs)} · {formatDuration(visiblePeriod.endMs - visiblePeriod.startMs)}</span>
-          </div>
+          {(format === 'test' || reviewTaskSectionId) && draftTabAnnotations.length > 0 ? (
+            <nav aria-label="Generated test and task drafts" className="local-extraction-draft-tabs">
+              <button aria-current={!reviewTaskSectionId ? 'page' : undefined} className={!reviewTaskSectionId ? 'is-selected' : ''} onClick={() => { if (reviewTaskSectionId) leaveTaskReview(); else setFormat('test') }} type="button"><TestTube />Test draft</button>
+              {draftTabAnnotations.map((annotation) => {
+                const annotationId = annotation.annotationId!
+                const taskExtraction = taskSectionExtractions[annotationId]
+                return <button aria-current={reviewTaskSectionId === annotationId ? 'page' : undefined} className={`local-extraction-task-tab${reviewTaskSectionId === annotationId ? ' is-selected' : ''}`} disabled={!taskExtraction} key={annotationId} onClick={() => openTaskReview(annotationId)} title={`${taskExtraction?.taskName ?? annotation.label} · ${taskExtraction?.draft ? 'Draft ready' : taskExtraction?.status ?? 'No draft yet'}`} type="button"><Robot /><span><strong>{taskExtraction?.taskName ?? annotation.label}</strong></span></button>
+              })}
+            </nav>
+          ) : <strong className="local-extraction-header-title">Extraction explorer</strong>}
           <div className="local-admin-actions">
-            {reviewTaskSectionId ? <button className="button button--secondary" onClick={() => leaveTaskReview()} type="button">Back to test draft</button> : null}
             <button aria-label="Close extraction explorer" className="button button--secondary" onClick={onClose} type="button"><X />Close explorer</button>
           </div>
         </header>
-
-        {message ? <p className="inline-message local-admin-message">{message}</p> : null}
 
         {!reviewTaskSectionId && !(
           format === 'ansight' ? extraction || isSubmitting
@@ -1029,19 +1107,9 @@ export function TaskExtractionPanel({
           ))}
         </nav> : null}
 
-        {(format === 'test' || reviewTaskSectionId) && selectedTaskAnnotations.length > 0 ? (
-          <nav aria-label="Generated test and task drafts" className="local-extraction-draft-tabs">
-            <button aria-current={!reviewTaskSectionId ? 'page' : undefined} className={!reviewTaskSectionId ? 'is-selected' : ''} onClick={() => { if (reviewTaskSectionId) leaveTaskReview(); else setFormat('test') }} type="button"><TestTube />Test draft</button>
-            {selectedTaskAnnotations.map((annotation) => {
-              const annotationId = annotation.annotationId!
-              const taskExtraction = taskSectionExtractions[annotationId]
-              return <button aria-current={reviewTaskSectionId === annotationId ? 'page' : undefined} className={`local-extraction-task-tab${reviewTaskSectionId === annotationId ? ' is-selected' : ''}`} disabled={!taskExtraction} key={annotationId} onClick={() => openTaskReview(annotationId)} title={taskExtraction?.taskName ?? annotation.label} type="button"><Robot /><span><strong>{taskExtraction?.taskName ?? annotation.label}</strong><small>{taskExtraction?.draft ? 'Draft ready' : taskExtraction?.status ?? (discardedTaskSectionIds.includes(annotationId) ? 'Draft discarded' : 'No draft yet')}</small></span></button>
-            })}
-          </nav>
-        ) : null}
-
         <div className={`local-task-extraction-grid${format === 'test' && !workspaceTestDraft ? ' local-task-extraction-grid--test-intake' : ''}`}>
           <main className="local-admin-content">
+            {message ? <p className="inline-message local-admin-message">{message}</p> : null}
             {format === 'ansight' ? (
             <section className="local-admin-section">
               <div className="local-admin-section-heading">
@@ -1104,10 +1172,12 @@ export function TaskExtractionPanel({
                   onAddAnnotation={() => onAnnotateOnReplay(null, { name: taskName, assertions: testAssertions, generationNotes, selectedTaskSectionIds, skipTaskSections })}
                   onEditAnnotation={(annotationId) => onAnnotateOnReplay(annotationId, { name: taskName, assertions: testAssertions, generationNotes, selectedTaskSectionIds, skipTaskSections })}
                   onExtractTask={extractAnnotatedTask}
+                  onJumpToTask={openTaskReview}
                   onSelectedIdsChange={(ids) => { setSelectedTaskSectionIds(ids); markTestDraftStale() }}
                   onSkipChange={(skip) => { setSkipTaskSections(skip); markTestDraftStale() }}
                   selectedIds={selectedTaskSectionIds}
                   skip={skipTaskSections}
+                  taskExtractions={taskSectionExtractions}
                 /> : null}
                 <div className="local-admin-section-heading"><div><Code /><span><strong>{format === 'test' ? '' : '1. '}Generate {format === 'test' ? 'Ansight test' : format === 'maestro' ? 'Maestro flow' : 'Appium test'}</strong><small>Use the interactions in this timeline period</small></span></div></div>
                 <label htmlFor="local-external-task-name">Name
@@ -1265,28 +1335,26 @@ export function TaskExtractionPanel({
                 {externalDraft ? <>
                   {format === 'test' && isTestDraftStale ? <p className="local-task-extraction-hint"><WarningCircle />Task sections changed. Regenerate the YAML draft to include the current selection.</p> : null}
                   {format !== 'test' ? <><p className="local-task-extraction-hint">Check the starting state, selectors, text values, and intended outcome. Add an assertion before testing.</p><label htmlFor="local-external-source">{format === 'maestro' ? 'Maestro YAML' : 'Appium JavaScript'}</label></> : null}
-                  <textarea
-                    aria-label={format === 'test' ? 'Ansight test YAML' : undefined}
+                  {format === 'test' ? <YamlTestEditor onChange={updateTestSource} source={testSource} validationError={externalValidation?.status === 'failed' ? externalValidation.message : null} /> : <textarea
                     className="local-maestro-source"
                     id="local-external-source"
                     onChange={(event) => {
-                      if (format === 'test') { setTestSource(event.target.value); setTestSavedPath(''); setDraftRun(null) }
-                      else if (format === 'maestro') { setMaestroSource(event.target.value); setMaestroSavedPath('') }
+                      if (format === 'maestro') { setMaestroSource(event.target.value); setMaestroSavedPath('') }
                       else { setAppiumSource(event.target.value); setAppiumSavedPath('') }
                       clearExternalChecks()
                     }}
                     rows={18}
                     spellCheck={false}
                     value={externalSource}
-                  />
+                  />}
                   {externalDraft.diagnostics.length ? <ul className="local-task-extraction-validation-errors">{externalDraft.diagnostics.map((diagnostic, index) => <li key={`${index}:${diagnostic}`}><WarningCircle />{diagnostic}</li>)}</ul> : null}
-                  <div className="local-task-extraction-test">
-                    <div className="local-admin-section-heading"><div><CheckCircle /><span><strong>{format === 'test' ? '' : '3. '}Validate</strong><small>{format === 'test' ? 'Check YAML and workspace test contract' : format === 'maestro' ? 'Check app ID and supported commands' : 'Check app ID and JavaScript syntax'}</small></span></div></div>
-                    <button className="button button--secondary" disabled={isExternalBusy || isExternalGenerating || !externalSource.trim() || (format === 'test' && isTestDraftStale)} onClick={() => void reviewExternalDraft(false)} type="button">{isExternalBusy && !externalValidation ? <CircleNotch className="spin" /> : <CheckCircle />}Validate draft</button>
-                    {externalValidation ? <ExternalReviewResult result={externalValidation} /> : null}
+                  <div className="local-task-extraction-test local-task-extraction-validation">
+                    {format !== 'test' ? <div className="local-admin-section-heading"><div><CheckCircle /><span><strong>3. Validate</strong><small>{format === 'maestro' ? 'Check app ID and supported commands' : 'Check app ID and JavaScript syntax'}</small></span></div></div> : null}
+                    <button aria-label={externalValidation?.status === 'passed' ? 'Validate, passed' : 'Validate'} className={`button button--secondary${externalValidation?.status === 'passed' ? ' local-validation-passed' : ''}`} disabled={isExternalBusy || isExternalGenerating || isAutoValidating && format === 'test' || !externalSource.trim() || (format === 'test' && isTestDraftStale)} onClick={() => void reviewExternalDraft(false)} type="button">{isExternalBusy && !externalValidation || isAutoValidating && format === 'test' ? <CircleNotch className="spin" /> : <CheckCircle weight={externalValidation?.status === 'passed' ? 'fill' : 'regular'} />}Validate</button>
+                    {externalValidation?.status === 'failed' ? <ExternalReviewResult result={externalValidation} /> : null}
                   </div>
                   {format === 'test' ? <div className="local-task-extraction-test">
-                    <div className="local-admin-section-heading"><div><Play /><span><strong>Run draft on device or simulator</strong><small>Runs this YAML and the ready task drafts without saving either</small></span></div></div>
+                    <div className="local-admin-section-heading"><div><Play /><span><strong>Run draft</strong></span></div></div>
                     <div className="local-draft-run-device-target"><span>Device or simulator</span><button className="button button--secondary" disabled={isStartingDraftRun} onClick={() => { setIsDraftDevicePickerOpen(true); void refreshDraftRunInventory() }} ref={draftDeviceTriggerRef} type="button"><span>{selectedDraftRunDevice ? `${selectedDraftRunDevice.name} · ${friendlyDraftRuntime(selectedDraftRunDevice)}` : 'Choose a target'}</span><span>{selectedDraftRunDevice ? 'Change' : 'Choose'}</span></button></div>
                     <label>Application artifact (optional)<input disabled={isStartingDraftRun} onChange={(event) => setDraftRunApplicationPath(event.target.value)} placeholder="Host path to the app build, if it is not already installed" value={draftRunApplicationPath} /></label>
                     <p className="local-task-extraction-hint">Only ready drafts from this test’s selected sections can be used. Editor changes to a task draft must be applied before starting.</p>
@@ -1294,7 +1362,7 @@ export function TaskExtractionPanel({
                     <p className="local-task-extraction-hint">{includedTaskDrafts.length} task draft{includedTaskDrafts.length === 1 ? '' : 's'} included in this run.</p>
                     <button className="button button--primary" disabled={isStartingDraftRun || isExternalGenerating || isTestDraftStale || externalValidation?.status !== 'passed' || !selectedDraftRunDevice?.isAvailable || !!draftRun && ['queued', 'running'].includes(draftRun.status)} onClick={() => void runDraftTest()} type="button">{isStartingDraftRun ? <CircleNotch className="spin" /> : <Play />}Run draft test</button>
                     {!draftRunInventory?.devices.some((device) => device.isAvailable) ? <p className="local-task-extraction-hint"><WarningCircle />Connect a device or start a simulator/emulator to run this draft.</p> : null}
-                    {draftRun ? <div className="local-test-generation-result" role="status"><TestTube /><span><strong>{draftRun.status === 'succeeded' ? 'Test passed' : draftRun.status === 'failed' ? 'Test failed' : draftRun.status === 'cancelled' ? 'Test cancelled' : 'Test running'}</strong><small>{draftRun.progress.at(-1)?.message || draftRun.message}</small><small>{draftRun.executionId}</small></span></div> : null}
+                    {draftRun ? <div className="local-test-generation-result" role="status"><TestTube /><span><strong>{draftRun.status === 'succeeded' ? 'Test passed' : draftRun.status === 'failed' ? 'Test failed' : draftRun.status === 'cancelled' ? 'Test cancelled' : 'Test running'}</strong><small>{draftRun.progress.at(-1)?.message || draftRun.message}</small>{draftRun.result?.traceRunId ? <button className="local-text-button" onClick={() => void openDraftTrace(draftRun.result!.traceRunId!)} type="button"><ChartBar />View test trace</button> : null}{draftRun.result?.traceError ? <small>{draftRun.result.traceError}</small> : null}{draftRun.progress.length ? <details className="local-draft-run-log"><summary>Run log · {draftRun.progress.length} steps</summary><ol>{draftRun.progress.map((step, index) => <li key={`${index}:${step.occurredAtUtc}`}><time>{new Date(step.occurredAtUtc).toLocaleTimeString()}</time><span>{step.message}</span></li>)}</ol></details> : null}<small>{draftRun.executionId}</small></span></div> : null}
                   </div> : null}
                   {format !== 'test' ? <div className="local-task-extraction-test">
                     <div className="local-admin-section-heading"><div><TestTube /><span><strong>4. Test on device</strong><small>Plays the draft against a connected device</small></span></div></div>
@@ -1326,7 +1394,8 @@ export function TaskExtractionPanel({
         </div>
       </section>
       {isTraceOpen && extraction?.trace ? <TaskExtractionTraceModal onClose={() => setIsTraceOpen(false)} trace={extraction.trace} /> : null}
-      {isDraftDevicePickerOpen ? <DraftRunDevicePicker devices={draftRunInventory?.devices ?? []} onClose={closeDraftDevicePicker} onRefresh={() => void refreshDraftRunInventory()} onSelect={(key) => { setDraftRunDeviceKey(key); closeDraftDevicePicker() }} selectedKey={draftRunDeviceKey} /> : null}
+      {isDraftDevicePickerOpen ? <DraftRunDevicePicker appId={session.appId} devices={draftRunInventory?.devices ?? []} installedDeviceKeys={draftInstalledDeviceKeys} unknownDeviceKeys={draftUnknownDeviceKeys} hasApplicationArtifact={!!draftRunApplicationPath.trim()} onClose={closeDraftDevicePicker} onRefresh={() => void refreshDraftRunInventory()} onSelect={(key) => { setDraftRunDeviceKey(key); closeDraftDevicePicker() }} selectedKey={draftRunDeviceKey} /> : null}
+      {draftTraceRun ? <TestHistoryPanel appId={session.appId} initialRun={draftTraceRun} onClose={() => setDraftTraceRun(null)} /> : null}
     </div>
   )
 }
@@ -1360,8 +1429,12 @@ function DraftDeviceFilter({ name, onChange, options, selected, title }: {
   return <fieldset className="runner-filter-choices"><legend>{title}</legend><div>{options.map((option) => <label className={selected === option.value ? 'is-selected' : ''} key={option.value}><input checked={selected === option.value} name={name} onChange={() => onChange(option.value)} type="radio" value={option.value} /><span>{option.label}</span></label>)}</div></fieldset>
 }
 
-function DraftRunDevicePicker({ devices, onClose, onRefresh, onSelect, selectedKey }: {
+function DraftRunDevicePicker({ appId, devices, installedDeviceKeys, unknownDeviceKeys, hasApplicationArtifact, onClose, onRefresh, onSelect, selectedKey }: {
+  appId: string
   devices: LocalDevice[]
+  installedDeviceKeys: string[] | null
+  unknownDeviceKeys: string[]
+  hasApplicationArtifact: boolean
   onClose: () => void
   onRefresh: () => void
   onSelect: (key: string) => void
@@ -1372,13 +1445,16 @@ function DraftRunDevicePicker({ devices, onClose, onRefresh, onSelect, selectedK
   const [osLevel, setOsLevel] = useState('')
   const [groupBy, setGroupBy] = useState('formFactor')
   const [detailKey, setDetailKey] = useState('')
+  const [installedOnly, setInstalledOnly] = useState(!hasApplicationArtifact
+    && (!selectedKey || installedDeviceKeys?.includes(selectedKey) !== false))
   const osLevels = useMemo(() => [...new Set(devices.map(friendlyDraftRuntime))].sort(), [devices])
   const visible = useMemo(() => devices.filter((device) => {
     const searchable = `${device.name} ${device.identifier} ${friendlyDraftRuntime(device)}`.toLocaleLowerCase()
-    return (!formFactor || draftDeviceFormFactor(device) === formFactor)
+    return (!installedOnly || installedDeviceKeys?.includes(draftDeviceKey(device)))
+      && (!formFactor || draftDeviceFormFactor(device) === formFactor)
       && (!osLevel || friendlyDraftRuntime(device) === osLevel)
       && (!query.trim() || searchable.includes(query.trim().toLocaleLowerCase()))
-  }), [devices, formFactor, osLevel, query])
+  }), [devices, formFactor, installedDeviceKeys, installedOnly, osLevel, query])
   const groups = useMemo(() => {
     const grouped = new Map<string, LocalDevice[]>()
     for (const device of visible) {
@@ -1401,11 +1477,12 @@ function DraftRunDevicePicker({ devices, onClose, onRefresh, onSelect, selectedK
       <div className="local-draft-device-picker runner-device-picker">
         <div className="runner-device-filters">
           <label className="local-draft-device-search"><span>Name search</span><input autoFocus onChange={(event) => setQuery(event.target.value)} placeholder="iPhone, iPad, Pixel…" type="search" value={query} /></label>
+          <DraftDeviceFilter name="draft-device-installed" onChange={(value) => setInstalledOnly(value === 'installed')} options={[{ value: 'installed', label: `${appId} installed` }, { value: 'all', label: 'All devices' }]} selected={installedOnly ? 'installed' : 'all'} title="Application" />
           <DraftDeviceFilter name="draft-device-form-factor" onChange={setFormFactor} options={[{ value: '', label: 'All types' }, { value: 'Phone', label: 'Phones' }, { value: 'Tablet', label: 'Tablets' }, { value: 'Other', label: 'Other' }]} selected={formFactor} title="Form factor" />
           <DraftDeviceFilter name="draft-device-os-level" onChange={setOsLevel} options={[{ value: '', label: 'All OS levels' }, ...osLevels.map((value) => ({ value, label: value }))]} selected={osLevel} title="OS level" />
           <DraftDeviceFilter name="draft-device-group-by" onChange={setGroupBy} options={[{ value: 'formFactor', label: 'Form factor' }, { value: 'osLevel', label: 'OS level' }]} selected={groupBy} title="Group by" />
         </div>
-        <div className="runner-device-selection"><span className="muted">Showing {visible.length} of {devices.length}</span><button className="button button--secondary" onClick={onRefresh} type="button"><ArrowClockwise />Refresh devices</button></div>
+        <div className="runner-device-selection"><span className="muted">{installedOnly && installedDeviceKeys === null ? 'Checking installed apps…' : `Showing ${visible.length} of ${devices.length}`}{unknownDeviceKeys.length ? ` · Could not check ${unknownDeviceKeys.length} device${unknownDeviceKeys.length === 1 ? '' : 's'}` : ''}</span><button className="button button--secondary" onClick={onRefresh} type="button"><ArrowClockwise />Refresh devices</button></div>
         {groups.length ? groups.map(([group, items]) => <section className="runner-device-group" key={group}><h4>{group}<span>{items.length}</span></h4><div className="runner-device-grid">{items.map((device) => {
           const key = draftDeviceKey(device)
           const factor = draftDeviceFormFactor(device)
@@ -1416,7 +1493,7 @@ function DraftRunDevicePicker({ devices, onClose, onRefresh, onSelect, selectedK
             </label>
             <button aria-label={`Details for ${device.name}`} className="runner-device-info" onClick={() => setDetailKey((current) => current === key ? '' : key)} type="button"><Info size={18} /></button>
           </div>
-        })}</div></section>) : <p className="muted">{devices.length ? 'No devices match these filters.' : 'No devices found. Connect a device or start a simulator, then refresh.'}</p>}
+        })}</div></section>) : <p className="muted">{installedOnly && installedDeviceKeys === null ? 'Checking where the app is installed…' : installedOnly && installedDeviceKeys?.length === 0 ? `No available devices have ${appId} installed. Choose All devices if you will supply an app artifact.` : devices.length ? 'No devices match these filters.' : 'No devices found. Connect a device or start a simulator, then refresh.'}</p>}
         {detailDevice ? <div className="local-draft-device-details"><strong>{detailDevice.name}</strong><span>{detailDevice.platform} · {detailDevice.runtime || 'Unknown runtime'} · {detailDevice.state}</span><code>{detailDevice.identifier}</code></div> : null}
       </div>
     </section>
@@ -1666,17 +1743,6 @@ function formatTraceDuration(durationMilliseconds: number): string {
 
 function shortIdentifier(value: string): string {
   return value.length <= 20 ? value : `${value.slice(0, 10)}…${value.slice(-6)}`
-}
-
-function formatDate(timestampMs: number): string {
-  return new Date(timestampMs).toLocaleString()
-}
-
-function formatDuration(durationMs: number): string {
-  const totalSeconds = Math.round(durationMs / 1000)
-  const minutes = Math.floor(totalSeconds / 60)
-  const seconds = totalSeconds % 60
-  return minutes ? `${minutes}m ${seconds}s` : `${seconds}s`
 }
 
 function statusTitle(status: LocalTaskExtraction['status']): string {
