@@ -16,6 +16,7 @@ import { DeviceLocationPanel } from './DeviceLocationPanel'
 import { EditSessionMetadataPanel } from './EditSessionMetadataPanel'
 import { HostHealthPanel } from './HostHealthPanel'
 import { HostManagementPanel } from './HostManagementPanel'
+import { GettingStartedPanel } from './GettingStartedPanel'
 import { loadOptionalPlayerFeature } from './loadOptionalPlayerFeature'
 import { localReplaySource } from './localSessionData'
 import { TrendsPanel } from './TrendsPanel'
@@ -26,7 +27,7 @@ import { SimulatorControlView } from './SimulatorControlView'
 import { TeamSessionExplorer } from './TeamSessionExplorer'
 import { TestHistoryPanel } from './TestHistoryPanel'
 import { TestExecutionPanel } from './TestExecutionPanel'
-import type { LocalAppGraphLiveRun, LocalEnrollmentInviteResult, LocalOperationResult, LocalRemoteRunnerRegistration, LocalRemoteRunnerStatus, LocalReplayBootstrap, LocalSessionCachePlan, LocalSessionSummary, LocalTaskExtraction, LocalTestHistory, LocalTestRunSummary, WorkspaceTestDraft } from './types'
+import type { LocalAppGraphLiveRun, LocalEnrollmentInviteResult, LocalGettingStartedState, LocalOperationResult, LocalRemoteRunnerRegistration, LocalRemoteRunnerStatus, LocalReplayBootstrap, LocalSessionCachePlan, LocalSessionSummary, LocalTaskExtraction, LocalTestHistory, LocalTestRunSummary, WorkspaceTestDraft } from './types'
 import type { SessionAnnotation } from '../replay/sessionViewerData'
 
 const linkedTraceRefreshIntervalMs = 8000
@@ -64,9 +65,56 @@ export function LocalReplayApp() {
     : localReplaySource, [cloudAnalysisSource])
   const [bootstrap, setBootstrap] = useState<LocalReplayBootstrap | null>(null)
   const [sessions, setSessions] = useState<LocalSessionSummary[]>([])
+  const [gettingStarted, setGettingStarted] = useState<LocalGettingStartedState | null>(null)
+  const [showGettingStarted, setShowGettingStarted] = useState(false)
+  const initialGettingStartedDecision = useRef(false)
+  const replayMilestoneSent = useRef(false)
   const [isSessionsLoading, setIsSessionsLoading] = useState(true)
   const [sessionRefreshNonce, setSessionRefreshNonce] = useState(0)
   const [cachePlan, setCachePlan] = useState<LocalSessionCachePlan | null>(null)
+  const updateGettingStarted = useCallback(async (action: string, sessionId?: string) => {
+    const response = await fetch('api/getting-started', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, sessionId }),
+    })
+    if (!response.ok) throw new Error(`The local host could not save getting started progress (HTTP ${response.status}).`)
+    const state = await response.json() as LocalGettingStartedState
+    setGettingStarted(state)
+    if (action === 'skip') setShowGettingStarted(false)
+    return state
+  }, [])
+  const onGettingStartedAutomationSaved = useCallback((sessionId: string) => {
+    void updateGettingStarted('automation-saved', sessionId).catch(() => {})
+  }, [updateGettingStarted])
+
+  useEffect(() => {
+    if (bootstrap?.mode !== 'explorer') return
+    let active = true
+    void fetch('api/getting-started', { cache: 'no-store' })
+      .then((response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+        return response.json() as Promise<LocalGettingStartedState>
+      })
+      .then((state) => { if (active) setGettingStarted(state) })
+      .catch(() => { /* The player remains usable if local progress cannot load. */ })
+    return () => { active = false }
+  }, [bootstrap?.mode])
+
+  useEffect(() => {
+    if (!gettingStarted || isSessionsLoading || initialGettingStartedDecision.current) return
+    const requested = new URLSearchParams(window.location.search).get('getting-started') === '1'
+    if (requested || (!gettingStarted.opened && !gettingStarted.skipped && sessions.length === 0)) {
+      const timer = window.setTimeout(() => {
+        if (initialGettingStartedDecision.current) return
+        initialGettingStartedDecision.current = true
+        setShowGettingStarted(true)
+        void updateGettingStarted(gettingStarted.skipped ? 'resume' : 'open').catch(() => {})
+      }, 0)
+      return () => window.clearTimeout(timer)
+    }
+    initialGettingStartedDecision.current = true
+  }, [gettingStarted, isSessionsLoading, sessions.length, updateGettingStarted])
   useEffect(() => {
     if (bootstrap?.mode !== 'explorer') return undefined
     let active = true
@@ -648,6 +696,19 @@ export function LocalReplayApp() {
     }
   }
 
+  function openGettingStarted() {
+    setIsManageMenuOpen(false)
+    setActivePanel(null)
+    setShowGettingStarted(true)
+    void updateGettingStarted(gettingStarted?.skipped ? 'resume' : 'open').catch(() => {})
+  }
+
+  function openGettingStartedSession(sessionId: string) {
+    setSelectedSessionId(sessionId)
+    setActivePanel(null)
+    setShowGettingStarted(false)
+  }
+
   function openLinkedTrace(run: LocalTestRunSummary) {
     setTestHistoryInitialRun(run)
     setActivePanel('test_history')
@@ -787,7 +848,7 @@ export function LocalReplayApp() {
     }
   }
 
-  const isSessionsSectionActive = activePanel === null || activePanel === 'app_graph'
+  const isSessionsSectionActive = !showGettingStarted && (activePanel === null || activePanel === 'app_graph')
   const isTestsSectionActive = activePanel === 'test_execution' || activePanel === 'test_history'
   const isTrendsSectionActive = activePanel === 'trends'
   const isManageSectionActive = activePanel === 'about'
@@ -812,7 +873,7 @@ export function LocalReplayApp() {
   const rootClassName = [
     'local-replay-root',
     isExplorerOpen ? '' : 'local-replay-root--collapsed',
-    selectedSession ? 'local-replay-root--has-session-context' : '',
+    selectedSession && !showGettingStarted ? 'local-replay-root--has-session-context' : '',
   ].filter(Boolean).join(' ')
   // The explorer carries its own hide control; the banner only offers the way back.
   const explorerToggle = (
@@ -885,12 +946,23 @@ export function LocalReplayApp() {
             </span>
           </span>
           <nav aria-label="Local explorer" className="local-global-navigation">
+            {bootstrap?.mode === 'explorer' ? <button
+              aria-current={showGettingStarted ? 'page' : undefined}
+              className={showGettingStarted ? 'local-banner-button local-banner-button--active' : 'local-banner-button'}
+              onClick={openGettingStarted}
+              title="Getting started"
+              type="button"
+            >
+              <Sparkle aria-hidden="true" />
+              Getting started
+            </button> : null}
             <button
               aria-current={isSessionsSectionActive ? 'page' : undefined}
               className={isSessionsSectionActive ? 'local-banner-button local-banner-button--active' : 'local-banner-button'}
               onClick={() => {
                 setIsManageMenuOpen(false)
                 setActivePanel(null)
+                setShowGettingStarted(false)
               }}
               title="Sessions"
               type="button"
@@ -1015,6 +1087,7 @@ export function LocalReplayApp() {
               setIsSessionInfoOpen(false)
               setSelectedSessionId(sessionId)
               setExplorerMode('local')
+              setShowGettingStarted(false)
             }}
             onShowLocalSessions={() => setExplorerMode('local')}
           />
@@ -1030,6 +1103,7 @@ export function LocalReplayApp() {
               setSessionActionError(null)
               setIsSessionInfoOpen(false)
               setSelectedSessionId(sessionId)
+              setShowGettingStarted(false)
             }}
             onShowTeamSessions={() => setExplorerMode('team')}
             selectedSessionId={selectedSessionId}
@@ -1038,7 +1112,7 @@ export function LocalReplayApp() {
           />
         ) : null}
         <main className="local-replay-viewer">
-          {selectedSession ? (
+          {selectedSession && !showGettingStarted ? (
             <div className="local-session-context-toolbar">
               <span className="local-session-context-icon">
                 <SessionIcon appIconUrl={selectedSession.appIconUrl} platform={selectedSession.runtimePlatform} />
@@ -1186,7 +1260,19 @@ export function LocalReplayApp() {
           ) : null}
           {exportMessage ? <p className="inline-message local-replay-message" role="status">{exportMessage}</p> : null}
           {message && sessions.length === 0 ? <p className="inline-message local-replay-message">{message}</p> : null}
-          {(!bootstrap || isSessionsLoading) && !message ? (
+          {showGettingStarted && gettingStarted ? (
+            <GettingStartedPanel
+              state={gettingStarted}
+              sessions={sessions}
+              onAction={async (action) => {
+                if (action === 'skip') setShowGettingStarted(false)
+                await updateGettingStarted(action)
+              }}
+              onClose={() => setShowGettingStarted(false)}
+              onOpenApps={() => { setShowGettingStarted(false); setActivePanel('apps') }}
+              onOpenSession={openGettingStartedSession}
+            />
+          ) : (!bootstrap || isSessionsLoading) && !message ? (
             <div className="local-replay-loading">
               <CircleNotch className="spin" aria-hidden="true" />
               <strong>{bootstrap ? 'Loading sessions' : 'Connecting to the local host'}</strong>
@@ -1208,6 +1294,13 @@ export function LocalReplayApp() {
               }}
               onTaskExtractionRequested={bootstrap?.supportsTaskExtraction
                 ? requestTaskExtraction
+                : undefined}
+              onReplayInteracted={!selectedSession?.isConnected
+                ? () => {
+                  if (replayMilestoneSent.current || gettingStarted?.replayedSessionId) return
+                  replayMilestoneSent.current = true
+                  void updateGettingStarted('replay', selectedSessionId).catch(() => { replayMilestoneSent.current = false })
+                }
                 : undefined}
               annotationWorkflowRequest={annotationWorkflow ? { id: annotationWorkflow.id, annotationId: annotationWorkflow.annotationId } : null}
               onAnnotationSaved={(annotation: SessionAnnotation) => {
@@ -1365,6 +1458,7 @@ export function LocalReplayApp() {
                 })
                 setTaskExtractionRequest(null)
               }}
+              onAutomationSaved={onGettingStartedAutomationSaved}
               onClose={() => setTaskExtractionRequest(null)}
               onOpenSavedTestDraft={(draft) => setTaskExtractionRequest({
                 format: 'test',

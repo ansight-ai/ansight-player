@@ -203,7 +203,7 @@ export function SessionAdministrationPanel({
         </nav>
         {activeView === 'bulk' ? (
           <main className="local-session-admin-view local-session-admin-view--bulk">
-            <div className="local-session-bulk-toolbar">
+            <div className="local-session-admin-bulk-toolbar">
               <label><MagnifyingGlass aria-hidden="true" /><input aria-label="Search sessions for bulk actions" onChange={(event) => setBulkQuery(event.target.value)} placeholder="Search sessions or apps" type="search" value={bulkQuery} /></label>
               <div>
                 <span>{bulkCandidates.length} of {sessions.length} selected</span>

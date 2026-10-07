@@ -691,6 +691,7 @@ export function SessionViewerPage({
   onAiViewKindChange,
   onSessionInfoOpenChange,
   onTaskExtractionRequested,
+  onReplayInteracted,
   annotationWorkflowRequest,
   onAnnotationSaved,
   replayPanelOverride,
@@ -712,6 +713,7 @@ export function SessionViewerPage({
   onAiViewKindChange?: (kind: SessionAiExtractionKind | null) => void
   onSessionInfoOpenChange?: (isOpen: boolean) => void
   onTaskExtractionRequested?: (selection: TimelineEditSelection) => void
+  onReplayInteracted?: () => void
   annotationWorkflowRequest?: { id: number; annotationId: string | null } | null
   onAnnotationSaved?: (annotation: SessionAnnotation) => void
   replayPanelOverride?: ReactNode | ((context: SessionReplayPanelContext) => ReactNode)
@@ -2618,12 +2620,14 @@ export function SessionViewerPage({
             }}
             onLeaveLive={(timestampMs) => {
               if (isLocalReplay) trackInspection('playback')
+              if (!isLiveSession) onReplayInteracted?.()
               setSelectedVisualTreeSnapshotKey(null)
               setSelectedArtifactSnapshotKey(null)
               setScrubAtMs(clamp(timestampMs, timelineRange.startMs, timelineRange.endMs))
             }}
             onScrub={(timestampMs) => {
               if (isLocalReplay) trackInspection('playback')
+              if (!isLiveSession) onReplayInteracted?.()
               setSelectedVisualTreeSnapshotKey(null)
               setSelectedArtifactSnapshotKey(null)
               setScrubAtMs(resolveScrubSelection(timestampMs, timelineRange, isLiveSession))

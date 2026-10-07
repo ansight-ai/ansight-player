@@ -33,6 +33,7 @@ export function TaskExtractionPanel({
   initialGenerationNotes,
   onAnnotateOnReplay,
   onClose,
+  onAutomationSaved,
   onOpenSavedTestDraft,
   onOpenTests,
   period,
@@ -48,6 +49,7 @@ export function TaskExtractionPanel({
   initialGenerationNotes?: string
   onAnnotateOnReplay: (annotationId: string | null, returnTest: { name: string; assertions: string; generationNotes: string; selectedTaskSectionIds: string[]; skipTaskSections: boolean }) => void
   onClose: () => void
+  onAutomationSaved?: (sessionId: string) => void
   onOpenSavedTestDraft: (draft: WorkspaceTestDraft) => void
   onOpenTests: (appId: string, testId: string) => void
   period: SelectedPeriod
@@ -245,12 +247,13 @@ export function TaskExtractionPanel({
         .sort((left, right) => Date.parse(right.updatedAtUtc) - Date.parse(left.updatedAtUtc)))
       lastSavedTestDraftFingerprintRef.current = JSON.stringify({ ...payload, draftId: body.draftId })
       setTestDraftSaveStatus('saved')
+      onAutomationSaved?.(session.sessionId)
       return body
     } catch (error) {
       setTestDraftSaveStatus('failed')
       throw error
     }
-  }, [testDraftSavePayload])
+  }, [onAutomationSaved, session.sessionId, testDraftSavePayload])
 
   useEffect(() => {
     if (format !== 'test' || isLoadingTaskSections || loadedSavedTestDraftsRef.current) return
@@ -828,6 +831,7 @@ export function TaskExtractionPanel({
       const body = await response.json() as { filePath: string } | LocalOperationResult
       if (!response.ok || !('filePath' in body)) throw new Error('message' in body ? body.message : `HTTP ${response.status}`)
       setMaestroSavedPath(body.filePath)
+      onAutomationSaved?.(session.sessionId)
       setMessage(`Saved Maestro flow to ${body.filePath}`)
     } catch (error) {
       setMessage(resolveError(error, 'Unable to save Maestro flow.'))
@@ -925,6 +929,7 @@ export function TaskExtractionPanel({
       const body = await response.json() as { filePath: string } | LocalOperationResult
       if (!response.ok || !('filePath' in body)) throw new Error('message' in body ? body.message : `HTTP ${response.status}`)
       setAppiumSavedPath(body.filePath)
+      onAutomationSaved?.(session.sessionId)
       setMessage(`Saved Appium script to ${body.filePath}`)
     } catch (error) {
       setMessage(resolveError(error, 'Unable to save Appium script.'))
@@ -1017,6 +1022,7 @@ export function TaskExtractionPanel({
       const body = await response.json() as { filePath: string } | LocalOperationResult
       if (!response.ok || !('filePath' in body)) throw new Error('message' in body ? body.message : `HTTP ${response.status}`)
       setTestSavedPath(body.filePath)
+      onAutomationSaved?.(session.sessionId)
       setMessage(`Saved Ansight test to ${body.filePath}`)
     } catch (error) {
       setMessage(resolveError(error, 'Unable to save Ansight test.'))
@@ -1226,6 +1232,7 @@ export function TaskExtractionPanel({
       const body = await response.json() as LocalTaskExtraction | LocalOperationResult
       if (!response.ok || !('extractionId' in body)) throw new Error(body.message || `HTTP ${response.status}`)
       applyExtraction(body)
+      onAutomationSaved?.(session.sessionId)
       setMessage(body.message)
     } catch (error) {
       setMessage(resolveError(error, 'Unable to save the task draft.'))

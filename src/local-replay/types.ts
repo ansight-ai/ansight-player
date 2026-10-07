@@ -38,6 +38,15 @@ export type LocalReplayBootstrap = {
   mapboxAccessToken?: string | null
 }
 
+export type LocalGettingStartedState = {
+  opened: boolean
+  skipped: boolean
+  notificationSent: boolean
+  replayedSessionId: string | null
+  automationSaved: boolean
+  capturePath: 'sdk' | 'external' | null
+}
+
 export type LocalTaskExtractionCapabilities = {
   schema: string
   supportsHosted: boolean
@@ -1077,6 +1086,7 @@ export type LocalSessionSummary = {
   runtimeDeviceIdentifier?: string | null
   runtimePlatform?: string | null
   technology?: string | null
+  captureSource: string
   isHistorical: boolean
   isPinned: boolean
   createdUtc: string

@@ -7388,7 +7388,7 @@ button.local-runner-status:hover {
   overflow: hidden;
 }
 
-.local-session-bulk-toolbar,
+.local-session-admin-bulk-toolbar,
 .local-session-bulk-actions {
   display: flex;
   align-items: center;
@@ -7398,11 +7398,11 @@ button.local-runner-status:hover {
   background: var(--bg-primary);
 }
 
-.local-session-bulk-toolbar {
+.local-session-admin-bulk-toolbar {
   border-bottom: 1px solid var(--border);
 }
 
-.local-session-bulk-toolbar > label {
+.local-session-admin-bulk-toolbar > label {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -7413,14 +7413,14 @@ button.local-runner-status:hover {
   border-radius: 7px;
 }
 
-.local-session-bulk-toolbar > label > svg {
+.local-session-admin-bulk-toolbar > label > svg {
   flex: none;
   width: 14px;
   height: 14px;
   color: var(--text-muted);
 }
 
-.local-session-bulk-toolbar input {
+.local-session-admin-bulk-toolbar input {
   width: 100%;
   min-width: 0;
   padding: 8px 0;
@@ -7432,20 +7432,20 @@ button.local-runner-status:hover {
   font-size: 9.5px;
 }
 
-.local-session-bulk-toolbar > div,
+.local-session-admin-bulk-toolbar > div,
 .local-session-bulk-actions > div {
   display: flex;
   align-items: center;
   gap: 7px;
 }
 
-.local-session-bulk-toolbar span,
+.local-session-admin-bulk-toolbar span,
 .local-session-bulk-actions > span {
   color: var(--text-muted);
   font-size: 8.5px;
 }
 
-.local-session-bulk-toolbar button {
+.local-session-admin-bulk-toolbar button {
   padding: 6px 8px;
   color: var(--text-secondary);
   background: var(--surface-raised);
@@ -7457,7 +7457,7 @@ button.local-runner-status:hover {
   font-weight: 800;
 }
 
-.local-session-bulk-toolbar button:disabled {
+.local-session-admin-bulk-toolbar button:disabled {
   cursor: not-allowed;
   opacity: 0.46;
 }
@@ -8024,18 +8024,18 @@ button.local-runner-status:hover {
     padding: 0;
   }
 
-  .local-session-bulk-toolbar,
+  .local-session-admin-bulk-toolbar,
   .local-session-bulk-actions {
     align-items: stretch;
     flex-direction: column;
     padding: 10px 12px;
   }
 
-  .local-session-bulk-toolbar > label {
+  .local-session-admin-bulk-toolbar > label {
     width: 100%;
   }
 
-  .local-session-bulk-toolbar > div,
+  .local-session-admin-bulk-toolbar > div,
   .local-session-bulk-actions > div {
     flex-wrap: wrap;
   }
@@ -9234,3 +9234,44 @@ button.local-runner-status:hover {
 .local-session-id button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 .local-session-copy-feedback { font-size: 0.7rem; }
 .session-optimization-video-option { display: flex; align-items: center; gap: 0.5rem; margin: 0.75rem 0; }
+
+.local-getting-started {
+  width: min(100%, 980px);
+  margin: 0 auto;
+  padding: clamp(20px, 3vw, 42px);
+  display: grid;
+  gap: 18px;
+  color: var(--text-primary);
+  overflow-y: auto;
+}
+.local-getting-started-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.local-getting-started-header h1 { margin: 4px 0 8px; font-size: clamp(28px, 3vw, 42px); line-height: 1.1; }
+.local-getting-started-header p:last-child { max-width: 680px; margin: 0; color: var(--text-secondary); line-height: 1.55; }
+.local-getting-started-progress { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.local-getting-started-progress li { display: flex; align-items: center; gap: 7px; padding: 7px 10px; border: 1px solid var(--border-strong); border-radius: 6px; color: var(--text-secondary); font-size: 11px; }
+.local-getting-started-progress li > span { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--bg-secondary); font-size: 10px; }
+.local-getting-started-progress li.is-complete { color: var(--text-primary); border-color: #4c8b85; }
+.local-getting-started-progress li.is-complete > span { background: #4c8b85; color: white; }
+.local-getting-started-card { padding: 22px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--bg-secondary); }
+.local-getting-started-card-title { display: flex; align-items: center; gap: 12px; }
+.local-getting-started-card-title > svg { width: 26px; height: 26px; color: var(--accent, #ef6747); flex: none; }
+.local-getting-started-card-title small { color: var(--text-muted); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+.local-getting-started-card h2 { margin: 2px 0 0; font-size: 20px; }
+.local-getting-started-card > p { margin: 14px 0; color: var(--text-secondary); line-height: 1.6; }
+.local-getting-started-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.local-getting-started-choices button { display: grid; gap: 5px; padding: 16px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--bg-primary); color: var(--text-primary); text-align: left; cursor: pointer; font: inherit; }
+.local-getting-started-choices button.is-selected { border-color: var(--accent, #ef6747); box-shadow: inset 0 0 0 1px var(--accent, #ef6747); }
+.local-getting-started-choices small { color: var(--text-secondary); line-height: 1.4; }
+.local-getting-started-instructions { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border-strong); }
+.local-getting-started-instructions p { color: var(--text-secondary); line-height: 1.5; }
+.local-getting-started-instructions a { color: var(--accent, #ef6747); }
+.local-getting-started-prompt { display: flex; align-items: stretch; gap: 10px; padding: 12px; border: 1px solid var(--border-strong); border-radius: 5px; background: var(--bg-primary); }
+.local-getting-started-prompt code { flex: 1; min-width: 0; overflow-wrap: anywhere; line-height: 1.5; }
+.local-getting-started-prompt button { display: inline-flex; align-items: center; gap: 5px; flex: none; border: 0; background: transparent; color: var(--text-primary); cursor: pointer; }
+.local-getting-started-success { display: flex; align-items: center; gap: 8px; color: #4c8b85 !important; font-weight: 600; }
+.local-getting-started-footer { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 16px; }
+@media (max-width: 700px) {
+  .local-getting-started-choices { grid-template-columns: 1fr; }
+  .local-getting-started-prompt { flex-direction: column; }
+  .local-getting-started-footer { flex-wrap: wrap; }
+}
