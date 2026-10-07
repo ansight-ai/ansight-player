@@ -12,6 +12,7 @@ export function TestTaskSectionIntake({
   onExtractTask,
   onJumpToTask,
   onSelectedIdsChange,
+  period,
   selectedIds,
   taskExtractions,
 }: {
@@ -22,15 +23,18 @@ export function TestTaskSectionIntake({
   onExtractTask: (section: { period: TimelinePeriod; name: string; description: string }) => void
   onJumpToTask: (annotationId: string) => void
   onSelectedIdsChange: (ids: string[]) => void
+  period: TimelinePeriod
   selectedIds: string[]
   taskExtractions: Record<string, LocalTaskExtraction>
 }) {
+  const selectedOutsidePeriod = annotations.some((annotation) => selectedIds.includes(annotation.annotationId!)
+    && (Date.parse(annotation.startUtc!) < period.startMs || Date.parse(annotation.endUtc!) > period.endMs))
   return <div className="local-test-intake">
     <div className="local-test-intake-heading">
       <span className="local-test-intake-step">Step 1</span>
       <div>
         <h3>Mark reusable parts</h3>
-        <p>Annotate the core steps of this session. Selected ranges guide the test and each generates a reusable task draft when you choose Generate with AI.</p>
+        <p>Select session annotations to guide the test and generate reusable task drafts. Selecting a range outside the current replay expands the test period.</p>
       </div>
       <button className="button button--secondary" disabled={isLoading} onClick={onAddAnnotation} type="button"><NotePencil />Annotate on replay</button>
     </div>
@@ -40,13 +44,14 @@ export function TestTaskSectionIntake({
         const annotationId = annotation.annotationId!
         const startMs = Date.parse(annotation.startUtc!)
         const endMs = Date.parse(annotation.endUtc!)
+        const outsidePeriod = startMs < period.startMs || endMs > period.endMs
         const label = annotation.label!.trim()
         const linkedTask = taskExtractions[annotationId]
         return <article className={`local-test-intake-card${selectedIds.includes(annotationId) ? ' is-selected' : ''}`} key={annotationId}>
           <label className="local-test-intake-card-main">
             <input aria-label={`Include ${label} in the test`} checked={selectedIds.includes(annotationId)} onChange={(event) => onSelectedIdsChange(event.target.checked ? [...selectedIds, annotationId] : selectedIds.filter((id) => id !== annotationId))} type="checkbox" />
             <span className="local-test-intake-card-number">{String(index + 1).padStart(2, '0')}</span>
-            <span className="local-test-intake-card-copy"><strong>{label}</strong><small>{annotation.notes || 'No description'}</small><time>{formatTime(startMs)} – {formatTime(endMs)}</time></span>
+            <span className="local-test-intake-card-copy"><strong>{label}</strong><small>{annotation.notes || 'No description'}{outsidePeriod ? ' · Outside current replay' : ''}</small><time>{formatTime(startMs)} – {formatTime(endMs)}</time></span>
           </label>
           <div className="local-test-intake-card-actions">
             <button className="button button--secondary" onClick={() => onEditAnnotation(annotationId)} type="button"><NotePencil />Edit annotation</button>
@@ -56,10 +61,10 @@ export function TestTaskSectionIntake({
           </div>
         </article>
       })}
-    </div> : <div className="local-test-intake-empty"><NotePencil /><span><strong>No range annotations in this period</strong><small>Annotate a core step on the replay timeline, then return here to include it in the test.</small></span></div>}
+    </div> : <div className="local-test-intake-empty"><NotePencil /><span><strong>No range annotations in this session</strong><small>Annotate a core step on the replay timeline, then return here to include it in the test.</small></span></div>}
 
     <div className="local-test-intake-footer">
-      <span>{selectedIds.length ? `${selectedIds.length} marked step${selectedIds.length === 1 ? '' : 's'} will guide the test and generate task drafts.` : 'No marked steps selected. The test will use the entire selected timeline range.'}</span>
+      <span>{selectedIds.length ? `${selectedIds.length} marked step${selectedIds.length === 1 ? '' : 's'} will guide the test and generate task drafts.${selectedOutsidePeriod ? ' The test period expands to include the selected ranges.' : ''}` : 'No marked steps selected. The test will use the entire selected timeline range.'}</span>
     </div>
   </div>
 }

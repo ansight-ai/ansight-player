@@ -166,6 +166,13 @@ export function TaskExtractionPanel({
   const externalSavedPath = format === 'maestro' ? maestroSavedPath : format === 'appium' ? appiumSavedPath : testSavedPath
   const isExternalGenerating = format === 'maestro' ? isMaestroBusy : format === 'appium' ? isAppiumBusy : isTestDraftBusy
   const selectedTaskAnnotations = skipTaskSections ? [] : taskSectionAnnotations.filter((annotation) => annotation.annotationId && selectedTaskSectionIds.includes(annotation.annotationId))
+  const testPeriod = selectedTaskAnnotations.reduce(
+    (range, annotation) => ({
+      startMs: Math.min(range.startMs, Date.parse(annotation.startUtc!)),
+      endMs: Math.max(range.endMs, Date.parse(annotation.endUtc!)),
+    }),
+    { startMs: period.startMs, endMs: period.endMs },
+  )
   const readyTaskDrafts = selectedTaskAnnotations.map((annotation) => taskSectionExtractions[annotation.annotationId!]).filter((item): item is LocalTaskExtraction => !!item?.draft && item.status === 'ready')
   const includedTaskDrafts = readyTaskDrafts.filter((item) => !excludedDraftTaskIds.includes(item.extractionId))
   const selectedDraftRunDevice = draftRunInventory?.devices.find((device) => `${device.platform}:${device.identifier}` === draftRunDeviceKey)
@@ -207,8 +214,8 @@ export function TaskExtractionPanel({
   const testDraftSavePayload = useCallback((extraction: WorkspaceTestExtraction, source: string, draftId: string | null, title: string, needsRegeneration: boolean, lastExecutionId = lastDraftRunExecutionId, lastTraceRunId = lastDraftTraceRunId) => ({
       draftId,
       sessionId: session.sessionId,
-      startUtc: new Date(period.startMs).toISOString(),
-      endUtc: new Date(period.endMs).toISOString(),
+      startUtc: new Date(testPeriod.startMs).toISOString(),
+      endUtc: new Date(testPeriod.endMs).toISOString(),
       title,
       extraction,
       source,
@@ -220,7 +227,7 @@ export function TaskExtractionPanel({
       needsRegeneration,
       lastExecutionId,
       lastTraceRunId,
-    }), [generationNotes, lastDraftRunExecutionId, lastDraftTraceRunId, period.endMs, period.startMs, selectedTaskSectionIds, session.sessionId, skipTaskSections, testAssertions, testReasoning])
+    }), [generationNotes, lastDraftRunExecutionId, lastDraftTraceRunId, testPeriod.endMs, testPeriod.startMs, selectedTaskSectionIds, session.sessionId, skipTaskSections, testAssertions, testReasoning])
 
   const persistTestDraft = useCallback(async (extraction: WorkspaceTestExtraction, source: string, draftId: string | null, title: string, needsRegeneration: boolean, lastExecutionId?: string | null, lastTraceRunId?: string | null) => {
     const payload = testDraftSavePayload(extraction, source, draftId, title, needsRegeneration, lastExecutionId, lastTraceRunId)
@@ -266,12 +273,13 @@ export function TaskExtractionPanel({
         setTestTitle(chosen.title)
         setTaskName(chosen.title)
         const restoredSectionIds = chosen.skipTaskSections ? [] : chosen.taskSectionIds.filter((id) => taskSectionAnnotations.some((annotation) => annotation.annotationId === id))
+        const missingSelectedAnnotations = !chosen.skipTaskSections && restoredSectionIds.length !== chosen.taskSectionIds.length
         setSelectedTaskSectionIds(restoredSectionIds)
         setSkipTaskSections(restoredSectionIds.length === 0)
         setTestAssertions(chosen.assertions)
         setGenerationNotes(chosen.generationNotes)
         setTestReasoning(agentReasoningModes.some((mode) => mode.value === chosen.reasoning) ? chosen.reasoning as AgentReasoning : defaultAgentReasoning)
-        setIsTestDraftStale(chosen.needsRegeneration)
+        setIsTestDraftStale(chosen.needsRegeneration || missingSelectedAnnotations)
         setLastDraftRunExecutionId(chosen.lastExecutionId ?? null)
         setLastDraftTraceRunId(chosen.lastTraceRunId ?? null)
         setTestDraftSaveStatus('saved')
@@ -533,7 +541,7 @@ export function TaskExtractionPanel({
             const end = Date.parse(annotation.endUtc ?? '')
             return !!annotation.annotationId && !!annotation.label?.trim()
               && Number.isFinite(start) && Number.isFinite(end)
-              && start >= period.startMs && end <= period.endMs && end > start
+              && end > start
           })
           .sort((left, right) => Date.parse(left.startUtc ?? '') - Date.parse(right.startUtc ?? ''))
         if (!active) return
@@ -542,7 +550,8 @@ export function TaskExtractionPanel({
         const availableIds = annotations.map((annotation) => annotation.annotationId!)
         const nextSelectedIds = initialSkipTaskSections ? [] : initialSelectedTaskSectionIds
           ? initialSelectedTaskSectionIds.filter((id) => availableIds.includes(id))
-          : availableIds
+          : annotations.filter((annotation) => Date.parse(annotation.startUtc!) >= period.startMs
+            && Date.parse(annotation.endUtc!) <= period.endMs).map((annotation) => annotation.annotationId!)
         setSelectedTaskSectionIds(nextSelectedIds)
         setSkipTaskSections(nextSelectedIds.length === 0)
       } catch (error) {
@@ -951,8 +960,8 @@ export function TaskExtractionPanel({
       const response = await fetch('api/task-extractions/test-preview', {
         body: JSON.stringify({
           sessionId: session.sessionId,
-          startUtc: new Date(period.startMs).toISOString(),
-          endUtc: new Date(period.endMs).toISOString(),
+          startUtc: new Date(testPeriod.startMs).toISOString(),
+          endUtc: new Date(testPeriod.endMs).toISOString(),
           title,
           hasExplicitTitle: !!taskName.trim(),
           assertions: testAssertions.split('\n').map((item) => item.trim()).filter(Boolean),
@@ -997,8 +1006,8 @@ export function TaskExtractionPanel({
       const response = await fetch('api/task-extractions/test-save', {
         body: JSON.stringify({
           sessionId: session.sessionId,
-          startUtc: new Date(period.startMs).toISOString(),
-          endUtc: new Date(period.endMs).toISOString(),
+          startUtc: new Date(testPeriod.startMs).toISOString(),
+          endUtc: new Date(testPeriod.endMs).toISOString(),
           title: testTitle,
           source: testSource,
         }),
@@ -1025,8 +1034,8 @@ export function TaskExtractionPanel({
       const response = await fetch('api/task-extractions/test-draft-run', {
         body: JSON.stringify({
           sessionId: session.sessionId,
-          startUtc: new Date(period.startMs).toISOString(),
-          endUtc: new Date(period.endMs).toISOString(),
+          startUtc: new Date(testPeriod.startMs).toISOString(),
+          endUtc: new Date(testPeriod.endMs).toISOString(),
           source: testSource,
           taskSectionIds: skipTaskSections ? [] : selectedTaskSectionIds,
           taskExtractionIds: includedTaskDrafts.map((item) => item.extractionId),
@@ -1397,6 +1406,7 @@ export function TaskExtractionPanel({
                 {format === 'test' ? <TestTaskSectionIntake
                   annotations={taskSectionAnnotations}
                   isLoading={isLoadingTaskSections}
+                  period={period}
                   onAddAnnotation={() => onAnnotateOnReplay(null, { name: taskName, assertions: testAssertions, generationNotes, selectedTaskSectionIds, skipTaskSections })}
                   onEditAnnotation={(annotationId) => onAnnotateOnReplay(annotationId, { name: taskName, assertions: testAssertions, generationNotes, selectedTaskSectionIds, skipTaskSections })}
                   onExtractTask={extractAnnotatedTask}
@@ -1405,7 +1415,7 @@ export function TaskExtractionPanel({
                   selectedIds={selectedTaskSectionIds}
                   taskExtractions={taskSectionExtractions}
                 /> : null}
-                <div className="local-admin-section-heading"><div><Code /><span><strong>{format === 'test' ? '' : '1. '}Generate {format === 'test' ? 'Ansight test' : format === 'maestro' ? 'Maestro flow' : 'Appium test'}</strong><small>Use the interactions in this timeline period</small></span></div></div>
+                <div className="local-admin-section-heading"><div><Code /><span><strong>{format === 'test' ? '' : '1. '}Generate {format === 'test' ? 'Ansight test' : format === 'maestro' ? 'Maestro flow' : 'Appium test'}</strong><small>{format === 'test' ? 'Use the selected annotations and replay' : 'Use the interactions in this timeline period'}</small></span></div></div>
                 <label htmlFor="local-external-task-name">Name
                   <input id="local-external-task-name" maxLength={200} onChange={(event) => { setTaskName(event.target.value); if (format === 'test') markTestDraftStale() }} placeholder={format === 'test' ? 'AI will name the test from the selected journey' : session.name || `Recorded ${session.appId} workflow`} type="text" value={taskName} />
                 </label>
@@ -1567,7 +1577,7 @@ export function TaskExtractionPanel({
               <section className="local-admin-section local-admin-section--grow">
                 <div className="local-admin-section-heading"><div><Code /><span><strong>{format === 'test' ? 'Review Ansight test YAML' : '2. Review draft'}</strong>{format !== 'test' ? <small>{externalDraft ? `${externalDraft.generatedActionCount} recorded actions` : 'Generate a draft to continue'}</small> : null}</span></div></div>
                 {externalDraft ? <>
-                  {format === 'test' && isTestDraftStale ? <p className="local-task-extraction-hint"><WarningCircle />Task sections changed. Regenerate the YAML draft to include the current selection.</p> : null}
+                  {format === 'test' && isTestDraftStale ? <p className="local-task-extraction-hint"><WarningCircle />Selected annotations changed. Regenerate the YAML draft before running.</p> : null}
                   {format !== 'test' ? <><p className="local-task-extraction-hint">Check the starting state, selectors, text values, and intended outcome. Add an assertion before testing.</p><label htmlFor="local-external-source">{format === 'maestro' ? 'Maestro YAML' : 'Appium JavaScript'}</label></> : null}
                   {format === 'test' ? <YamlTestEditor onChange={updateTestSource} source={testSource} validationError={externalValidation?.status === 'failed' ? externalValidation.message : null} /> : <textarea
                     className="local-maestro-source"
