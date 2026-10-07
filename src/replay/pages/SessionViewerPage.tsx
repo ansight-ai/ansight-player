@@ -57,6 +57,7 @@ import { LiveVisualTreeCaptureToolbar, type LiveVisualTreeSource } from '../Live
 import { selectFrameForVisualTree } from '../visualTreeFrame'
 import { DetailRow } from '../../components/DetailRow'
 import { EmptyState } from '../../components/EmptyState'
+import { GithubRepositoryBadge } from '../../components/GithubRepositoryBadge'
 import { PageHeader } from '../../components/PageHeader'
 import { loadPlayerCurrentUserId } from '../../adapters/cloudPlayerAdapter'
 import {
@@ -339,6 +340,7 @@ type SessionImageUrlBatch = {
 export type SessionViewerSource = {
   mode: 'cloud' | 'local'
   loadPayload: (sessionId: string, superAdminMode: boolean) => Promise<SessionViewerPayload>
+  runLocalSummary?: (sessionId: string) => Promise<void>
   loadAiReadState?: (sessionId: string) => Promise<SessionAiReadState>
   createAiExtraction?: (request: CreateSessionAiExtractionRequest) => Promise<string>
   invokeAiExtraction?: (runId: string) => Promise<void>
@@ -688,6 +690,8 @@ export function SessionViewerPage({
   onAiViewKindChange,
   onSessionInfoOpenChange,
   onTaskExtractionRequested,
+  annotationWorkflowRequest,
+  onAnnotationSaved,
   replayPanelOverride,
   refreshKey,
   sessionId,
@@ -707,6 +711,8 @@ export function SessionViewerPage({
   onAiViewKindChange?: (kind: SessionAiExtractionKind | null) => void
   onSessionInfoOpenChange?: (isOpen: boolean) => void
   onTaskExtractionRequested?: (selection: TimelineEditSelection) => void
+  annotationWorkflowRequest?: { id: number; annotationId: string | null } | null
+  onAnnotationSaved?: (annotation: SessionAnnotation) => void
   replayPanelOverride?: ReactNode | ((context: SessionReplayPanelContext) => ReactNode)
   refreshKey?: string | number
   sessionId: string
@@ -757,6 +763,8 @@ export function SessionViewerPage({
   const [archivingAiRunId, setArchivingAiRunId] = useState<string | null>(null)
   const [showArchivedAiRuns, setShowArchivedAiRuns] = useState(false)
   const [aiMessage, setAiMessage] = useState<string | null>(null)
+  const [isLocalSummaryRunning, setIsLocalSummaryRunning] = useState(false)
+  const [localSummaryMessage, setLocalSummaryMessage] = useState<string | null>(null)
   const [attachments, setAttachments] = useState<SessionAttachment[]>([])
   const [canAttachToSession, setCanAttachToSession] = useState(false)
   const [canManageSession, setCanManageSession] = useState(false)
@@ -779,6 +787,7 @@ export function SessionViewerPage({
   const [isTimelineRangeSelecting, setIsTimelineRangeSelecting] = useState(false)
   const [timelineEditSelection, setTimelineEditSelection] = useState<TimelineEditSelection | null>(null)
   const [annotationEditorDraft, setAnnotationEditorDraft] = useState<AnnotationEditorDraft | null>(null)
+  const lastAnnotationWorkflowIdRef = useRef<number | null>(null)
   const [isAnnotationSubmitting, setIsAnnotationSubmitting] = useState(false)
   const [selectedFrameImageContentBounds, setSelectedFrameImageContentBounds] = useState<SessionFrameImageContentBounds | null>(null)
   const [showTouchLocations, setShowTouchLocations] = useState(true)
@@ -1328,6 +1337,29 @@ export function SessionViewerPage({
   const metrics = useMemo(() => sortMetrics(captureSession?.metrics ?? []), [captureSession?.metrics])
   const metricChannels = useMemo(() => sortMetricChannels(captureSession?.metricChannels ?? []), [captureSession?.metricChannels])
   const annotations = useMemo(() => sortAnnotations(captureSession?.annotations ?? []), [captureSession?.annotations])
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      if (!annotationWorkflowRequest) {
+        if (lastAnnotationWorkflowIdRef.current !== null) {
+          setIsTimelineRangeSelecting(false)
+          setTimelineEditSelection(null)
+        }
+        lastAnnotationWorkflowIdRef.current = null
+        return
+      }
+      if (!payload || !source.upsertAnnotation || lastAnnotationWorkflowIdRef.current === annotationWorkflowRequest.id) return
+      if (annotationWorkflowRequest.annotationId) {
+        const annotation = annotations.find((candidate, index) => resolveAnnotationId(candidate, index) === annotationWorkflowRequest.annotationId)
+        if (!annotation) return
+        setAnnotationEditorDraft({ annotation: cloneAnnotationForEditing(annotation) })
+      } else {
+        setTimelineEditSelection(null)
+        setIsTimelineRangeSelecting(true)
+      }
+      lastAnnotationWorkflowIdRef.current = annotationWorkflowRequest.id
+    }, 0)
+    return () => window.clearTimeout(timeout)
+  }, [annotationWorkflowRequest, annotations, payload, source.upsertAnnotation])
   const visualTrees = useMemo(() => sortVisualTrees(captureSession?.visualTreeSnapshots ?? []), [captureSession?.visualTreeSnapshots])
   const artifactSnapshots = useMemo(() => sortArtifactSnapshots(captureSession?.artifactSnapshots ?? []), [captureSession?.artifactSnapshots])
   const timelineMetricIndex = useMemo(() => buildTimelineMetricIndex(metricChannels, metrics), [metricChannels, metrics])
@@ -1692,12 +1724,9 @@ export function SessionViewerPage({
 
     setSelectedVisualTreeSnapshotKey(null)
     setSelectedArtifactSnapshotKey(null)
-    const resolvedFocusTimestampMs = endTimestampMs === null
-      ? focusTimestampMs
-      : Math.max(startTimestampMs, endTimestampMs)
     setScrubAtMs(endTimestampMs === null
-      ? resolveScrubSelection(resolvedFocusTimestampMs, timelineRange, isLiveSession)
-      : clamp(resolvedFocusTimestampMs, timelineRange.startMs, timelineRange.endMs))
+      ? resolveScrubSelection(focusTimestampMs, timelineRange, isLiveSession)
+      : clamp(focusTimestampMs, timelineRange.startMs, timelineRange.endMs))
     setAnnotationEditorDraft({
       annotation: createTimelineAnnotation(startTimestampMs, endTimestampMs),
     })
@@ -1750,6 +1779,7 @@ export function SessionViewerPage({
         setActiveTab('annotations')
         setAnnotationEditorDraft(null)
         setSessionActionMessage({ kind: 'success', message: resultMessage })
+        onAnnotationSaved?.(annotation)
       }
     } catch (error) {
       setSessionActionMessage({
@@ -1801,6 +1831,25 @@ export function SessionViewerPage({
         : [...current.sourceParts, part]
       return { ...current, sourceParts }
     })
+  }
+
+  async function handleRunLocalSummary() {
+    if (!source.runLocalSummary || isLocalSummaryRunning) return
+    setIsLocalSummaryRunning(true)
+    setLocalSummaryMessage(null)
+    try {
+      await source.runLocalSummary(sessionId)
+      const nextPayload = await source.loadPayload(sessionId, superAdminMode)
+      const hydratedPayload = await (source.hydratePayload?.(nextPayload) ?? Promise.resolve(nextPayload))
+      if (activeSessionIdRef.current === sessionId) {
+        setPayload(hydratedPayload)
+        setLocalSummaryMessage('Summary saved with this local session.')
+      }
+    } catch (error) {
+      setLocalSummaryMessage(getErrorMessage(error, 'Unable to run a local session summary.'))
+    } finally {
+      setIsLocalSummaryRunning(false)
+    }
   }
 
   async function handleCreateAiExtraction(extractionKind: SessionAiExtractionKind = aiForm.kind, formOverride?: SessionAiForm) {
@@ -2155,6 +2204,7 @@ export function SessionViewerPage({
   const artifactDownloadCommand = !isLocalReplay ? `ansight cloud session download ${session.id}` : undefined
   const hasCloudAiSource = !!source.loadAiReadState
   const showCloudAiActions = hasCloudAiSource
+  const showSummaryAction = hasCloudAiSource || !!source.runLocalSummary
   const canRunCloudAi = hasCloudAiSource
     && !!source.createAiExtraction
     && !!source.archiveAiExtraction
@@ -2197,17 +2247,22 @@ export function SessionViewerPage({
     }
   }
 
-  function selectTimelineEditRange(startMs: number, endMs: number) {
+  function selectTimelineEditRange(startMs: number, endMs: number, focusMs: number) {
     const normalizedStartMs = Math.min(startMs, endMs)
     const normalizedEndMs = Math.max(startMs, endMs)
+    if (annotationWorkflowRequest && !annotationWorkflowRequest.annotationId) {
+      setIsTimelineRangeSelecting(false)
+      openTimelineAnnotationEditor(normalizedStartMs, normalizedEndMs, focusMs)
+      return
+    }
     setSelectedVisualTreeSnapshotKey(null)
     setSelectedArtifactSnapshotKey(null)
-    setScrubAtMs(clamp(normalizedEndMs, timelineRange.startMs, timelineRange.endMs))
+    setScrubAtMs(clamp(focusMs, timelineRange.startMs, timelineRange.endMs))
     setIsTimelineRangeSelecting(false)
     setTimelineEditSelection({
       startMs: normalizedStartMs,
       endMs: normalizedEndMs,
-      focusMs: normalizedEndMs,
+      focusMs,
     })
   }
 
@@ -2426,6 +2481,7 @@ export function SessionViewerPage({
             <p className="eyebrow">Session</p>
             <h1>{sessionTitle}</h1>
             <CopyTextButton className="session-id-copy" label={sessionId} text={sessionId} />
+            <GithubRepositoryBadge />
           </div>
           <div className="session-heading-actions">
             {session.storage_layout === 'archive_zip' ? (
@@ -2826,11 +2882,12 @@ export function SessionViewerPage({
           logs={allLogs}
           isLiveSession={isLiveSession}
           onClose={() => updateSessionInfoOpen(false)}
-          onSelectAiView={showCloudAiActions ? setSessionInfoAiKind : undefined}
+          onSelectAiView={showSummaryAction ? setSessionInfoAiKind : undefined}
+          showFlowchart={showCloudAiActions}
           onOptimizeSession={source.optimizeSession ? handleOptimizeSession : undefined}
           showSessionMetadata={isSignedIn}
           session={session}
-          summaryCount={visibleSummaryAiExtractions.length}
+          summaryCount={(isLocalReplay ? 0 : visibleSummaryAiExtractions.length) + (captureSession.analyses?.length ?? 0)}
           flowchartCount={visibleFlowchartAiExtractions.length}
           touches={touches}
           visualTrees={visualTrees}
@@ -2853,11 +2910,14 @@ export function SessionViewerPage({
             archivingAiRunId={archivingAiRunId}
             accessBlock={sessionInfoAiKind === 'analysis' ? summaryAccessBlock : flowchartAccessBlock}
             hasCloudAiCapability={sessionInfoAiKind === 'analysis' ? canGenerateSummary : canGenerateFlowchart}
+            showCloudAiResults={hasCloudAiSource && (!isLocalReplay || sessionInfoAiKind !== 'analysis')}
             isAiLoading={isAiLoading}
             isAiSubmitting={isAiSubmitting}
+            isLocalSummaryRunning={isLocalSummaryRunning}
             kind={sessionInfoAiKind}
             onArchiveAiExtraction={(run, shouldArchive) => void handleArchiveAiExtraction(run, shouldArchive)}
             onCreateAiExtraction={(kind) => void handleCreateAiExtraction(kind)}
+            onRunLocalSummary={source.runLocalSummary ? () => void handleRunLocalSummary() : undefined}
             onRefreshAiExtractions={() => void refreshAiExtractions()}
             onToggleAiSourcePart={toggleAiSourcePart}
             onToggleShowArchivedAiRuns={() => setShowArchivedAiRuns((current) => !current)}
@@ -2865,6 +2925,7 @@ export function SessionViewerPage({
             readOnlyAiExtractions={sessionInfoAiKind === 'analysis' ? !canGenerateSummary : !canGenerateFlowchart}
             showArchivedAiRuns={showArchivedAiRuns}
             sourcePartOptions={aiSourcePartOptions}
+            localSummaryMessage={localSummaryMessage}
             title={sessionInfoAiKind === 'analysis' ? 'Summary' : 'Flowchart'}
           />
         </SessionInfoAiModal>
@@ -3016,7 +3077,7 @@ function TimelineEditModal({
               <Robot aria-hidden="true" />
               <span>
                 <strong>Extract test or task</strong>
-                <small>Generate a Maestro flow, Appium script, or agent task from this period.</small>
+                <small>Generate an Ansight test or task, Maestro flow, or Appium script from this period.</small>
               </span>
             </button>
           ) : null}
@@ -3194,6 +3255,7 @@ function SessionInfoModal({
   onClose,
   onSelectAiView,
   onOptimizeSession,
+  showFlowchart = true,
   showSessionMetadata,
   session,
   summaryCount,
@@ -3215,6 +3277,7 @@ function SessionInfoModal({
   onClose: () => void
   onSelectAiView?: (kind: SessionAiExtractionKind) => void
   onOptimizeSession?: (encodeVideo: boolean, onProgress: (progress: SessionOptimizationProgress) => void) => Promise<SessionOptimizationResult>
+  showFlowchart?: boolean
   showSessionMetadata: boolean
   session: TeamSession
   summaryCount: number
@@ -3373,14 +3436,14 @@ function SessionInfoModal({
                 </span>
                 <span className="status-pill">{summaryCount} {summaryCount === 1 ? 'result' : 'results'}</span>
               </button>
-              <button className="session-info-ai-action" onClick={() => onSelectAiView('mermaid')} type="button">
+              {showFlowchart ? <button className="session-info-ai-action" onClick={() => onSelectAiView('mermaid')} type="button">
                 <Sparkle aria-hidden="true" />
                 <span>
                   <strong>Flowchart</strong>
                   <small>Create or review a visual flow of the captured journey.</small>
                 </span>
                 <span className="status-pill">{flowchartCount} {flowchartCount === 1 ? 'result' : 'results'}</span>
-              </button>
+              </button> : null}
             </div>
           </div>
         ) : null}
@@ -4261,9 +4324,13 @@ function SessionTimelineChart({
       : [],
     [range, showTouchLocations, touches],
   )
-  // FPS is the reference scale on the left; other left-scaled series still plot on their own
-  // maxima but are not labelled. Without FPS the first left axis stands in.
-  const labelledLeftAxisKey = (chart.axes.find((axis) => axis.axisKey === 'fps') ?? chart.axes.find((axis) => axis.kind !== 'memory'))?.axisKey ?? null
+  // FPS is the only labelled left scale. Other series plot on their own maxima;
+  // promoting an arbitrary custom metric here can overflow the fixed axis margin.
+  const fpsAxis = chart.axes.find((axis) => axis.axisKey === 'fps')
+  const labelledLeftAxisKey = fpsAxis?.axisKey ?? null
+  const gridAxis = fpsAxis
+    ?? chart.axes.find((axis) => axis.kind === 'memory')
+    ?? chart.axes[0]
   const gradientBaseId = useId().replace(/:/g, '')
 
   useEffect(() => {
@@ -4342,6 +4409,7 @@ function SessionTimelineChart({
     annotationDraftRef.current = nextDraft
     setAnnotationDraft(nextDraft)
     setHoverProbeAtMs(point.timestampMs)
+    onScrub(point.timestampMs)
     return nextDraft
   }
 
@@ -4357,6 +4425,7 @@ function SessionTimelineChart({
     rangeDraftRef.current = nextDraft
     setRangeDraft(nextDraft)
     setHoverProbeAtMs(point.timestampMs)
+    onScrub(point.timestampMs)
     svg.setPointerCapture(pointerId)
   }
 
@@ -4375,6 +4444,7 @@ function SessionTimelineChart({
     rangeDraftRef.current = nextDraft
     setRangeDraft(nextDraft)
     setHoverProbeAtMs(point.timestampMs)
+    onScrub(point.timestampMs)
     return nextDraft
   }
 
@@ -4403,6 +4473,7 @@ function SessionTimelineChart({
       annotationDraftRef.current = nextDraft
       setAnnotationDraft(nextDraft)
       setHoverProbeAtMs(point.timestampMs)
+      onScrub(point.timestampMs)
       event.currentTarget.setPointerCapture(event.pointerId)
       return
     }
@@ -5073,6 +5144,10 @@ function SessionTimelineChart({
           }))}
         </defs>
         <rect className="timeline-plot-bg" x={plot.left} y={plot.top} width={plotWidth} height={plotHeight} rx="10" />
+        {gridAxis && buildAxisTicks(gridAxis.maximum).map((tick) => {
+          const y = yForAxisValue(tick, gridAxis.maximum)
+          return <line className="timeline-y-grid-line" key={tick} x1={plot.left} x2={plot.left + plotWidth} y1={y} y2={y} />
+        })}
         {chart.axes.map((axis) => {
           const right = axis.kind === 'memory'
           if (!right && axis.axisKey !== labelledLeftAxisKey) {
@@ -5090,7 +5165,6 @@ function SessionTimelineChart({
                 const y = yForAxisValue(tick, axis.maximum)
                 return (
                   <g key={tick}>
-                    {axis.axisKey === (labelledLeftAxisKey ?? chart.axes[0]?.axisKey) ? <line className="timeline-y-grid-line" x1={plot.left} x2={plot.left + plotWidth} y1={y} y2={y} /> : null}
                     <text className="timeline-axis-label" x={axisX} y={y + 3} textAnchor={right ? 'start' : 'end'}>
                       {formatMetricValue(tick / axis.scale, axis)}
                     </text>
@@ -6401,15 +6475,19 @@ function AnalysisSection({
   hasCloudAiCapability,
   isAiLoading,
   isAiSubmitting,
+  isLocalSummaryRunning,
   kind,
+  localSummaryMessage,
   onArchiveAiExtraction,
   onCreateAiExtraction,
+  onRunLocalSummary,
   onRefreshAiExtractions,
   onToggleAiSourcePart,
   onToggleShowArchivedAiRuns,
   onUpdateAiForm,
   readOnlyAiExtractions,
   showArchivedAiRuns,
+  showCloudAiResults,
   sourcePartOptions,
   title,
 }: {
@@ -6424,15 +6502,19 @@ function AnalysisSection({
   hasCloudAiCapability: boolean
   isAiLoading: boolean
   isAiSubmitting: boolean
+  isLocalSummaryRunning: boolean
   kind: SessionAiExtractionKind
+  localSummaryMessage: string | null
   onArchiveAiExtraction: (run: SessionAiExtractionSummary, shouldArchive: boolean) => void
   onCreateAiExtraction: (kind: SessionAiExtractionKind) => void
+  onRunLocalSummary?: () => void
   onRefreshAiExtractions: () => void
   onToggleAiSourcePart: (part: SessionAiSourcePart) => void
   onToggleShowArchivedAiRuns: () => void
   onUpdateAiForm: (updates: Partial<SessionAiForm>) => void
   readOnlyAiExtractions: boolean
   showArchivedAiRuns: boolean
+  showCloudAiResults: boolean
   sourcePartOptions: SessionAiSourcePartOption[]
   title: string
 }) {
@@ -6457,8 +6539,41 @@ function AnalysisSection({
 
   return (
     <div className="analysis-stack">
-      <CloudAiResultsPanel
+      {kind === 'analysis' && onRunLocalSummary ? (
+        <section className="cloud-ai-summary-panel" aria-label="Local session summaries">
+          <div className="cloud-ai-summary-heading">
+            <div>
+              <p className="eyebrow">Local session</p>
+              <h3>Agent summaries</h3>
+              <span>{analyses.length} saved with this capture</span>
+            </div>
+            <button className="button button--primary button--compact" disabled={isLocalSummaryRunning} onClick={onRunLocalSummary} type="button">
+              {isLocalSummaryRunning ? <CircleNotch className="spin" aria-hidden="true" /> : <Sparkle aria-hidden="true" />}
+              {isLocalSummaryRunning ? 'Summarising…' : 'Run summary'}
+            </button>
+          </div>
+          <p className="muted">Uses the existing brokered agent model. Selected evidence is sent for model processing; the result is saved with this local session. No team share is needed.</p>
+          {localSummaryMessage ? <p className="inline-message" role="status">{localSummaryMessage}</p> : null}
+        </section>
+      ) : null}
+      {hasAnalyses ? (
+        <div className="analysis-list">
+          {analyses.map((analysis, index) => (
+            <article className="analysis-entry" key={analysis.analysisId || index}>
+              <div>
+                <p className="eyebrow">{analysis.analysisKind || 'Ansight analysis'}</p>
+                <h3>{analysis.agentId || 'Ansight agent'}</h3>
+                <span>{formatDateTime(analysis.completedUtc || analysis.startedUtc)}</span>
+              </div>
+              {analysis.finalResponse ? <MarkdownContent source={analysis.finalResponse} /> : <p className="muted">{analysis.statusMessage || 'No final response was captured.'}</p>}
+              {analysis.mermaidDefinition ? <MermaidPreview definition={analysis.mermaidDefinition} /> : null}
+            </article>
+          ))}
+        </div>
+      ) : null}
+      {showCloudAiResults ? <CloudAiResultsPanel
         accessBlock={accessBlock}
+        actionLabelOverride={kind === 'analysis' && onRunLocalSummary ? 'Run cloud summary' : undefined}
         aiDurationFeedback={aiDurationFeedback}
         aiExtractions={aiExtractions}
         aiMessage={aiMessage}
@@ -6480,23 +6595,7 @@ function AnalysisSection({
         title={title}
         onArchiveRun={onArchiveAiExtraction}
         onToggleShowArchived={onToggleShowArchivedAiRuns}
-      />
-
-      {hasAnalyses ? (
-        <div className="analysis-list">
-          {analyses.map((analysis, index) => (
-            <article className="analysis-entry" key={analysis.analysisId || index}>
-              <div>
-                <p className="eyebrow">{analysis.analysisKind || 'Ansight analysis'}</p>
-                <h3>{analysis.agentId || 'Ansight agent'}</h3>
-                <span>{formatDateTime(analysis.completedUtc || analysis.startedUtc)}</span>
-              </div>
-              {analysis.finalResponse ? <MarkdownContent source={analysis.finalResponse} /> : <p className="muted">{analysis.statusMessage || 'No final response was captured.'}</p>}
-              {analysis.mermaidDefinition ? <MermaidPreview definition={analysis.mermaidDefinition} /> : null}
-            </article>
-          ))}
-        </div>
-      ) : null}
+      /> : null}
 
       {isCloudAiModalOpen && usesConfigurationModal ? (
         <CloudAiExtractionModal
@@ -6528,6 +6627,7 @@ function AnalysisSection({
 
 function CloudAiResultsPanel({
   accessBlock,
+  actionLabelOverride,
   aiDurationFeedback,
   aiExtractions,
   aiMessage,
@@ -6544,6 +6644,7 @@ function CloudAiResultsPanel({
   title,
 }: {
   accessBlock: CloudAiAccessBlock | null
+  actionLabelOverride?: string
   aiDurationFeedback: SessionAiDurationFeedback | null
   aiExtractions: SessionAiExtractionSummary[]
   aiMessage: string | null
@@ -6563,7 +6664,7 @@ function CloudAiResultsPanel({
   const publishedRuns = aiExtractions.filter(isPublishedAiRun)
   const historyRuns = readOnly ? publishedRuns : aiExtractions
   const sectionTitle = kind === 'analysis' ? 'Session summaries' : 'Session flowcharts'
-  const actionLabel = kind === 'analysis' ? 'Run summary' : 'New flowchart'
+  const actionLabel = actionLabelOverride ?? (kind === 'analysis' ? 'Run summary' : 'New flowchart')
   const savedLabel = readOnly
     ? `${formatTokenCount(publishedRuns.length)} saved`
     : `${formatTokenCount(publishedRuns.length)} published`

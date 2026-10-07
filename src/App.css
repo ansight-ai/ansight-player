@@ -3857,6 +3857,41 @@
   overflow-wrap: anywhere;
 }
 
+.ansight-github-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 6px 10px;
+  color: var(--text-primary);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.ansight-github-badge:hover,
+.ansight-github-badge:focus-visible {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.ansight-github-badge svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+.session-title-block > .ansight-github-badge {
+  margin: 9px 0 0 8px;
+  vertical-align: top;
+}
+
 .session-heading-actions {
   grid-area: actions;
   display: flex;

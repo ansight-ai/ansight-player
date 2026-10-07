@@ -44,6 +44,7 @@ const artifactComparison: ArtifactComparisonSource = {
 
 export const localReplaySource: SessionViewerSource = {
   mode: 'local',
+  runLocalSummary: runLocalSummary,
   artifactComparison,
   artifactFileOperations: {
     listApplications: listLocalArtifactApplications,
@@ -71,6 +72,18 @@ export const localReplaySource: SessionViewerSource = {
     window.location.href,
   ).toString(),
   upsertAnnotation: upsertLocalAnnotation,
+}
+
+async function runLocalSummary(sessionId: string): Promise<void> {
+  const response = await fetch(`api/sessions/${encodeURIComponent(sessionId)}/local-summary`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+  })
+  const result = await response.json().catch(() => null) as { isSuccess: boolean; message?: string } | null
+  if (!response.ok || !result?.isSuccess) {
+    throw new Error(result?.message || `Unable to run a local session summary: HTTP ${response.status}`)
+  }
 }
 
 export type LocalSessionOptimizationOptions = {

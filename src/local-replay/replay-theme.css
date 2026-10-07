@@ -2236,6 +2236,14 @@
   background: var(--rp-panel);
 }
 
+.local-replay-root .local-session-storage-settings .local-admin-checkbox input[type="checkbox"] {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  accent-color: var(--accent);
+}
+
 /* ---------- Collapsed explorer ---------- */
 
 .local-replay-root.local-replay-root--collapsed::after {

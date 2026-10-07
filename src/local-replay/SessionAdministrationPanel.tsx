@@ -1,57 +1,46 @@
-import { ArrowClockwise, CircleNotch, DownloadSimple, FloppyDisk, HardDrives, MagnifyingGlass, PushPin, Trash, UploadSimple, WifiSlash, X } from '@phosphor-icons/react'
+import { ArrowClockwise, CircleNotch, FloppyDisk, HardDrives, MagnifyingGlass, PushPin, Trash, UploadSimple, WifiSlash, X } from '@phosphor-icons/react'
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import type { LocalOperationResult, LocalSessionCachePlan, LocalSessionSummary } from './types'
 
-type SessionMetadata = {
-  sessionId: string
-  name?: string | null
-  isPinned: boolean
-  tags: string[]
-  notes?: string | null
+type SessionStorageSettings = {
+  sessionAutoCleanupEnabled: boolean
+  sessionAutoCleanupRetentionDays: number
+  sessionAutoCompactionAgeDays: number
+  sessionAutoCleanupMaximumCacheBytes: number
 }
+
+const cacheSizeOptions = [512, 1024, 2048, 5120, 10240, 25600, 51200].map((megabytes) => megabytes * 1024 * 1024)
 
 export function SessionAdministrationPanel({
   onClose,
   onSessionsChanged,
-  selectedSession,
   sessions,
 }: {
   onClose: () => void
   onSessionsChanged: () => void
-  selectedSession: LocalSessionSummary | null
   sessions: LocalSessionSummary[]
 }) {
-  const [metadata, setMetadata] = useState<SessionMetadata | null>(null)
-  const [name, setName] = useState('')
-  const [tags, setTags] = useState('')
-  const [notes, setNotes] = useState('')
-  const [isPinned, setIsPinned] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [activeView, setActiveView] = useState<SessionAdministrationView>(selectedSession ? 'session' : 'bulk')
+  const [activeView, setActiveView] = useState<SessionAdministrationView>('storage')
   const [bulkQuery, setBulkQuery] = useState('')
   const [cachePlan, setCachePlan] = useState<LocalSessionCachePlan | null>(null)
+  const [storageSettings, setStorageSettings] = useState<SessionStorageSettings | null>(null)
+  const [storageDraft, setStorageDraft] = useState<SessionStorageSettings | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [pendingOperation, setPendingOperation] = useState<string | null>(null)
   const importInputRef = useRef<HTMLInputElement>(null)
 
-  const loadMetadata = useCallback(async () => {
-    if (!selectedSession) {
-      setMetadata(null)
-      return
-    }
+  const loadStorageSettings = useCallback(async () => {
     try {
-      const response = await fetch(`api/sessions/${encodeURIComponent(selectedSession.sessionId)}`, { cache: 'no-store' })
+      const response = await fetch('api/settings/session-storage', { cache: 'no-store' })
       if (!response.ok) throw new Error(await readError(response))
-      const next = await response.json() as SessionMetadata
-      setMetadata(next)
-      setName(next.name ?? '')
-      setTags(next.tags.join(', '))
-      setNotes(next.notes ?? '')
-      setIsPinned(next.isPinned)
+      const next = await response.json() as SessionStorageSettings
+      setStorageSettings(next)
+      setStorageDraft(next)
     } catch (error) {
-      setMessage(resolveError(error, 'Unable to load session metadata.'))
+      setMessage(resolveError(error, 'Unable to load session storage settings.'))
     }
-  }, [selectedSession])
+  }, [])
 
   const loadCachePlan = useCallback(async () => {
     try {
@@ -64,9 +53,9 @@ export function SessionAdministrationPanel({
   }, [])
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => void loadMetadata(), 0)
+    const timeout = window.setTimeout(() => void loadStorageSettings(), 0)
     return () => window.clearTimeout(timeout)
-  }, [loadMetadata])
+  }, [loadStorageSettings])
   useEffect(() => {
     const timeout = window.setTimeout(() => void loadCachePlan(), 0)
     return () => window.clearTimeout(timeout)
@@ -82,28 +71,19 @@ export function SessionAdministrationPanel({
   }, [bulkQuery, sessions])
   const areAllVisibleSelected = visibleSessions.length > 0
     && visibleSessions.every((session) => selectedIds.has(session.sessionId))
+  const hasStorageChanges = storageSettings !== null && storageDraft !== null
+    && JSON.stringify(storageSettings) !== JSON.stringify(storageDraft)
 
-  async function saveMetadata(event: FormEvent) {
+  async function saveStorageSettings(event: FormEvent) {
     event.preventDefault()
-    if (!selectedSession || pendingOperation) return
+    if (!storageDraft || pendingOperation) return
     const wasSaved = await runJsonOperation(
-      'save-metadata',
-      `api/sessions/${encodeURIComponent(selectedSession.sessionId)}/metadata`,
-      { isPinned, tags: tags.split(',').map((tag) => tag.trim()).filter(Boolean), notes: notes.trim() || null, name: name.trim() || null },
-      'Session metadata saved.',
+      'save-storage-settings',
+      'api/settings/session-storage',
+      storageDraft,
+      'Session storage settings saved.',
     )
-    if (wasSaved) await loadMetadata()
-  }
-
-  async function runSelectedSessionOperation(operation: 'disconnect' | 'delete') {
-    if (!selectedSession) return
-    if (operation === 'delete' && !window.confirm('Delete this session permanently?')) return
-    await runJsonOperation(
-      operation,
-      `api/sessions/${encodeURIComponent(selectedSession.sessionId)}/${operation}`,
-      {},
-      operation === 'delete' ? 'Session deleted.' : 'Live session disconnected.',
-    )
+    if (wasSaved) setStorageSettings(storageDraft)
   }
 
   async function runBulkOperation(operation: 'pin' | 'unpin' | 'disconnect' | 'delete') {
@@ -196,34 +176,14 @@ export function SessionAdministrationPanel({
     }}>
       <section aria-label="Session storage" aria-modal="true" className="local-admin-panel local-admin-panel--wide local-session-admin-panel" role="dialog">
         <header className="local-admin-header">
-          <div><p className="eyebrow">Session storage</p><span>Edit, transfer and clean up recorded sessions</span></div>
+          <div><p className="eyebrow">Session storage</p><span>Import captures and manage local storage</span></div>
           <button aria-label="Close session storage" className="local-icon-button" disabled={!!pendingOperation} onClick={onClose} type="button"><X aria-hidden="true" /></button>
         </header>
         {message ? <p className="inline-message local-admin-message">{message}</p> : null}
         <nav aria-label="Session storage sections" className="local-session-admin-tabs">
-          <button aria-current={activeView === 'session' ? 'page' : undefined} className={activeView === 'session' ? 'local-session-admin-tab--active' : undefined} onClick={() => setActiveView('session')} type="button"><FloppyDisk aria-hidden="true" /><span>Session</span></button>
-          <button aria-current={activeView === 'bulk' ? 'page' : undefined} className={activeView === 'bulk' ? 'local-session-admin-tab--active' : undefined} onClick={() => setActiveView('bulk')} type="button"><PushPin aria-hidden="true" /><span>Bulk actions</span>{bulkCandidates.length > 0 ? <i>{bulkCandidates.length}</i> : null}</button>
           <button aria-current={activeView === 'storage' ? 'page' : undefined} className={activeView === 'storage' ? 'local-session-admin-tab--active' : undefined} onClick={() => setActiveView('storage')} type="button"><HardDrives aria-hidden="true" /><span>Storage</span></button>
+          <button aria-current={activeView === 'bulk' ? 'page' : undefined} className={activeView === 'bulk' ? 'local-session-admin-tab--active' : undefined} onClick={() => setActiveView('bulk')} type="button"><PushPin aria-hidden="true" /><span>Bulk actions</span>{bulkCandidates.length > 0 ? <i>{bulkCandidates.length}</i> : null}</button>
         </nav>
-        {activeView === 'session' ? (
-          <main className="local-session-admin-view">
-            <section className="local-admin-section local-session-admin-details">
-              <div className="local-admin-section-heading"><div><FloppyDisk aria-hidden="true" /><span><strong>Selected session</strong><small>{selectedSession?.name || selectedSession?.clientName || 'Choose a session in the explorer'}</small></span></div></div>
-              {selectedSession && metadata ? <form className="local-admin-form" onSubmit={saveMetadata}>
-                <label>Name<input onChange={(event) => setName(event.target.value)} value={name} /></label>
-                <label>Tags<input onChange={(event) => setTags(event.target.value)} placeholder="release, regression" value={tags} /></label>
-                <label className="local-admin-form--wide">Notes<textarea onChange={(event) => setNotes(event.target.value)} rows={5} value={notes} /></label>
-                <label className="local-admin-checkbox"><input checked={isPinned} onChange={(event) => setIsPinned(event.target.checked)} type="checkbox" /><PushPin aria-hidden="true" />Pinned</label>
-                <div className="local-admin-actions local-admin-form--wide">
-                  <button className="button button--primary" disabled={!!pendingOperation} type="submit">Save changes</button>
-                  <a className="button button--secondary" download href={`api/sessions/${encodeURIComponent(selectedSession.sessionId)}/export`}><DownloadSimple aria-hidden="true" />Export archive</a>
-                  <button className="button button--secondary" disabled={!selectedSession.isConnected || !!pendingOperation} onClick={() => void runSelectedSessionOperation('disconnect')} type="button"><WifiSlash aria-hidden="true" />Disconnect</button>
-                  <button className="button button--danger" disabled={selectedSession.isConnected || !!pendingOperation} onClick={() => void runSelectedSessionOperation('delete')} type="button"><Trash aria-hidden="true" />Delete</button>
-                </div>
-              </form> : <div className="local-admin-empty">{selectedSession ? <CircleNotch aria-hidden="true" className="spin" /> : <FloppyDisk aria-hidden="true" />}<span>{selectedSession ? 'Loading session details' : 'Choose a session in the explorer first.'}</span></div>}
-            </section>
-          </main>
-        ) : null}
         {activeView === 'bulk' ? (
           <main className="local-session-admin-view local-session-admin-view--bulk">
             <div className="local-session-bulk-toolbar">
@@ -278,6 +238,21 @@ export function SessionAdministrationPanel({
                   </div>
                 </> : <div className="local-admin-empty"><CircleNotch aria-hidden="true" className="spin" /><span>Inspecting storage</span></div>}
               </section>
+              <section className="local-admin-section local-session-storage-settings">
+                <div className="local-admin-section-heading"><div><HardDrives aria-hidden="true" /><span><strong>Cleanup settings</strong><small>Control automatic cleanup and manual cleanup candidates</small></span></div></div>
+                {storageDraft ? <form className="local-admin-form" onSubmit={saveStorageSettings}>
+                  <label className="local-admin-checkbox local-admin-form--wide"><input checked={storageDraft.sessionAutoCleanupEnabled} onChange={(event) => setStorageDraft({ ...storageDraft, sessionAutoCleanupEnabled: event.target.checked })} type="checkbox" />Automatic cleanup</label>
+                  <p className="local-session-storage-help local-admin-form--wide">Automatic cleanup compacts older captures and removes unpinned, inactive sessions only when the cache exceeds its limit.</p>
+                  <label>Manual cleanup age (days)<input max="365" min="1" onChange={(event) => setStorageDraft({ ...storageDraft, sessionAutoCleanupRetentionDays: Number(event.target.value) })} required type="number" value={storageDraft.sessionAutoCleanupRetentionDays} /></label>
+                  <label>Compact after (days)<input max="365" min="1" onChange={(event) => setStorageDraft({ ...storageDraft, sessionAutoCompactionAgeDays: Number(event.target.value) })} required type="number" value={storageDraft.sessionAutoCompactionAgeDays} /></label>
+                  <label className="local-admin-form--wide">Maximum session cache<select onChange={(event) => setStorageDraft({ ...storageDraft, sessionAutoCleanupMaximumCacheBytes: Number(event.target.value) })} value={storageDraft.sessionAutoCleanupMaximumCacheBytes}>
+                    {!cacheSizeOptions.includes(storageDraft.sessionAutoCleanupMaximumCacheBytes) ? <option value={storageDraft.sessionAutoCleanupMaximumCacheBytes}>{formatBytes(storageDraft.sessionAutoCleanupMaximumCacheBytes)}</option> : null}
+                    {cacheSizeOptions.map((bytes) => <option key={bytes} value={bytes}>{formatBytes(bytes)}</option>)}
+                  </select></label>
+                  <p className="local-session-storage-help local-admin-form--wide">Manual pruning includes old sessions even below the cache limit. Pinned and live sessions are protected.</p>
+                  <div className="local-admin-actions local-admin-form--wide"><button className="button button--primary" disabled={!hasStorageChanges || !!pendingOperation} type="submit"><FloppyDisk aria-hidden="true" />Save settings</button></div>
+                </form> : <div className="local-admin-empty"><CircleNotch aria-hidden="true" className="spin" /><span>Loading cleanup settings</span></div>}
+              </section>
             </div>
           </main>
         ) : null}
@@ -296,4 +271,4 @@ function formatBytes(bytes: number): string {
 async function readError(response: Response): Promise<string> { try { return ((await response.json()) as { message?: string }).message || `HTTP ${response.status}` } catch { return `HTTP ${response.status}` } }
 function resolveError(error: unknown, fallback: string): string { return error instanceof Error && error.message ? error.message : fallback }
 
-type SessionAdministrationView = 'session' | 'bulk' | 'storage'
+type SessionAdministrationView = 'bulk' | 'storage'

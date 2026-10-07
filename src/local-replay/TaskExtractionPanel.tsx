@@ -2,7 +2,9 @@ import { ArrowClockwise, Bug, ChartBar, CheckCircle, CircleNotch, Clock, Code, C
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { agentReasoningModes, defaultAgentReasoning, type AgentReasoning } from '../agentReasoning'
 import { TypeScriptTaskEditor, type TypeScriptEditorDiagnostics } from './TypeScriptTaskEditor'
-import type { AppiumScriptExtraction, LocalOperationResult, LocalSessionSummary, LocalTaskAuthoringReference, LocalTaskAuthoringReferenceCatalog, LocalTaskExtraction, LocalTaskExtractionCapabilities, LocalTaskExtractionFailureDebugResult, LocalTaskExtractionTrace, MaestroFlowExtraction } from './types'
+import { TestTaskSectionIntake } from './TestTaskSectionIntake'
+import type { SessionAnnotation } from '../replay/sessionViewerData'
+import type { AppiumScriptExtraction, LocalOperationResult, LocalSessionSummary, LocalTaskAuthoringReference, LocalTaskAuthoringReferenceCatalog, LocalTaskExtraction, LocalTaskExtractionCapabilities, LocalTaskExtractionFailureDebugResult, LocalTaskExtractionTrace, MaestroFlowExtraction, WorkspaceTestExtraction } from './types'
 
 type SelectedPeriod = {
   startMs: number
@@ -10,23 +12,41 @@ type SelectedPeriod = {
   focusMs: number
 }
 
-type ExtractionFormat = 'ansight' | 'maestro' | 'appium'
+type ExtractionFormat = 'ansight' | 'test' | 'maestro' | 'appium'
 type ExternalDraftResult = { status: 'passed' | 'failed'; message: string; output: string }
 
 export function TaskExtractionPanel({
+  initialDescription,
+  initialFormat,
+  initialSelectedTaskSectionIds,
+  initialSkipTaskSections,
+  initialTaskName,
+  initialTestAssertions,
+  onAnnotateOnReplay,
   onClose,
+  onExtractTask,
+  onReturnToTest,
   period,
   session,
   sessions,
 }: {
+  initialDescription?: string
+  initialFormat?: ExtractionFormat
+  initialSelectedTaskSectionIds?: string[]
+  initialSkipTaskSections?: boolean
+  initialTaskName?: string
+  initialTestAssertions?: string
+  onAnnotateOnReplay: (annotationId: string | null, returnTest: { name: string; assertions: string; selectedTaskSectionIds: string[]; skipTaskSections: boolean }) => void
   onClose: () => void
+  onExtractTask: (section: { period: SelectedPeriod; name: string; description: string; returnTest: { name: string; assertions: string; selectedTaskSectionIds: string[]; skipTaskSections: boolean } }) => void
+  onReturnToTest?: () => void
   period: SelectedPeriod
   session: LocalSessionSummary
   sessions: LocalSessionSummary[]
 }) {
-  const [taskName, setTaskName] = useState('')
-  const [format, setFormat] = useState<ExtractionFormat>('ansight')
-  const [description, setDescription] = useState('')
+  const [taskName, setTaskName] = useState(initialTaskName ?? '')
+  const [format, setFormat] = useState<ExtractionFormat>(initialFormat ?? 'ansight')
+  const [description, setDescription] = useState(initialDescription ?? '')
   const [reasoning, setReasoning] = useState<AgentReasoning>(defaultAgentReasoning)
   const [maestroReasoning, setMaestroReasoning] = useState<AgentReasoning>(defaultAgentReasoning)
   const [validateSelectors, setValidateSelectors] = useState(true)
@@ -53,6 +73,17 @@ export function TaskExtractionPanel({
   const [appiumSource, setAppiumSource] = useState('')
   const [appiumSavedPath, setAppiumSavedPath] = useState('')
   const [isAppiumBusy, setIsAppiumBusy] = useState(false)
+  const [workspaceTestDraft, setWorkspaceTestDraft] = useState<WorkspaceTestExtraction | null>(null)
+  const [testTitle, setTestTitle] = useState('')
+  const [testSource, setTestSource] = useState('')
+  const [testSavedPath, setTestSavedPath] = useState('')
+  const [testAssertions, setTestAssertions] = useState(initialTestAssertions ?? '')
+  const [taskSectionAnnotations, setTaskSectionAnnotations] = useState<SessionAnnotation[]>([])
+  const [selectedTaskSectionIds, setSelectedTaskSectionIds] = useState<string[]>([])
+  const [skipTaskSections, setSkipTaskSections] = useState(initialSkipTaskSections ?? false)
+  const [isLoadingTaskSections, setIsLoadingTaskSections] = useState(true)
+  const [isTestDraftBusy, setIsTestDraftBusy] = useState(false)
+  const [isTestDraftStale, setIsTestDraftStale] = useState(false)
   const [externalValidation, setExternalValidation] = useState<ExternalDraftResult | null>(null)
   const [externalTest, setExternalTest] = useState<ExternalDraftResult | null>(null)
   const [isExternalBusy, setIsExternalBusy] = useState(false)
@@ -71,14 +102,19 @@ export function TaskExtractionPanel({
     ? testSessionId
     : liveTargets[0]?.sessionId ?? ''
   const selectedLiveTarget = liveTargets.find((target) => target.sessionId === resolvedTestSessionId)
-  const externalSource = format === 'maestro' ? maestroSource : appiumSource
-  const externalDraft = format === 'maestro' ? maestroDraft : appiumDraft
-  const externalSavedPath = format === 'maestro' ? maestroSavedPath : appiumSavedPath
-  const isExternalGenerating = format === 'maestro' ? isMaestroBusy : isAppiumBusy
+  const externalSource = format === 'maestro' ? maestroSource : format === 'appium' ? appiumSource : testSource
+  const externalDraft = format === 'maestro' ? maestroDraft : format === 'appium' ? appiumDraft : workspaceTestDraft
+  const externalSavedPath = format === 'maestro' ? maestroSavedPath : format === 'appium' ? appiumSavedPath : testSavedPath
+  const isExternalGenerating = format === 'maestro' ? isMaestroBusy : format === 'appium' ? isAppiumBusy : isTestDraftBusy
 
   function clearExternalChecks() {
     setExternalValidation(null)
     setExternalTest(null)
+  }
+
+  function markTestDraftStale() {
+    if (workspaceTestDraft) setIsTestDraftStale(true)
+    clearExternalChecks()
   }
 
   const applyExtraction = useCallback((nextExtraction: LocalTaskExtraction) => {
@@ -142,6 +178,39 @@ export function TaskExtractionPanel({
     }, 0)
     return () => window.clearTimeout(timeout)
   }, [loadAuthoringReferences, loadCapabilities])
+
+  useEffect(() => {
+    if (format !== 'test') return undefined
+    let active = true
+    async function loadTaskSections() {
+      setIsLoadingTaskSections(true)
+      try {
+        const response = await fetch(`api/sessions/${encodeURIComponent(session.sessionId)}/annotations`, { cache: 'no-store' })
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+        const annotations = (await response.json() as SessionAnnotation[])
+          .filter((annotation) => {
+            const start = Date.parse(annotation.startUtc ?? '')
+            const end = Date.parse(annotation.endUtc ?? '')
+            return !!annotation.annotationId && !!annotation.label?.trim()
+              && Number.isFinite(start) && Number.isFinite(end)
+              && start >= period.startMs && end <= period.endMs && end > start
+          })
+          .sort((left, right) => Date.parse(left.startUtc ?? '') - Date.parse(right.startUtc ?? ''))
+        if (!active) return
+        setTaskSectionAnnotations(annotations)
+        const availableIds = annotations.map((annotation) => annotation.annotationId!)
+        setSelectedTaskSectionIds(initialSelectedTaskSectionIds
+          ? initialSelectedTaskSectionIds.filter((id) => availableIds.includes(id))
+          : [])
+      } catch (error) {
+        if (active) setMessage(resolveError(error, 'Unable to load range annotations.'))
+      } finally {
+        if (active) setIsLoadingTaskSections(false)
+      }
+    }
+    void loadTaskSections()
+    return () => { active = false }
+  }, [format, initialSelectedTaskSectionIds, period.endMs, period.startMs, session.sessionId])
 
   useEffect(() => {
     if (!extraction || (!isAgentRunning && !isTestRunning && !isTraceFinalizing)) return undefined
@@ -344,17 +413,88 @@ export function TaskExtractionPanel({
     window.setTimeout(() => URL.revokeObjectURL(url), 0)
   }
 
+  async function previewTest() {
+    if (isTestDraftBusy || isLoadingTaskSections || (!skipTaskSections && selectedTaskSectionIds.length === 0)) return
+    setIsTestDraftBusy(true)
+    setMessage(null)
+    clearExternalChecks()
+    setTestSavedPath('')
+    try {
+      const title = taskName.trim() || session.name || `Recorded ${session.appId} workflow`
+      const response = await fetch('api/task-extractions/test-preview', {
+        body: JSON.stringify({
+          sessionId: session.sessionId,
+          startUtc: new Date(period.startMs).toISOString(),
+          endUtc: new Date(period.endMs).toISOString(),
+          title,
+          assertions: testAssertions.split('\n').map((item) => item.trim()).filter(Boolean),
+          taskSectionIds: skipTaskSections ? [] : selectedTaskSectionIds,
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      })
+      const body = await response.json() as WorkspaceTestExtraction | LocalOperationResult
+      if (!response.ok || !('source' in body)) throw new Error('message' in body ? body.message : `HTTP ${response.status}`)
+      setWorkspaceTestDraft(body)
+      setTestTitle(title)
+      setTestSource(body.source)
+      setIsTestDraftStale(false)
+    } catch (error) {
+      setMessage(resolveError(error, 'Unable to generate Ansight test.'))
+    } finally {
+      setIsTestDraftBusy(false)
+    }
+  }
+
+  async function saveTest() {
+    if (!workspaceTestDraft || !testSource.trim() || isTestDraftBusy || isTestDraftStale) return
+    setIsTestDraftBusy(true)
+    setMessage(null)
+    try {
+      const response = await fetch('api/task-extractions/test-save', {
+        body: JSON.stringify({
+          sessionId: session.sessionId,
+          startUtc: new Date(period.startMs).toISOString(),
+          endUtc: new Date(period.endMs).toISOString(),
+          title: testTitle,
+          source: testSource,
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      })
+      const body = await response.json() as { filePath: string } | LocalOperationResult
+      if (!response.ok || !('filePath' in body)) throw new Error('message' in body ? body.message : `HTTP ${response.status}`)
+      setTestSavedPath(body.filePath)
+      setMessage(`Saved Ansight test to ${body.filePath}`)
+    } catch (error) {
+      setMessage(resolveError(error, 'Unable to save Ansight test.'))
+    } finally {
+      setIsTestDraftBusy(false)
+    }
+  }
+
+  function downloadTest() {
+    if (!workspaceTestDraft || !testSource.trim() || isTestDraftStale) return
+    const url = URL.createObjectURL(new Blob([testSource], { type: 'application/yaml;charset=utf-8' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${workspaceTestDraft.suggestedName}.yaml`
+    link.click()
+    window.setTimeout(() => URL.revokeObjectURL(url), 0)
+  }
+
   async function reviewExternalDraft(play: boolean) {
-    if (!externalSource.trim() || isExternalBusy || isExternalGenerating) return
+    if (!externalSource.trim() || isExternalBusy || isExternalGenerating || (format === 'test' && isTestDraftStale)) return
     if (play && (externalValidation?.status !== 'passed' || !selectedLiveTarget?.runtimeDeviceIdentifier)) return
     setIsExternalBusy(true)
     setMessage(null)
     if (play) setExternalTest(null)
     else { setExternalValidation(null); setExternalTest(null) }
     try {
-      const response = await fetch(`api/task-extractions/external-${play ? 'test' : 'validate'}`, {
+      const response = await fetch(format === 'test' ? 'api/task-extractions/test-validate' : `api/task-extractions/external-${play ? 'test' : 'validate'}`, {
         body: JSON.stringify({
           sessionId: session.sessionId,
+          title: testTitle,
           format,
           source: externalSource,
           deviceId: play ? selectedLiveTarget?.runtimeDeviceIdentifier : null,
@@ -511,13 +651,16 @@ export function TaskExtractionPanel({
             <p className="eyebrow">Selected timeline period</p>
             <span>{formatDate(period.startMs)} – {formatDate(period.endMs)} · {formatDuration(selectedDurationMs)}</span>
           </div>
-          <button aria-label="Close task extraction" className="local-icon-button" onClick={onClose} type="button"><X /></button>
+          <div className="local-admin-actions">
+            {onReturnToTest ? <button className="button button--secondary" onClick={onReturnToTest} type="button">Return to test range</button> : null}
+            <button aria-label="Close task extraction" className="local-icon-button" onClick={onClose} type="button"><X /></button>
+          </div>
         </header>
 
         {message ? <p className="inline-message local-admin-message">{message}</p> : null}
 
         <nav aria-label="Extraction format" className="local-task-extraction-formats">
-          {(['ansight', 'maestro', 'appium'] as const).map((option) => (
+          {(['ansight', 'test', 'maestro', 'appium'] as const).map((option) => (
             <button
               aria-pressed={format === option}
               className={format === option ? 'is-selected' : ''}
@@ -526,18 +669,18 @@ export function TaskExtractionPanel({
               onClick={() => { setFormat(option); clearExternalChecks() }}
               type="button"
             >
-              <strong>{option === 'ansight' ? 'Ansight Task' : option === 'maestro' ? 'Maestro flow' : 'Appium test'}</strong>
-              <small>{option === 'ansight' ? 'Agent authored TypeScript' : option === 'maestro' ? 'Mobile YAML flow' : 'WebdriverIO JavaScript'}</small>
+              <strong>{option === 'ansight' ? 'Ansight task' : option === 'test' ? 'Ansight test' : option === 'maestro' ? 'Maestro flow' : 'Appium test'}</strong>
+              <small>{option === 'ansight' ? 'Agent authored TypeScript' : option === 'test' ? 'Journey and assertions in YAML' : option === 'maestro' ? 'Mobile YAML flow' : 'WebdriverIO JavaScript'}</small>
             </button>
           ))}
         </nav>
 
-        <div className="local-task-extraction-grid">
+        <div className={`local-task-extraction-grid${format === 'test' && !workspaceTestDraft ? ' local-task-extraction-grid--test-intake' : ''}`}>
           <main className="local-admin-content">
             {format === 'ansight' ? (
             <section className="local-admin-section">
               <div className="local-admin-section-heading">
-                <div><Robot /><span><strong>1. Describe Ansight Task</strong><small>Tell the agent what reusable task this period represents</small></span></div>
+                <div><Robot /><span><strong>1. Describe Ansight task</strong><small>Tell the agent what reusable task this period represents</small></span></div>
               </div>
               <div className="local-admin-form local-task-extraction-form">
                 <label className="local-admin-form--wide" htmlFor="local-task-extraction-name">Task name (optional)
@@ -588,13 +731,28 @@ export function TaskExtractionPanel({
               ) : null}
             </section>
             ) : (
-              <section className="local-admin-section">
-                <div className="local-admin-section-heading"><div><Code /><span><strong>1. Generate {format === 'maestro' ? 'Maestro flow' : 'Appium test'}</strong><small>Use the interactions in this timeline period</small></span></div></div>
+              <section className="local-admin-section local-external-extraction-form">
+                {format === 'test' ? <TestTaskSectionIntake
+                  annotations={taskSectionAnnotations}
+                  isLoading={isLoadingTaskSections}
+                  onAddAnnotation={() => onAnnotateOnReplay(null, { name: taskName, assertions: testAssertions, selectedTaskSectionIds, skipTaskSections })}
+                  onEditAnnotation={(annotationId) => onAnnotateOnReplay(annotationId, { name: taskName, assertions: testAssertions, selectedTaskSectionIds, skipTaskSections })}
+                  onExtractTask={(section) => onExtractTask({ ...section, returnTest: { name: taskName, assertions: testAssertions, selectedTaskSectionIds, skipTaskSections } })}
+                  onSelectedIdsChange={(ids) => { setSelectedTaskSectionIds(ids); markTestDraftStale() }}
+                  onSkipChange={(skip) => { setSkipTaskSections(skip); markTestDraftStale() }}
+                  selectedIds={selectedTaskSectionIds}
+                  skip={skipTaskSections}
+                /> : null}
+                <div className="local-admin-section-heading"><div><Code /><span><strong>{format === 'test' ? '' : '1. '}Generate {format === 'test' ? 'Ansight test' : format === 'maestro' ? 'Maestro flow' : 'Appium test'}</strong><small>Use the interactions in this timeline period</small></span></div></div>
                 <label htmlFor="local-external-task-name">Name
                   <input id="local-external-task-name" maxLength={200} onChange={(event) => setTaskName(event.target.value)} placeholder={session.name || `Recorded ${session.appId} workflow`} type="text" value={taskName} />
                 </label>
+                {format === 'test' ? <label htmlFor="local-test-assertions">Expected final-state assertions (one per line)
+                  <textarea id="local-test-assertions" onChange={(event) => setTestAssertions(event.target.value)} placeholder="The confirmation screen is visible" rows={3} value={testAssertions} />
+                  <small>Leave blank to suggest an assertion from a newly visible label in the selected replay.</small>
+                </label> : null}
                 <div className="local-admin-actions">
-                  <button className="button button--primary" disabled={isExternalGenerating || isExternalBusy} onClick={() => void (format === 'maestro' ? previewMaestro() : previewAppium())} type="button">
+                  <button className="button button--primary" disabled={isExternalGenerating || isExternalBusy || (format === 'test' && (isLoadingTaskSections || (!skipTaskSections && selectedTaskSectionIds.length === 0)))} onClick={() => void (format === 'test' ? previewTest() : format === 'maestro' ? previewMaestro() : previewAppium())} type="button">
                     {isExternalGenerating ? <CircleNotch className="spin" /> : <Code />}{externalDraft ? 'Regenerate draft' : 'Generate draft'}
                   </button>
                 </div>
@@ -686,15 +844,17 @@ export function TaskExtractionPanel({
             </section>
             ) : (
               <section className="local-admin-section local-admin-section--grow">
-                <div className="local-admin-section-heading"><div><Code /><span><strong>2. Review draft</strong><small>{externalDraft ? `${externalDraft.generatedActionCount} recorded actions` : 'Generate a draft to continue'}</small></span></div></div>
+                <div className="local-admin-section-heading"><div><Code /><span><strong>{format === 'test' ? '' : '2. '}Review draft</strong><small>{externalDraft ? `${externalDraft.generatedActionCount} recorded actions` : 'Generate a draft to continue'}</small></span></div></div>
                 {externalDraft ? <>
-                  <p className="local-task-extraction-hint">Check the starting state, selectors, text values, and intended outcome. Add an assertion before testing.</p>
-                  <label htmlFor="local-external-source">{format === 'maestro' ? 'Maestro YAML' : 'Appium JavaScript'}</label>
+                  {format === 'test' && isTestDraftStale ? <p className="local-task-extraction-hint"><WarningCircle />Task sections changed. Regenerate the YAML draft to include the current selection.</p> : null}
+                  <p className="local-task-extraction-hint">{format === 'test' ? 'Review the journey, starting state, and outcome assertions before running the test.' : 'Check the starting state, selectors, text values, and intended outcome. Add an assertion before testing.'}</p>
+                  <label htmlFor="local-external-source">{format === 'test' ? 'Ansight test YAML' : format === 'maestro' ? 'Maestro YAML' : 'Appium JavaScript'}</label>
                   <textarea
                     className="local-maestro-source"
                     id="local-external-source"
                     onChange={(event) => {
-                      if (format === 'maestro') { setMaestroSource(event.target.value); setMaestroSavedPath('') }
+                      if (format === 'test') { setTestSource(event.target.value); setTestSavedPath('') }
+                      else if (format === 'maestro') { setMaestroSource(event.target.value); setMaestroSavedPath('') }
                       else { setAppiumSource(event.target.value); setAppiumSavedPath('') }
                       clearExternalChecks()
                     }}
@@ -704,25 +864,26 @@ export function TaskExtractionPanel({
                   />
                   {externalDraft.diagnostics.length ? <ul className="local-task-extraction-validation-errors">{externalDraft.diagnostics.map((diagnostic, index) => <li key={`${index}:${diagnostic}`}><WarningCircle />{diagnostic}</li>)}</ul> : null}
                   <div className="local-task-extraction-test">
-                    <div className="local-admin-section-heading"><div><CheckCircle /><span><strong>3. Validate</strong><small>{format === 'maestro' ? 'Check app ID and supported commands' : 'Check app ID and JavaScript syntax'}</small></span></div></div>
-                    <button className="button button--secondary" disabled={isExternalBusy || isExternalGenerating || !externalSource.trim()} onClick={() => void reviewExternalDraft(false)} type="button">{isExternalBusy && !externalValidation ? <CircleNotch className="spin" /> : <CheckCircle />}Validate draft</button>
+                    <div className="local-admin-section-heading"><div><CheckCircle /><span><strong>{format === 'test' ? '' : '3. '}Validate</strong><small>{format === 'test' ? 'Check YAML and workspace test contract' : format === 'maestro' ? 'Check app ID and supported commands' : 'Check app ID and JavaScript syntax'}</small></span></div></div>
+                    <button className="button button--secondary" disabled={isExternalBusy || isExternalGenerating || !externalSource.trim() || (format === 'test' && isTestDraftStale)} onClick={() => void reviewExternalDraft(false)} type="button">{isExternalBusy && !externalValidation ? <CircleNotch className="spin" /> : <CheckCircle />}Validate draft</button>
                     {externalValidation ? <ExternalReviewResult result={externalValidation} /> : null}
                   </div>
-                  <div className="local-task-extraction-test">
+                  {format !== 'test' ? <div className="local-task-extraction-test">
                     <div className="local-admin-section-heading"><div><TestTube /><span><strong>4. Test on device</strong><small>Plays the draft against a connected device</small></span></div></div>
                     <p className="local-task-extraction-hint">{format === 'maestro' ? 'Requires the Maestro CLI and a ready device.' : 'Requires a running Appium server, the matching driver, and WebdriverIO in the linked workspace.'}</p>
                     <label>Live session<select disabled={isExternalBusy} onChange={(event) => { setTestSessionId(event.target.value); setExternalTest(null) }} value={resolvedTestSessionId}><option value="">Choose a connected session</option>{liveTargets.map((target) => <option key={target.sessionId} value={target.sessionId}>{target.name || target.clientName} · {target.runtimeDeviceIdentifier || target.sessionId}</option>)}</select></label>
                     <button className="button button--secondary" disabled={isExternalBusy || externalValidation?.status !== 'passed' || !selectedLiveTarget?.runtimeDeviceIdentifier} onClick={() => void reviewExternalDraft(true)} type="button">{isExternalBusy && externalValidation ? <CircleNotch className="spin" /> : <Play />}Play test</button>
                     {!selectedLiveTarget?.runtimeDeviceIdentifier ? <p className="local-task-extraction-hint"><WarningCircle />Connect a live {session.appId} device to play this draft.</p> : null}
                     {externalTest ? <ExternalReviewResult result={externalTest} /> : null}
-                  </div>
+                  </div> : null}
                   <div className="local-task-extraction-test">
-                    <div className="local-admin-section-heading"><div><FloppyDisk /><span><strong>5. Save or download</strong><small>Keep the reviewed source</small></span></div></div>
+                    <div className="local-admin-section-heading"><div><FloppyDisk /><span><strong>{format === 'test' ? '' : '5. '}Save or download</strong><small>Keep the reviewed source</small></span></div></div>
                     <div className="local-admin-actions">
-                      <button className="button button--secondary" disabled={!externalSource.trim()} onClick={format === 'maestro' ? downloadMaestro : downloadAppium} type="button">Download {format === 'maestro' ? 'YAML' : 'JavaScript'}</button>
-                      <button className="button button--primary" disabled={isExternalBusy || isExternalGenerating || externalValidation?.status !== 'passed' || !!externalSavedPath} onClick={() => void (format === 'maestro' ? saveMaestro() : saveAppium())} type="button"><FloppyDisk />Save to {format === 'maestro' ? '.maestro' : 'appium'}</button>
+                      <button className="button button--secondary" disabled={!externalSource.trim() || (format === 'test' && isTestDraftStale)} onClick={format === 'test' ? downloadTest : format === 'maestro' ? downloadMaestro : downloadAppium} type="button">Download {format === 'appium' ? 'JavaScript' : 'YAML'}</button>
+                      <button className="button button--primary" disabled={isExternalBusy || isExternalGenerating || externalValidation?.status !== 'passed' || !!externalSavedPath || (format === 'test' && isTestDraftStale)} onClick={() => void (format === 'test' ? saveTest() : format === 'maestro' ? saveMaestro() : saveAppium())} type="button"><FloppyDisk />Save to {format === 'test' ? 'ansight/tests' : format === 'maestro' ? '.maestro' : 'appium'}</button>
                     </div>
                     {externalSavedPath ? <p className="local-task-extraction-saved"><CheckCircle />{externalSavedPath}</p> : null}
+                    {format === 'test' && externalSavedPath ? <p className="local-task-extraction-hint">Run this test from the Tests area or with <code>ansight test run &lt;workspace&gt; {workspaceTestDraft?.suggestedName}</code>.</p> : null}
                   </div>
                 </> : <div className="local-admin-empty"><Code /><span>Select this format and generate a draft to review it.</span></div>}
               </section>

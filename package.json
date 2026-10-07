@@ -1,6 +1,6 @@
 {
   "name": "@ansight/player",
-  "version": "0.1.3",
+  "version": "0.1.5",
   "type": "module",
   "scripts": {
     "dev": "vite --config vite.config.ts",
@@ -81,6 +81,10 @@
     "./components/EmptyState": {
       "types": "./dist/library/components/EmptyState.d.ts",
       "default": "./dist/library/components/EmptyState.js"
+    },
+    "./components/GithubRepositoryBadge": {
+      "types": "./dist/library/components/GithubRepositoryBadge.d.ts",
+      "default": "./dist/library/components/GithubRepositoryBadge.js"
     },
     "./components/PageHeader": {
       "types": "./dist/library/components/PageHeader.d.ts",

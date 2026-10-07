@@ -1,5 +1,6 @@
 import { CircleNotch, Clock, Funnel, MagnifyingGlass, MonitorPlay, PushPin, Trash } from '@phosphor-icons/react'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { SessionFilterModal } from './SessionFilterModal'
 import { SessionIcon } from './SessionIcon'
 import { emptySessionFilters, hasSessionFilters, matchesSessionFilters, type SessionFilters } from './sessionFilters'
@@ -13,6 +14,7 @@ export function SessionExplorer({
   headingAction,
   isLoading,
   onDeleteSession,
+  onDeleteSessions,
   onSetSessionPinned,
   onSelectSession,
   onShowTeamSessions,
@@ -24,6 +26,7 @@ export function SessionExplorer({
   headingAction?: ReactNode
   isLoading: boolean
   onDeleteSession: (sessionId: string) => Promise<void>
+  onDeleteSessions: (sessionIds: string[]) => Promise<{ deletedSessionIds: string[]; failures: string[] }>
   onSetSessionPinned: (sessionId: string, isPinned: boolean) => Promise<void>
   onSelectSession: (sessionId: string) => void
   onShowTeamSessions: () => void
@@ -37,6 +40,7 @@ export function SessionExplorer({
   const closeFilters = useCallback(() => setIsFilterOpen(false), [])
   const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(() => new Set())
   const [bulkAction, setBulkAction] = useState<'delete' | 'pin' | 'unpin' | null>(null)
+  const [deleteCandidates, setDeleteCandidates] = useState<LocalSessionSummary[] | null>(null)
   const [visibleSessionCount, setVisibleSessionCount] = useState(sessionsPerBatch)
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null)
   const [pinningSessionIds, setPinningSessionIds] = useState<Set<string>>(() => new Set())
@@ -57,6 +61,7 @@ export function SessionExplorer({
     return [...matchingSessions].sort((left, right) => Number(right.isPinned) - Number(left.isPinned))
   }, [filters, query, sessions])
   const selectedSessions = sessions.filter((session) => selectedSessionIds.has(session.sessionId))
+  const isSelectionMode = selectedSessions.length > 0
   const hasLiveSelection = selectedSessions.some((session) => session.isConnected)
   const canPinSelection = selectedSessions.every((session) => canPinSession(session.sessionId))
   const visibleSessions = filteredSessions.slice(0, visibleSessionCount)
@@ -87,16 +92,16 @@ export function SessionExplorer({
 
   async function runBulkAction(action: 'delete' | 'pin' | 'unpin') {
     if (bulkAction || selectedSessions.length === 0) return
-    if (action === 'delete' && (hasLiveSelection || !window.confirm(
-      `Delete only the ${selectedSessions.length} selected session${selectedSessions.length === 1 ? '' : 's'} permanently?\n\nOther sessions will remain. The selected sessions' captures, search indexes, metrics, and trends history will be removed.`,
-    ))) return
+    if (action === 'delete') {
+      if (!hasLiveSelection) setDeleteCandidates([...selectedSessions])
+      return
+    }
     setActionError(null)
     setBulkAction(action)
     const failures: string[] = []
     for (const session of selectedSessions) {
       try {
-        if (action === 'delete') await onDeleteSession(session.sessionId)
-        else await onSetSessionPinned(session.sessionId, action === 'pin')
+        await onSetSessionPinned(session.sessionId, action === 'pin')
         setSelectedSessionIds((current) => {
           const next = new Set(current)
           next.delete(session.sessionId)
@@ -109,6 +114,25 @@ export function SessionExplorer({
     if (failures.length) setActionError(failures.join(' · '))
     selectionAnchorRef.current = null
     setBulkAction(null)
+  }
+
+  async function confirmBulkDelete() {
+    if (!deleteCandidates || bulkAction) return
+    setBulkAction('delete')
+    setActionError(null)
+    try {
+      const result = await onDeleteSessions(deleteCandidates.map((session) => session.sessionId))
+      const deletedIds = new Set(result.deletedSessionIds)
+      setSelectedSessionIds((current) => new Set([...current].filter((id) => !deletedIds.has(id))))
+      if (result.failures.length) setActionError(result.failures.join(' · '))
+      selectionAnchorRef.current = null
+      setDeleteCandidates(null)
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Unable to delete the selected sessions.')
+      setDeleteCandidates(null)
+    } finally {
+      setBulkAction(null)
+    }
   }
 
   useEffect(() => {
@@ -164,15 +188,15 @@ export function SessionExplorer({
           <button aria-label="Filter sessions" aria-pressed={hasSessionFilters(filters)} className="local-session-filter-trigger" onClick={() => setIsFilterOpen(true)} title="Filter sessions" type="button"><Funnel aria-hidden="true" /></button>
         </div>
 
-        {selectedSessions.length > 0 ? (
+        {isSelectionMode ? (
           <div className="local-session-bulk-toolbar">
             <strong>{selectedSessions.length} selected</strong>
-            <button disabled={bulkAction !== null || isLoading} onClick={() => setSelectedSessionIds(new Set(filteredSessions.map((session) => session.sessionId)))} type="button">Select all {filteredSessions.length}</button>
-            <button disabled={bulkAction !== null} onClick={() => { setSelectedSessionIds(new Set()); selectionAnchorRef.current = null }} type="button">Clear</button>
+            <button disabled={bulkAction !== null || isLoading || filteredSessions.length === 0} onClick={() => setSelectedSessionIds(new Set(filteredSessions.map((session) => session.sessionId)))} type="button">Select all {filteredSessions.length}</button>
+            <button disabled={bulkAction !== null || selectedSessions.length === 0} onClick={() => { setSelectedSessionIds(new Set()); selectionAnchorRef.current = null }} type="button">Clear</button>
             <div>
-              <button disabled={bulkAction !== null || !canPinSelection} onClick={() => void runBulkAction('pin')} type="button">{bulkAction === 'pin' ? 'Pinning…' : 'Pin'}</button>
-              <button disabled={bulkAction !== null || !canPinSelection} onClick={() => void runBulkAction('unpin')} type="button">{bulkAction === 'unpin' ? 'Unpinning…' : 'Unpin'}</button>
-              <button aria-label={`Delete ${selectedSessions.length} selected session${selectedSessions.length === 1 ? '' : 's'}`} disabled={bulkAction !== null || hasLiveSelection} onClick={() => void runBulkAction('delete')} title={hasLiveSelection ? 'Disconnect live sessions before deleting them' : `Delete only the ${selectedSessions.length} selected session${selectedSessions.length === 1 ? '' : 's'}`} type="button">{bulkAction === 'delete' ? 'Deleting…' : `Delete selected (${selectedSessions.length})`}</button>
+              <button disabled={bulkAction !== null || selectedSessions.length === 0 || !canPinSelection} onClick={() => void runBulkAction('pin')} type="button">{bulkAction === 'pin' ? 'Pinning…' : 'Pin'}</button>
+              <button disabled={bulkAction !== null || selectedSessions.length === 0 || !canPinSelection} onClick={() => void runBulkAction('unpin')} type="button">{bulkAction === 'unpin' ? 'Unpinning…' : 'Unpin'}</button>
+              <button aria-label={`Delete ${selectedSessions.length} selected session${selectedSessions.length === 1 ? '' : 's'}`} disabled={bulkAction !== null || selectedSessions.length === 0 || hasLiveSelection} onClick={() => void runBulkAction('delete')} title={hasLiveSelection ? 'Disconnect live sessions before deleting them' : `Delete only the ${selectedSessions.length} selected session${selectedSessions.length === 1 ? '' : 's'}`} type="button">{bulkAction === 'delete' ? 'Deleting…' : `Delete selected (${selectedSessions.length})`}</button>
             </div>
           </div>
         ) : null}
@@ -209,13 +233,15 @@ export function SessionExplorer({
                       key={session.sessionId}
                     >
                       <button
-                        aria-label={`${sessionTitle} session${isBulkSelected ? ', selected for bulk actions' : ''}`}
+                        aria-label={isSelectionMode ? `${isBulkSelected ? 'Deselect' : 'Select'} ${sessionTitle} session` : `${sessionTitle} session`}
+                        aria-pressed={isSelectionMode ? isBulkSelected : undefined}
                         className="local-session-card-select"
+                        disabled={bulkAction !== null}
                         onClick={(event) => {
                           if (event.shiftKey) {
                             event.preventDefault()
                             selectRange(session.sessionId)
-                          } else if (event.metaKey || event.ctrlKey) {
+                          } else if (isSelectionMode || event.metaKey || event.ctrlKey) {
                             event.preventDefault()
                             toggleSelection(session.sessionId)
                           } else {
@@ -224,7 +250,7 @@ export function SessionExplorer({
                             onSelectSession(session.sessionId)
                           }
                         }}
-                        title="Shift-click to select a range; Command/Control-click to select one session"
+                        title={isSelectionMode ? 'Select or deselect this session; Shift-click to select a range' : 'Open session; Shift-click or Command/Control-click to select sessions'}
                         type="button"
                       >
                         <SessionIcon appIconUrl={session.appIconUrl} platform={session.runtimePlatform} selectionTick={isBulkSelected} />
@@ -263,7 +289,7 @@ export function SessionExplorer({
                       >
                         {isPinning ? <CircleNotch aria-hidden="true" className="spin" /> : <PushPin aria-hidden="true" weight={session.isPinned ? 'fill' : 'regular'} />}
                       </button>
-                      {selectedSessions.length === 0 ? (
+                      {!isSelectionMode ? (
                         <button
                           aria-label={`Delete only ${sessionTitle} session`}
                           className="local-session-delete-button"
@@ -303,7 +329,60 @@ export function SessionExplorer({
         )}
       </div>
       {isFilterOpen ? <SessionFilterModal filters={filters} onApply={(next) => { setFilters(next); closeFilters(); setVisibleSessionCount(sessionsPerBatch); setSelectedSessionIds(new Set()); selectionAnchorRef.current = null; sessionListRef.current?.scrollTo({ top: 0 }) }} onClose={closeFilters} sessions={sessions} /> : null}
+      {deleteCandidates ? <SessionDeleteModal candidates={deleteCandidates} isDeleting={bulkAction === 'delete'} onCancel={() => setDeleteCandidates(null)} onConfirm={() => void confirmBulkDelete()} /> : null}
     </aside>
+  )
+}
+
+function SessionDeleteModal({ candidates, isDeleting, onCancel, onConfirm }: {
+  candidates: LocalSessionSummary[]
+  isDeleting: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const confirmRef = useRef<HTMLButtonElement>(null)
+  const dialogRef = useRef<HTMLElement>(null)
+  const onCancelRef = useRef(onCancel)
+  useEffect(() => { onCancelRef.current = onCancel }, [onCancel])
+  useEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    confirmRef.current?.focus()
+    return () => previousFocus?.focus()
+  }, [])
+  useEffect(() => {
+    if (isDeleting) dialogRef.current?.focus()
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape' && !isDeleting) onCancelRef.current()
+      if (event.key !== 'Tab' || !dialogRef.current) return
+      const controls = [...dialogRef.current.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')]
+      if (controls.length === 0) { event.preventDefault(); return }
+      if (event.shiftKey && document.activeElement === controls[0]) {
+        event.preventDefault()
+        controls.at(-1)?.focus()
+      } else if (!event.shiftKey && document.activeElement === controls.at(-1)) {
+        event.preventDefault()
+        controls[0]?.focus()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [isDeleting])
+
+  return createPortal(
+    <div className="local-session-filter-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !isDeleting) onCancel() }}>
+      <section aria-label="Delete selected sessions" aria-modal="true" className="local-session-delete-modal" ref={dialogRef} role="dialog" tabIndex={-1}>
+        <h2>Delete {candidates.length} selected session{candidates.length === 1 ? '' : 's'}?</h2>
+        <p>This permanently removes their captures, search indexes, metrics, and trends history. Other sessions remain.</p>
+        <ul>{candidates.slice(0, 5).map((session) => <li key={session.sessionId}>{session.name || session.appName || session.sessionId}</li>)}</ul>
+        {candidates.length > 5 ? <p>And {candidates.length - 5} more.</p> : null}
+        {isDeleting ? <p role="status"><CircleNotch aria-hidden="true" className="spin" /> Deleting selected sessions…</p> : null}
+        <footer>
+          <button disabled={isDeleting} onClick={onCancel} type="button">Cancel</button>
+          <button className="local-session-delete-confirm" disabled={isDeleting} onClick={onConfirm} ref={confirmRef} type="button">{isDeleting ? 'Deleting…' : 'Delete sessions'}</button>
+        </footer>
+      </section>
+    </div>,
+    document.body,
   )
 }
 

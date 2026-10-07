@@ -3,6 +3,7 @@ import { observeLocalActivity } from './usage'
 import { Check, Copy, DownloadSimple, Archive, CaretDown, ChartLineUp, CircleNotch, CloudArrowUp, DeviceMobile, FlowArrow, Gear, HardDrives, Info, Link, NotePencil, Pulse, QrCode, SidebarSimple, Sparkle, SquaresFour, TestTube, Trash, UserCircle, VideoCamera, WifiHigh, X } from '@phosphor-icons/react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type SetStateAction } from 'react'
 import { SessionIcon } from './SessionIcon'
+import { GithubRepositoryBadge } from '../components/GithubRepositoryBadge'
 import { SessionViewerPage, type SessionReplayPanelContext, type SessionViewerSource, type TimelineEditSelection } from '../replay/pages/SessionViewerPage'
 import { AccountCompanionPanel } from './AccountCompanionPanel'
 import { RemoteRunnerPanel } from './RemoteRunnerPanel'
@@ -26,6 +27,7 @@ import { TeamSessionExplorer } from './TeamSessionExplorer'
 import { TestHistoryPanel } from './TestHistoryPanel'
 import { TestExecutionPanel } from './TestExecutionPanel'
 import type { LocalAppGraphLiveRun, LocalEnrollmentInviteResult, LocalOperationResult, LocalRemoteRunnerRegistration, LocalRemoteRunnerStatus, LocalReplayBootstrap, LocalSessionCachePlan, LocalSessionSummary, LocalTestHistory, LocalTestRunSummary } from './types'
+import type { SessionAnnotation } from '../replay/sessionViewerData'
 
 const linkedTraceRefreshIntervalMs = 8000
 const appGraphRefreshIntervalMs = 750
@@ -41,6 +43,17 @@ const TaskExtractionPanel = lazy(async () => {
 interface LocalSessionSelection {
   sessionId: string | null
   link: SessionTimelineLink | null
+}
+
+type TestExtractionReturn = { name: string; assertions: string; selectedTaskSectionIds: string[]; skipTaskSections: boolean }
+type TaskExtractionRequest = {
+  period: TimelineEditSelection
+  sessionId: string
+  format?: 'ansight' | 'test'
+  returnPeriod?: TimelineEditSelection
+  taskName?: string
+  taskDescription?: string
+  returnTest?: TestExtractionReturn
 }
 
 export function LocalReplayApp() {
@@ -76,6 +89,7 @@ export function LocalReplayApp() {
     catch { return { sessionId: null, link: null } }
   })
   const { sessionId: selectedSessionId, link: sessionLink } = sessionSelection
+  const bulkDeletingSessionIdsRef = useRef<Set<string> | null>(null)
   const setSelectedSessionId = useCallback((value: SetStateAction<string | null>) => {
     setSessionSelection((current) => {
       const sessionId = typeof value === 'function' ? value(current.sessionId) : value
@@ -108,24 +122,23 @@ export function LocalReplayApp() {
   const [appGraphPanelMode, setAppGraphPanelMode] = useState<'recording' | 'runs'>('recording')
   const [isAppGraphRefreshing, setIsAppGraphRefreshing] = useState(false)
   const [testHistoryInitialRun, setTestHistoryInitialRun] = useState<LocalTestRunSummary | null>(null)
-  const [taskExtractionRequest, setTaskExtractionRequest] = useState<{
-    period: TimelineEditSelection
-    sessionId: string
-  } | null>(null)
+  const [taskExtractionRequest, setTaskExtractionRequest] = useState<TaskExtractionRequest | null>(null)
+  const [annotationWorkflow, setAnnotationWorkflow] = useState<{ id: number; annotationId: string | null; returnRequest: TaskExtractionRequest } | null>(null)
+  const annotationWorkflowIdRef = useRef(0)
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null)
   const [sessionActionError, setSessionActionError] = useState<string | null>(null)
 
-  async function openCloudAnalysis() {
-    if (isCloudAnalysisLoading) return
-    setIsCloudAnalysisLoading(true)
+  async function openSummary() {
     setSessionActionError(null)
+    setAiViewKind('analysis')
+    setIsSessionInfoOpen(true)
+    if (!bootstrap?.supportsCloudSessions || cloudAnalysisSource || isCloudAnalysisLoading) return
+    setIsCloudAnalysisLoading(true)
     try {
-      const source = cloudAnalysisSource ?? await loadOptionalPlayerFeature<Pick<SessionViewerSource, 'loadAiReadState' | 'createAiExtraction' | 'archiveAiExtraction'>>('CloudAnalysisSource')
+      const source = await loadOptionalPlayerFeature<Pick<SessionViewerSource, 'loadAiReadState' | 'createAiExtraction' | 'archiveAiExtraction'>>('CloudAnalysisSource')
       setCloudAnalysisSource(source)
-      setAiViewKind('analysis')
-      setIsSessionInfoOpen(true)
-    } catch (error) {
-      setSessionActionError(error instanceof Error ? error.message : 'Unable to open cloud analysis.')
+    } catch {
+      // The local summary remains available when the optional cloud flowchart is unavailable.
     } finally {
       setIsCloudAnalysisLoading(false)
     }
@@ -283,15 +296,17 @@ export function LocalReplayApp() {
             lastRefreshSucceeded = true
             setSessions((current) => reconcileSessionSummaries(current, next))
             setSelectedSessionId((current) => {
+              const bulkDeletingIds = bulkDeletingSessionIdsRef.current
+              const selectable = bulkDeletingIds ? next.filter((session) => !bulkDeletingIds.has(session.sessionId)) : next
               // An explicit URL must not silently open another session when its target is missing.
               if (sessionLink && current === sessionLink.sessionId) return current
-              if (current && next.some((session) => session.sessionId === current)) {
+              if (current && selectable.some((session) => session.sessionId === current)) {
                 return current
               }
 
-              return next.find((session) => session.sessionId === initialSessionIdRef.current)?.sessionId
-                ?? next.find((session) => session.isConnected)?.sessionId
-                ?? next[0]?.sessionId
+              return selectable.find((session) => session.sessionId === initialSessionIdRef.current)?.sessionId
+                ?? selectable.find((session) => session.isConnected)?.sessionId
+                ?? selectable[0]?.sessionId
                 ?? null
             })
             setMessage(null)
@@ -501,6 +516,44 @@ export function LocalReplayApp() {
     setSelectedSessionId((current) => current === sessionId ? null : current)
     setIsSessionInfoOpen(false)
   }, [setSelectedSessionId])
+
+  const deleteSessions = useCallback(async (sessionIds: string[]) => {
+    const deletingIds = new Set(sessionIds)
+    bulkDeletingSessionIdsRef.current = deletingIds
+    setSelectedSessionId((current) => current && deletingIds.has(current)
+      ? sessions.find((session) => !deletingIds.has(session.sessionId))?.sessionId ?? null
+      : current)
+    try {
+      if (bootstrap?.mode !== 'explorer') {
+        const deletedSessionIds: string[] = []
+        const failures: string[] = []
+        for (const sessionId of sessionIds) {
+          try { await deleteSession(sessionId); deletedSessionIds.push(sessionId) }
+          catch (error) { failures.push(`${sessionId}: ${resolveErrorMessage(error, 'Unable to delete session.')}`) }
+        }
+        return { deletedSessionIds, failures }
+      }
+
+      const response = await fetch('api/sessions/bulk', {
+        body: JSON.stringify({ operation: 'delete', sessionIds }),
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      })
+      const result = await response.json() as LocalOperationResult & { items?: { sessionId: string; isSuccess: boolean; message: string }[] }
+      if (!result.items) throw new Error(result.message || `The local host returned HTTP ${response.status}.`)
+      const deletedSessionIds = result.items.filter((item) => item.isSuccess).map((item) => item.sessionId)
+      const failures = result.items.filter((item) => !item.isSuccess).map((item) => `${item.sessionId}: ${item.message}`)
+      if (!response.ok && failures.length === 0) throw new Error(result.message || `The local host returned HTTP ${response.status}.`)
+      const deleted = new Set(deletedSessionIds)
+      setSessions((current) => current.filter((session) => !deleted.has(session.sessionId)))
+      setIsSessionInfoOpen(false)
+      setSessionRefreshNonce((current) => current + 1)
+      return { deletedSessionIds, failures }
+    } finally {
+      bulkDeletingSessionIdsRef.current = null
+    }
+  }, [bootstrap?.mode, deleteSession, sessions, setSelectedSessionId])
 
   const setSessionPinned = useCallback(async (sessionId: string, isPinned: boolean) => {
     let endpoint = 'api/sessions/bulk'
@@ -760,6 +813,7 @@ export function LocalReplayApp() {
           )}
           <span>Ansight</span>
           <small>Local</small>
+          <GithubRepositoryBadge />
         </div>
         <div className="local-replay-actions">
           {cacheFeedback ? <button
@@ -938,6 +992,7 @@ export function LocalReplayApp() {
             headingAction={explorerToggle}
             isLoading={isSessionsLoading}
             onDeleteSession={deleteSession}
+            onDeleteSessions={deleteSessions}
             onSetSessionPinned={setSessionPinned}
             onSelectSession={(sessionId) => {
               setSessionActionError(null)
@@ -1065,18 +1120,15 @@ export function LocalReplayApp() {
                   Share
                 </button>
               ) : null}
-              {bootstrap?.supportsCloudSessions ? (
-                <button
-                  className="local-banner-button"
-                  disabled={isCloudAnalysisLoading}
-                  onClick={() => void openCloudAnalysis()}
-                  data-tooltip="Cloud analysis"
-                  type="button"
-                >
-                  {isCloudAnalysisLoading ? <CircleNotch className="spin" aria-hidden="true" /> : <Sparkle aria-hidden="true" />}
-                  {isCloudAnalysisLoading ? 'Opening…' : 'Cloud analysis'}
-                </button>
-              ) : null}
+              <button
+                className="local-banner-button"
+                onClick={() => void openSummary()}
+                data-tooltip="Summarise this local session with brokered AI"
+                type="button"
+              >
+                <Sparkle aria-hidden="true" />
+                Summary
+              </button>
               {canManageSelectedSession ? (
                 <button
                   className="local-banner-button local-session-context-delete"
@@ -1116,6 +1168,26 @@ export function LocalReplayApp() {
               onTaskExtractionRequested={bootstrap?.supportsTaskExtraction
                 ? requestTaskExtraction
                 : undefined}
+              annotationWorkflowRequest={annotationWorkflow ? { id: annotationWorkflow.id, annotationId: annotationWorkflow.annotationId } : null}
+              onAnnotationSaved={(annotation: SessionAnnotation) => {
+                if (!annotationWorkflow) return
+                const returnRequest = annotationWorkflow.returnRequest
+                const returnTest = returnRequest.returnTest!
+                const start = Date.parse(annotation.startUtc ?? '')
+                const end = Date.parse(annotation.endUtc ?? '')
+                const isInPeriod = !!annotation.annotationId && Number.isFinite(start) && Number.isFinite(end)
+                  && start >= returnRequest.period.startMs && end <= returnRequest.period.endMs && end > start
+                setTaskExtractionRequest({
+                  ...returnRequest,
+                  returnTest: isInPeriod ? {
+                    ...returnTest,
+                    selectedTaskSectionIds: [...new Set([...returnTest.selectedTaskSectionIds, annotation.annotationId!])],
+                    skipTaskSections: false,
+                  } : returnTest,
+                })
+                setAnnotationWorkflow(null)
+                setSessionRefreshNonce((current) => current + 1)
+              }}
               replayPanelOverride={replayPanelOverride}
               refreshKey={refreshKey}
               sessionId={selectedSessionId}
@@ -1210,7 +1282,6 @@ export function LocalReplayApp() {
         <SessionAdministrationPanel
           onClose={() => setActivePanel(null)}
           onSessionsChanged={() => setSessionRefreshNonce((current) => current + 1)}
-          selectedSession={selectedSession}
           sessions={sessions}
         />
       ) : null}
@@ -1233,7 +1304,25 @@ export function LocalReplayApp() {
         return extractionSession ? (
           <Suspense fallback={<TaskExtractionLoadingPanel />}>
             <TaskExtractionPanel
+              key={`${extractionSession.sessionId}:${taskExtractionRequest.period.startMs}:${taskExtractionRequest.period.endMs}:${taskExtractionRequest.format ?? 'ansight'}`}
+              initialDescription={taskExtractionRequest.taskDescription}
+              initialFormat={taskExtractionRequest.format}
+              initialSelectedTaskSectionIds={taskExtractionRequest.returnTest?.selectedTaskSectionIds}
+              initialSkipTaskSections={taskExtractionRequest.returnTest?.skipTaskSections}
+              initialTaskName={taskExtractionRequest.format === 'test' ? taskExtractionRequest.returnTest?.name : taskExtractionRequest.taskName}
+              initialTestAssertions={taskExtractionRequest.returnTest?.assertions}
+              onAnnotateOnReplay={(annotationId, returnTest) => {
+                annotationWorkflowIdRef.current += 1
+                setAnnotationWorkflow({
+                  id: annotationWorkflowIdRef.current,
+                  annotationId,
+                  returnRequest: { ...taskExtractionRequest, format: 'test', returnTest },
+                })
+                setTaskExtractionRequest(null)
+              }}
               onClose={() => setTaskExtractionRequest(null)}
+              onExtractTask={(section) => setTaskExtractionRequest({ period: section.period, sessionId: extractionSession.sessionId, format: 'ansight', returnPeriod: taskExtractionRequest.period, taskName: section.name, taskDescription: section.description, returnTest: section.returnTest })}
+              onReturnToTest={taskExtractionRequest.returnPeriod ? () => setTaskExtractionRequest({ period: taskExtractionRequest.returnPeriod!, sessionId: extractionSession.sessionId, format: 'test', returnTest: taskExtractionRequest.returnTest }) : undefined}
               period={taskExtractionRequest.period}
               session={extractionSession}
               sessions={sessions}
@@ -1241,6 +1330,12 @@ export function LocalReplayApp() {
           </Suspense>
         ) : null
       })() : null}
+      {annotationWorkflow ? <div className="local-test-annotation-return" role="status">
+        <NotePencil aria-hidden="true" />
+        <span><strong>{annotationWorkflow.annotationId ? 'Edit the replay annotation' : 'Mark a task section on the replay'}</strong><small>{annotationWorkflow.annotationId ? 'Save the annotation to return to the test.' : 'Drag a range on the timeline, then describe it in the annotation editor.'}</small></span>
+        {!annotationWorkflow.annotationId ? <button className="button button--secondary" onClick={() => { annotationWorkflowIdRef.current += 1; setAnnotationWorkflow({ ...annotationWorkflow, id: annotationWorkflowIdRef.current }) }} type="button">Choose range</button> : null}
+        <button className="button button--secondary" onClick={() => { setTaskExtractionRequest(annotationWorkflow.returnRequest); setAnnotationWorkflow(null) }} type="button">Return to test</button>
+      </div> : null}
       {pairingQr?.qrImageDataUrl ? (
         <div className="local-enrollment-qr-modal" role="presentation" onMouseDown={(event) => {
           if (event.currentTarget === event.target) {

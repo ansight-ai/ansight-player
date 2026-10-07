@@ -61,6 +61,13 @@ export type AppiumScriptExtraction = {
   diagnostics: string[]
 }
 
+export type WorkspaceTestExtraction = {
+  suggestedName: string
+  source: string
+  generatedActionCount: number
+  diagnostics: string[]
+}
+
 export type LocalTaskAuthoringReference = {
   kind: 'tool' | 'artifactProvider' | 'artifact'
   mention: string
