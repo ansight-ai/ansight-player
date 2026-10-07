@@ -8733,6 +8733,26 @@ button.local-runner-status:hover {
 .local-draft-run-task-list { display: grid; gap: 6px; }
 .local-draft-run-task-list label { display: flex; align-items: center; gap: 7px; font-size: 11px; }
 
+.local-draft-run-device-target { display: grid; gap: 6px; color: var(--muted); font-size: 11px; font-weight: 700; }
+.local-draft-run-device-target > button { display: flex; justify-content: space-between; gap: 12px; width: 100%; text-align: left; }
+.local-draft-run-device-target > button > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.local-draft-run-device-target > button > span:last-child { color: var(--accent); }
+
+.local-draft-device-backdrop { z-index: 70; }
+.local-draft-device-modal { width: min(900px, 100%); color: var(--text-primary); background: var(--bg-primary); }
+.local-draft-device-picker { margin-top: 18px; }
+.local-draft-device-picker .local-draft-device-search { display: grid; gap: 6px; color: var(--text-secondary); font-size: 12px; font-weight: 700; }
+.local-draft-device-picker .local-draft-device-search input { width: 100%; }
+.local-draft-device-picker .runner-filter-choices label { display: flex; align-items: center; gap: .4rem; min-width: 0; padding: .35rem .55rem; border: 1px solid var(--border); border-radius: .5rem; background: var(--input-bg); color: var(--text-primary); cursor: pointer; }
+.local-draft-device-picker .runner-filter-choices input[type="radio"] { width: auto; }
+.local-draft-device-picker .runner-device-card label { display: flex; flex: 1; align-items: center; min-width: 0; gap: .7rem; padding: .65rem 2rem .65rem .65rem; color: var(--text-primary); cursor: pointer; }
+.local-draft-device-picker .runner-device-card input[type="radio"] { width: auto; }
+.local-draft-device-picker .runner-device-card.is-unavailable label { opacity: .55; cursor: not-allowed; }
+.local-draft-device-picker .runner-device-grid { max-height: none; }
+.local-draft-device-details { display: grid; gap: 5px; margin-top: 14px; padding: 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-raised); font-size: 12px; }
+.local-draft-device-details span { color: var(--text-muted); }
+.local-draft-device-details code { overflow-wrap: anywhere; }
+
 .local-task-extraction-test > label {
   display: flex;
   flex-direction: column;

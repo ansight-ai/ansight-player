@@ -1,11 +1,11 @@
-import { ArrowClockwise, Bug, ChartBar, CheckCircle, CircleNotch, Clock, Code, Coins, FloppyDisk, Play, Robot, Stop, TestTube, Trash, WarningCircle, X, XCircle } from '@phosphor-icons/react'
+import { ArrowClockwise, Bug, ChartBar, CheckCircle, CircleNotch, Clock, Code, Coins, FloppyDisk, Info, Play, Robot, Stop, TestTube, Trash, WarningCircle, X, XCircle } from '@phosphor-icons/react'
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { agentReasoningModes, defaultAgentReasoning, type AgentReasoning } from '../agentReasoning'
 import { TypeScriptTaskEditor, type TypeScriptEditorDiagnostics } from './TypeScriptTaskEditor'
 import { TestTaskSectionIntake } from './TestTaskSectionIntake'
 import { readSessionOperationStream } from './sessionOperationStream'
 import type { SessionAnnotation } from '../replay/sessionViewerData'
-import type { AppiumScriptExtraction, LocalDeviceInventory, LocalOperationResult, LocalSessionSummary, LocalTaskAuthoringReference, LocalTaskAuthoringReferenceCatalog, LocalTaskExtraction, LocalTaskExtractionCapabilities, LocalTaskExtractionFailureDebugResult, LocalTaskExtractionTrace, LocalTestExecution, MaestroFlowExtraction, WorkspaceTestExtraction } from './types'
+import type { AppiumScriptExtraction, LocalDevice, LocalDeviceInventory, LocalOperationResult, LocalSessionSummary, LocalTaskAuthoringReference, LocalTaskAuthoringReferenceCatalog, LocalTaskExtraction, LocalTaskExtractionCapabilities, LocalTaskExtractionFailureDebugResult, LocalTaskExtractionTrace, LocalTestExecution, MaestroFlowExtraction, WorkspaceTestExtraction } from './types'
 
 type SelectedPeriod = {
   startMs: number
@@ -93,6 +93,8 @@ export function TaskExtractionPanel({
   const [isTestDraftStale, setIsTestDraftStale] = useState(false)
   const [draftRunInventory, setDraftRunInventory] = useState<LocalDeviceInventory | null>(null)
   const [draftRunDeviceKey, setDraftRunDeviceKey] = useState('')
+  const [isDraftDevicePickerOpen, setIsDraftDevicePickerOpen] = useState(false)
+  const draftDeviceTriggerRef = useRef<HTMLButtonElement | null>(null)
   const [draftRunApplicationPath, setDraftRunApplicationPath] = useState('')
   const [excludedDraftTaskIds, setExcludedDraftTaskIds] = useState<string[]>([])
   const [draftRun, setDraftRun] = useState<LocalTestExecution | null>(null)
@@ -151,20 +153,31 @@ export function TaskExtractionPanel({
     clearExternalChecks()
   }
 
+  const refreshDraftRunInventory = useCallback(async () => {
+    try {
+      const response = await fetch('api/devices', { cache: 'no-store' })
+      if (!response.ok) throw new Error('Unable to load devices and simulators.')
+      const inventory = await response.json() as LocalDeviceInventory
+      setDraftRunInventory(inventory)
+      setDraftRunDeviceKey((current) => {
+        if (inventory.devices.some((device) => device.isAvailable && draftDeviceKey(device) === current)) return current
+        const booted = inventory.devices.find((device) => device.isBooted && device.isAvailable)
+        return booted ? draftDeviceKey(booted) : ''
+      })
+    } catch (error) {
+      setMessage(resolveError(error, 'Unable to load devices and simulators.'))
+    }
+  }, [])
+
+  const closeDraftDevicePicker = useCallback(() => {
+    setIsDraftDevicePickerOpen(false)
+    window.requestAnimationFrame(() => draftDeviceTriggerRef.current?.focus())
+  }, [])
+
   useEffect(() => {
     if (!workspaceTestDraft) return
-    let active = true
-    void fetch('api/devices', { cache: 'no-store' }).then(async (response) => {
-      if (!response.ok) throw new Error('Unable to load devices and simulators.')
-      return await response.json() as LocalDeviceInventory
-    }).then((inventory) => {
-      if (!active) return
-      setDraftRunInventory(inventory)
-      setDraftRunDeviceKey((current) => current || (inventory.devices.find((device) => device.isBooted && device.isAvailable)
-        ? `${inventory.devices.find((device) => device.isBooted && device.isAvailable)!.platform}:${inventory.devices.find((device) => device.isBooted && device.isAvailable)!.identifier}` : ''))
-    }).catch((error: unknown) => { if (active) setMessage(resolveError(error, 'Unable to load devices and simulators.')) })
-    return () => { active = false }
-  }, [workspaceTestDraft])
+    void refreshDraftRunInventory()
+  }, [refreshDraftRunInventory, workspaceTestDraft])
 
   useEffect(() => {
     if (!draftRun || !['queued', 'running'].includes(draftRun.status)) return
@@ -1248,12 +1261,12 @@ export function TaskExtractionPanel({
             </section>
             ) : (
               <section className="local-admin-section local-admin-section--grow">
-                <div className="local-admin-section-heading"><div><Code /><span><strong>{format === 'test' ? '' : '2. '}Review draft</strong><small>{externalDraft ? format === 'test' && !skipTaskSections ? `${selectedTaskSectionIds.length} selected sections` : `${externalDraft.generatedActionCount} recorded actions` : 'Generate a draft to continue'}</small></span></div></div>
+                <div className="local-admin-section-heading"><div><Code /><span><strong>{format === 'test' ? 'Review Ansight test YAML' : '2. Review draft'}</strong>{format !== 'test' ? <small>{externalDraft ? `${externalDraft.generatedActionCount} recorded actions` : 'Generate a draft to continue'}</small> : null}</span></div></div>
                 {externalDraft ? <>
                   {format === 'test' && isTestDraftStale ? <p className="local-task-extraction-hint"><WarningCircle />Task sections changed. Regenerate the YAML draft to include the current selection.</p> : null}
-                  <p className="local-task-extraction-hint">{format === 'test' ? 'Review the journey, starting state, and outcome assertions before running the test.' : 'Check the starting state, selectors, text values, and intended outcome. Add an assertion before testing.'}</p>
-                  <label htmlFor="local-external-source">{format === 'test' ? 'Ansight test YAML' : format === 'maestro' ? 'Maestro YAML' : 'Appium JavaScript'}</label>
+                  {format !== 'test' ? <><p className="local-task-extraction-hint">Check the starting state, selectors, text values, and intended outcome. Add an assertion before testing.</p><label htmlFor="local-external-source">{format === 'maestro' ? 'Maestro YAML' : 'Appium JavaScript'}</label></> : null}
                   <textarea
+                    aria-label={format === 'test' ? 'Ansight test YAML' : undefined}
                     className="local-maestro-source"
                     id="local-external-source"
                     onChange={(event) => {
@@ -1274,7 +1287,7 @@ export function TaskExtractionPanel({
                   </div>
                   {format === 'test' ? <div className="local-task-extraction-test">
                     <div className="local-admin-section-heading"><div><Play /><span><strong>Run draft on device or simulator</strong><small>Runs this YAML and the ready task drafts without saving either</small></span></div></div>
-                    <label>Device or simulator<select disabled={isStartingDraftRun} onChange={(event) => setDraftRunDeviceKey(event.target.value)} value={draftRunDeviceKey}><option value="">Choose a target</option>{draftRunInventory?.devices.map((device) => <option disabled={!device.isAvailable} key={`${device.platform}:${device.identifier}`} value={`${device.platform}:${device.identifier}`}>{device.name} · {device.isPhysical ? 'device' : 'simulator/emulator'} · {device.state}</option>)}</select></label>
+                    <div className="local-draft-run-device-target"><span>Device or simulator</span><button className="button button--secondary" disabled={isStartingDraftRun} onClick={() => { setIsDraftDevicePickerOpen(true); void refreshDraftRunInventory() }} ref={draftDeviceTriggerRef} type="button"><span>{selectedDraftRunDevice ? `${selectedDraftRunDevice.name} · ${friendlyDraftRuntime(selectedDraftRunDevice)}` : 'Choose a target'}</span><span>{selectedDraftRunDevice ? 'Change' : 'Choose'}</span></button></div>
                     <label>Application artifact (optional)<input disabled={isStartingDraftRun} onChange={(event) => setDraftRunApplicationPath(event.target.value)} placeholder="Host path to the app build, if it is not already installed" value={draftRunApplicationPath} /></label>
                     <p className="local-task-extraction-hint">Only ready drafts from this test’s selected sections can be used. Editor changes to a task draft must be applied before starting.</p>
                     {readyTaskDrafts.length ? <div className="local-draft-run-task-list" aria-label="Task drafts for this test">{readyTaskDrafts.map((item) => <label key={item.extractionId}><input checked={!excludedDraftTaskIds.includes(item.extractionId)} onChange={(event) => setExcludedDraftTaskIds((current) => event.target.checked ? current.filter((id) => id !== item.extractionId) : [...current, item.extractionId])} type="checkbox" />{item.taskName}</label>)}</div> : <p className="local-task-extraction-hint">No ready task drafts belong to these sections. The YAML journey can still run.</p>}
@@ -1313,8 +1326,101 @@ export function TaskExtractionPanel({
         </div>
       </section>
       {isTraceOpen && extraction?.trace ? <TaskExtractionTraceModal onClose={() => setIsTraceOpen(false)} trace={extraction.trace} /> : null}
+      {isDraftDevicePickerOpen ? <DraftRunDevicePicker devices={draftRunInventory?.devices ?? []} onClose={closeDraftDevicePicker} onRefresh={() => void refreshDraftRunInventory()} onSelect={(key) => { setDraftRunDeviceKey(key); closeDraftDevicePicker() }} selectedKey={draftRunDeviceKey} /> : null}
     </div>
   )
+}
+
+function draftDeviceKey(device: LocalDevice): string {
+  return `${device.platform}:${device.identifier}`
+}
+
+function draftDeviceFormFactor(device: LocalDevice): 'Phone' | 'Tablet' | 'Other' {
+  const value = `${device.formFactor ?? ''} ${device.name}`.toLocaleLowerCase()
+  if (/ipad|tablet|tab\b|nexus (?:7|9|10)|pixel (?:c|tablet)/.test(value)) return 'Tablet'
+  if (/iphone|pixel|galaxy|phone|moto|nexus [456]/.test(value)) return 'Phone'
+  return 'Other'
+}
+
+function friendlyDraftRuntime(device: LocalDevice): string {
+  const ios = /(?:^|[.\s])iOS[-\s]*(\d+)(?:[-.](\d+))?/i.exec(device.runtime)
+  if (ios) return `iOS ${ios[1]}${ios[2] ? `.${ios[2]}` : ''}`
+  const android = /(?:android|api)[-\s]*(\d+)/i.exec(device.runtime)
+  if (android) return `Android API ${android[1]}`
+  return device.runtime || (device.platform === 'ios' ? 'iOS' : device.platform === 'android' ? 'Android' : device.platform)
+}
+
+function DraftDeviceFilter({ name, onChange, options, selected, title }: {
+  name: string
+  onChange: (value: string) => void
+  options: { value: string; label: string }[]
+  selected: string
+  title: string
+}) {
+  return <fieldset className="runner-filter-choices"><legend>{title}</legend><div>{options.map((option) => <label className={selected === option.value ? 'is-selected' : ''} key={option.value}><input checked={selected === option.value} name={name} onChange={() => onChange(option.value)} type="radio" value={option.value} /><span>{option.label}</span></label>)}</div></fieldset>
+}
+
+function DraftRunDevicePicker({ devices, onClose, onRefresh, onSelect, selectedKey }: {
+  devices: LocalDevice[]
+  onClose: () => void
+  onRefresh: () => void
+  onSelect: (key: string) => void
+  selectedKey: string
+}) {
+  const [query, setQuery] = useState('')
+  const [formFactor, setFormFactor] = useState('')
+  const [osLevel, setOsLevel] = useState('')
+  const [groupBy, setGroupBy] = useState('formFactor')
+  const [detailKey, setDetailKey] = useState('')
+  const osLevels = useMemo(() => [...new Set(devices.map(friendlyDraftRuntime))].sort(), [devices])
+  const visible = useMemo(() => devices.filter((device) => {
+    const searchable = `${device.name} ${device.identifier} ${friendlyDraftRuntime(device)}`.toLocaleLowerCase()
+    return (!formFactor || draftDeviceFormFactor(device) === formFactor)
+      && (!osLevel || friendlyDraftRuntime(device) === osLevel)
+      && (!query.trim() || searchable.includes(query.trim().toLocaleLowerCase()))
+  }), [devices, formFactor, osLevel, query])
+  const groups = useMemo(() => {
+    const grouped = new Map<string, LocalDevice[]>()
+    for (const device of visible) {
+      const key = groupBy === 'formFactor' ? draftDeviceFormFactor(device) : friendlyDraftRuntime(device)
+      grouped.set(key, [...(grouped.get(key) ?? []), device])
+    }
+    return [...grouped.entries()].sort(([left], [right]) => left.localeCompare(right))
+  }, [groupBy, visible])
+  const detailDevice = devices.find((device) => draftDeviceKey(device) === detailKey)
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) { if (event.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
+  return <div className="modal-backdrop local-draft-device-backdrop" onMouseDown={onClose}>
+    <section aria-label="Choose a device or simulator" aria-modal="true" className="session-info-modal local-draft-device-modal" onMouseDown={(event) => event.stopPropagation()} role="dialog">
+      <div className="modal-heading"><div><h2>Choose a device or simulator</h2></div><button aria-label="Close device selector" className="button button--secondary button--icon" onClick={onClose} type="button"><X /></button></div>
+      <div className="local-draft-device-picker runner-device-picker">
+        <div className="runner-device-filters">
+          <label className="local-draft-device-search"><span>Name search</span><input autoFocus onChange={(event) => setQuery(event.target.value)} placeholder="iPhone, iPad, Pixel…" type="search" value={query} /></label>
+          <DraftDeviceFilter name="draft-device-form-factor" onChange={setFormFactor} options={[{ value: '', label: 'All types' }, { value: 'Phone', label: 'Phones' }, { value: 'Tablet', label: 'Tablets' }, { value: 'Other', label: 'Other' }]} selected={formFactor} title="Form factor" />
+          <DraftDeviceFilter name="draft-device-os-level" onChange={setOsLevel} options={[{ value: '', label: 'All OS levels' }, ...osLevels.map((value) => ({ value, label: value }))]} selected={osLevel} title="OS level" />
+          <DraftDeviceFilter name="draft-device-group-by" onChange={setGroupBy} options={[{ value: 'formFactor', label: 'Form factor' }, { value: 'osLevel', label: 'OS level' }]} selected={groupBy} title="Group by" />
+        </div>
+        <div className="runner-device-selection"><span className="muted">Showing {visible.length} of {devices.length}</span><button className="button button--secondary" onClick={onRefresh} type="button"><ArrowClockwise />Refresh devices</button></div>
+        {groups.length ? groups.map(([group, items]) => <section className="runner-device-group" key={group}><h4>{group}<span>{items.length}</span></h4><div className="runner-device-grid">{items.map((device) => {
+          const key = draftDeviceKey(device)
+          const factor = draftDeviceFormFactor(device)
+          return <div className={`runner-device-card${selectedKey === key ? ' is-selected' : ''}${device.isAvailable ? '' : ' is-unavailable'}`} key={key}>
+            <label><input checked={selectedKey === key} disabled={!device.isAvailable} name="draft-run-device" onChange={() => onSelect(key)} type="radio" value={key} />
+              <span aria-hidden="true" className={`runner-device-silhouette runner-device-silhouette--${factor.toLowerCase()}`}><span /></span>
+              <span className="runner-device-card-copy"><strong>{device.name}</strong><small>{friendlyDraftRuntime(device)} · {device.isPhysical ? 'Device' : 'Simulator / emulator'} · {device.isAvailable ? device.state : 'Unavailable'}</small></span>
+            </label>
+            <button aria-label={`Details for ${device.name}`} className="runner-device-info" onClick={() => setDetailKey((current) => current === key ? '' : key)} type="button"><Info size={18} /></button>
+          </div>
+        })}</div></section>) : <p className="muted">{devices.length ? 'No devices match these filters.' : 'No devices found. Connect a device or start a simulator, then refresh.'}</p>}
+        {detailDevice ? <div className="local-draft-device-details"><strong>{detailDevice.name}</strong><span>{detailDevice.platform} · {detailDevice.runtime || 'Unknown runtime'} · {detailDevice.state}</span><code>{detailDevice.identifier}</code></div> : null}
+      </div>
+    </section>
+  </div>
 }
 
 function ExternalReviewResult({ result }: { result: ExternalDraftResult }) {
