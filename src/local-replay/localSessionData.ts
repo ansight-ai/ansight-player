@@ -45,6 +45,7 @@ const artifactComparison: ArtifactComparisonSource = {
 export const localReplaySource: SessionViewerSource = {
   mode: 'local',
   runLocalSummary: runLocalSummary,
+  deleteLocalSummary: deleteLocalSummary,
   artifactComparison,
   artifactFileOperations: {
     listApplications: listLocalArtifactApplications,
@@ -86,6 +87,13 @@ async function runLocalSummary(sessionId: string, onProgress: (progress: Session
   if (!response.ok || !result?.isSuccess) {
     throw new Error(result?.message || `Unable to run a local session summary: HTTP ${response.status}`)
   }
+}
+
+async function deleteLocalSummary(sessionId: string, analysisId: string): Promise<string> {
+  return postLocalAnnotationOperation(
+    `api/sessions/${encodeURIComponent(sessionId)}/analyses/${encodeURIComponent(analysisId)}/delete`,
+    {},
+  )
 }
 
 export type LocalSessionOptimizationOptions = {

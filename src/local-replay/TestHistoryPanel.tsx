@@ -580,7 +580,7 @@ function RunAuditExecutions({ audit }: { audit: LocalTestRunAudit }) {
           http: 'HTTP', websocket: 'WebSocket', 'http-fallback': 'HTTP (fell back from WebSocket)',
         })}</dd></div>
         <div><dt>AI connection</dt><dd>{connectionLabel(audit.openAiTransport, {
-          direct: 'Direct API key', 'workload-identity': 'Brokered credentials (workload identity)', 'hosted-proxy': 'Hosted proxy',
+          direct: 'Direct API key', 'workload-identity': 'Workload identity', 'hosted-proxy': 'Hosted proxy',
         })}</dd></div>
       </dl>
       {audit.instructions.map((instruction) => (

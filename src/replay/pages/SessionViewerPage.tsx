@@ -341,6 +341,7 @@ export type SessionViewerSource = {
   mode: 'cloud' | 'local'
   loadPayload: (sessionId: string, superAdminMode: boolean) => Promise<SessionViewerPayload>
   runLocalSummary?: (sessionId: string, onProgress: (progress: SessionOperationProgress) => void) => Promise<void>
+  deleteLocalSummary?: (sessionId: string, analysisId: string) => Promise<string>
   loadAiReadState?: (sessionId: string) => Promise<SessionAiReadState>
   createAiExtraction?: (request: CreateSessionAiExtractionRequest) => Promise<string>
   invokeAiExtraction?: (runId: string) => Promise<void>
@@ -764,8 +765,15 @@ export function SessionViewerPage({
   const [showArchivedAiRuns, setShowArchivedAiRuns] = useState(false)
   const [aiMessage, setAiMessage] = useState<string | null>(null)
   const [isLocalSummaryRunning, setIsLocalSummaryRunning] = useState(false)
+  const [deletingLocalSummaryId, setDeletingLocalSummaryId] = useState<string | null>(null)
   const [localSummaryMessage, setLocalSummaryMessage] = useState<string | null>(null)
   const [localSummaryProgress, setLocalSummaryProgress] = useState<string | null>(null)
+  const [localSummaryElapsedSeconds, setLocalSummaryElapsedSeconds] = useState(0)
+  useEffect(() => {
+    if (!isLocalSummaryRunning) return undefined
+    const timer = window.setInterval(() => setLocalSummaryElapsedSeconds((seconds) => seconds + 1), 1000)
+    return () => window.clearInterval(timer)
+  }, [isLocalSummaryRunning])
   const [attachments, setAttachments] = useState<SessionAttachment[]>([])
   const [canAttachToSession, setCanAttachToSession] = useState(false)
   const [canManageSession, setCanManageSession] = useState(false)
@@ -1839,6 +1847,7 @@ export function SessionViewerPage({
     setIsLocalSummaryRunning(true)
     setLocalSummaryMessage(null)
     setLocalSummaryProgress('Starting analysis…')
+    setLocalSummaryElapsedSeconds(0)
     try {
       await source.runLocalSummary(sessionId, (progress) => {
         if (activeSessionIdRef.current === sessionId) setLocalSummaryProgress(progress.message)
@@ -1855,6 +1864,25 @@ export function SessionViewerPage({
     } finally {
       setIsLocalSummaryRunning(false)
       setLocalSummaryProgress(null)
+    }
+  }
+
+  async function handleDeleteLocalSummary(analysisId: string) {
+    if (!source.deleteLocalSummary || deletingLocalSummaryId || !window.confirm('Delete this saved summary?')) return
+    setDeletingLocalSummaryId(analysisId)
+    setLocalSummaryMessage(null)
+    try {
+      await source.deleteLocalSummary(sessionId, analysisId)
+      const nextPayload = await source.loadPayload(sessionId, superAdminMode)
+      const hydratedPayload = await (source.hydratePayload?.(nextPayload) ?? Promise.resolve(nextPayload))
+      if (activeSessionIdRef.current === sessionId) {
+        setPayload(hydratedPayload)
+        setLocalSummaryMessage('Summary deleted.')
+      }
+    } catch (error) {
+      setLocalSummaryMessage(getErrorMessage(error, 'Unable to delete the summary.'))
+    } finally {
+      setDeletingLocalSummaryId(null)
     }
   }
 
@@ -2921,10 +2949,13 @@ export function SessionViewerPage({
             isAiSubmitting={isAiSubmitting}
             isLocalSummaryRunning={isLocalSummaryRunning}
             localSummaryProgress={localSummaryProgress}
+            localSummaryElapsedSeconds={localSummaryElapsedSeconds}
             kind={sessionInfoAiKind}
             onArchiveAiExtraction={(run, shouldArchive) => void handleArchiveAiExtraction(run, shouldArchive)}
             onCreateAiExtraction={(kind) => void handleCreateAiExtraction(kind)}
             onRunLocalSummary={source.runLocalSummary ? () => void handleRunLocalSummary() : undefined}
+            onDeleteLocalSummary={source.deleteLocalSummary ? (analysisId) => void handleDeleteLocalSummary(analysisId) : undefined}
+            deletingLocalSummaryId={deletingLocalSummaryId}
             onRefreshAiExtractions={() => void refreshAiExtractions()}
             onToggleAiSourcePart={toggleAiSourcePart}
             onToggleShowArchivedAiRuns={() => setShowArchivedAiRuns((current) => !current)}
@@ -6478,17 +6509,20 @@ function AnalysisSection({
   aiForm,
   aiMessage,
   analyses,
+  deletingLocalSummaryId,
   archivingAiRunId,
   hasCloudAiCapability,
   isAiLoading,
   isAiSubmitting,
   isLocalSummaryRunning,
   localSummaryProgress,
+  localSummaryElapsedSeconds,
   kind,
   localSummaryMessage,
   onArchiveAiExtraction,
   onCreateAiExtraction,
   onRunLocalSummary,
+  onDeleteLocalSummary,
   onRefreshAiExtractions,
   onToggleAiSourcePart,
   onToggleShowArchivedAiRuns,
@@ -6506,17 +6540,20 @@ function AnalysisSection({
   aiForm: SessionAiForm
   aiMessage: string | null
   analyses: SessionAnalysisRecord[]
+  deletingLocalSummaryId: string | null
   archivingAiRunId: string | null
   hasCloudAiCapability: boolean
   isAiLoading: boolean
   isAiSubmitting: boolean
   isLocalSummaryRunning: boolean
   localSummaryProgress: string | null
+  localSummaryElapsedSeconds: number
   kind: SessionAiExtractionKind
   localSummaryMessage: string | null
   onArchiveAiExtraction: (run: SessionAiExtractionSummary, shouldArchive: boolean) => void
   onCreateAiExtraction: (kind: SessionAiExtractionKind) => void
   onRunLocalSummary?: () => void
+  onDeleteLocalSummary?: (analysisId: string) => void
   onRefreshAiExtractions: () => void
   onToggleAiSourcePart: (part: SessionAiSourcePart) => void
   onToggleShowArchivedAiRuns: () => void
@@ -6553,7 +6590,7 @@ function AnalysisSection({
           <div className="cloud-ai-summary-heading">
             <div>
               <p className="eyebrow">Local session</p>
-              <h3>Agent summaries</h3>
+              <h3>Session summaries</h3>
               <span>{analyses.length} saved with this capture</span>
             </div>
             <button className="button button--primary button--compact" disabled={isLocalSummaryRunning} onClick={onRunLocalSummary} type="button">
@@ -6562,7 +6599,7 @@ function AnalysisSection({
             </button>
           </div>
           <p className="muted">Analyzes session evidence and selected screenshots, then saves the summary with this local session.</p>
-          {isLocalSummaryRunning ? <p className="inline-message" role="status"><CircleNotch className="spin" aria-hidden="true" /> {localSummaryProgress ?? 'Analyzing session…'}</p> : null}
+          {isLocalSummaryRunning ? <p className="inline-message cloud-ai-summary-progress" role="status"><CircleNotch className="spin" aria-hidden="true" /><span>{localSummaryProgress ?? 'Analyzing session…'}</span><span className="muted" aria-hidden="true">{localSummaryElapsedSeconds}s elapsed</span></p> : null}
           {localSummaryMessage ? <p className="inline-message" role="status">{localSummaryMessage}</p> : null}
         </section>
       ) : null}
@@ -6570,12 +6607,25 @@ function AnalysisSection({
         <div className="analysis-list">
           {analyses.map((analysis, index) => (
             <article className="analysis-entry" key={analysis.analysisId || index}>
-              <div>
-                <p className="eyebrow">{analysis.analysisKind || 'Ansight analysis'}</p>
-                <h3>{analysis.agentId || 'Ansight agent'}</h3>
-                <span>{formatDateTime(analysis.completedUtc || analysis.startedUtc)}</span>
+              <div className="analysis-entry-heading">
+                <div>
+                  <p className="eyebrow">{analysis.analysisKind || 'Ansight analysis'}</p>
+                  <h3>{analysis.agentId || 'Ansight agent'}</h3>
+                  <span>{formatDateTime(analysis.completedUtc || analysis.startedUtc)}</span>
+                </div>
+                {onDeleteLocalSummary ? (
+                  <div className="analysis-entry-actions">
+                    {analysis.finalResponse ? <CopyTextButton label="Copy markdown" text={analysis.finalResponse} /> : null}
+                    {analysis.analysisId ? (
+                      <button className="button button--danger button--compact" disabled={isLocalSummaryRunning || deletingLocalSummaryId !== null} onClick={() => onDeleteLocalSummary(analysis.analysisId!)} type="button">
+                        {deletingLocalSummaryId === analysis.analysisId ? <CircleNotch className="spin" aria-hidden="true" /> : <Trash aria-hidden="true" />}
+                        {deletingLocalSummaryId === analysis.analysisId ? 'Deleting…' : 'Delete'}
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
-              {analysis.finalResponse ? <MarkdownContent source={analysis.finalResponse} /> : <p className="muted">{analysis.statusMessage || 'No final response was captured.'}</p>}
+              {analysis.finalResponse ? <MarkdownContent showCopyAction={!onDeleteLocalSummary} source={analysis.finalResponse} /> : <p className="muted">{analysis.statusMessage || 'No final response was captured.'}</p>}
               {analysis.mermaidDefinition ? <MermaidPreview definition={analysis.mermaidDefinition} /> : null}
             </article>
           ))}

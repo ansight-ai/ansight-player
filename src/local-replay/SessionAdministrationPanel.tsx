@@ -1,5 +1,6 @@
 import { ArrowClockwise, CircleNotch, FloppyDisk, HardDrives, MagnifyingGlass, PushPin, Trash, UploadSimple, WifiSlash, X } from '@phosphor-icons/react'
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import { addSessionRange } from './sessionSelection'
 import type { LocalOperationResult, LocalSessionCachePlan, LocalSessionSummary } from './types'
 
 type SessionStorageSettings = {
@@ -29,6 +30,7 @@ export function SessionAdministrationPanel({
   const [message, setMessage] = useState<string | null>(null)
   const [pendingOperation, setPendingOperation] = useState<string | null>(null)
   const importInputRef = useRef<HTMLInputElement>(null)
+  const selectionAnchorRef = useRef<string | null>(null)
 
   const loadStorageSettings = useCallback(async () => {
     try {
@@ -95,10 +97,24 @@ export function SessionAdministrationPanel({
       { operation, sessionIds: bulkCandidates.map((session) => session.sessionId) },
       `Bulk ${operation} completed.`,
     )
-    if (wasCompleted) setSelectedIds(new Set())
+    if (wasCompleted) {
+      setSelectedIds(new Set())
+      selectionAnchorRef.current = null
+    }
   }
 
-  function toggleSessionSelection(sessionId: string, isSelected: boolean) {
+  function toggleSessionSelection(event: ChangeEvent<HTMLInputElement>, sessionId: string) {
+    const orderedIds = visibleSessions.map((session) => session.sessionId)
+    if ('shiftKey' in event.nativeEvent && event.nativeEvent.shiftKey) {
+      setSelectedIds((current) => addSessionRange(current, orderedIds, selectionAnchorRef.current, sessionId))
+      if (!selectionAnchorRef.current || !orderedIds.includes(selectionAnchorRef.current)) {
+        selectionAnchorRef.current = sessionId
+      }
+      return
+    }
+
+    selectionAnchorRef.current = sessionId
+    const isSelected = event.target.checked
     setSelectedIds((current) => {
       const next = new Set(current)
       if (isSelected) next.add(sessionId)
@@ -108,6 +124,7 @@ export function SessionAdministrationPanel({
   }
 
   function toggleVisibleSelection() {
+    selectionAnchorRef.current = null
     setSelectedIds((current) => {
       const next = new Set(current)
       visibleSessions.forEach((session) => {
@@ -191,14 +208,17 @@ export function SessionAdministrationPanel({
               <div>
                 <span>{bulkCandidates.length} of {sessions.length} selected</span>
                 <button disabled={visibleSessions.length === 0 || !!pendingOperation} onClick={toggleVisibleSelection} type="button">{areAllVisibleSelected ? 'Deselect visible' : 'Select visible'}</button>
-                <button disabled={bulkCandidates.length === 0 || !!pendingOperation} onClick={() => setSelectedIds(new Set())} type="button">Clear</button>
+                <button disabled={bulkCandidates.length === 0 || !!pendingOperation} onClick={() => {
+                  setSelectedIds(new Set())
+                  selectionAnchorRef.current = null
+                }} type="button">Clear</button>
               </div>
             </div>
             <div aria-label="Sessions available for bulk actions" className="local-session-bulk-list" role="group">
               {visibleSessions.map((session) => {
                 const isSelected = selectedIds.has(session.sessionId)
-                return <label className={isSelected ? 'local-session-bulk-item local-session-bulk-item--selected' : 'local-session-bulk-item'} key={session.sessionId}>
-                  <input checked={isSelected} disabled={!!pendingOperation} onChange={(event) => toggleSessionSelection(session.sessionId, event.target.checked)} type="checkbox" />
+                return <label className={isSelected ? 'local-session-bulk-item local-session-bulk-item--selected' : 'local-session-bulk-item'} key={session.sessionId} title="Shift-click to select a range; Command/Control-click or click to toggle">
+                  <input checked={isSelected} disabled={!!pendingOperation} onChange={(event) => toggleSessionSelection(event, session.sessionId)} type="checkbox" />
                   <span><strong>{session.name || session.appName || session.clientName || session.appId}</strong><small>{session.appName && session.name ? session.appName : session.appId}</small></span>
                   <i>{session.isConnected ? 'Live' : session.isPinned ? 'Pinned' : 'Recorded'}</i>
                 </label>

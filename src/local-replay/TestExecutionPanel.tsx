@@ -3,9 +3,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { agentReasoningModes, defaultAgentReasoning, type AgentReasoning } from '../agentReasoning'
 import type { LocalDeviceInventory, LocalOperationResult, LocalRegisteredApp, LocalRepositoryWorkspaceCatalog, LocalTestExecution, LocalWorkspaceTest } from './types'
 
-export function TestExecutionPanel({ onClose, onOpenHistory }: { onClose: () => void, onOpenHistory: () => void }) {
+export function TestExecutionPanel({ initialAppId, initialTestId, onClose, onOpenHistory }: { initialAppId?: string; initialTestId?: string; onClose: () => void; onOpenHistory: () => void }) {
   const [apps, setApps] = useState<LocalRegisteredApp[]>([])
-  const [selectedAppId, setSelectedAppId] = useState('')
+  const [selectedAppId, setSelectedAppId] = useState(initialAppId ?? '')
   const [catalog, setCatalog] = useState<LocalRepositoryWorkspaceCatalog | null>(null)
   const [selectedTestIds, setSelectedTestIds] = useState<Set<string>>(new Set())
   const [inventory, setInventory] = useState<LocalDeviceInventory | null>(null)
@@ -81,14 +81,24 @@ export function TestExecutionPanel({ onClose, onOpenHistory }: { onClose: () => 
           if (!response.ok || !('tests' in body)) throw new Error('message' in body ? body.message : `HTTP ${response.status}`)
           return body
         })
-        .then((next) => { if (isMounted) setCatalog(next) })
+        .then((next) => {
+          if (!isMounted) return
+          setCatalog(next)
+          if (initialAppId === selectedApp.appId && initialTestId) {
+            const requestedTest = next.tests.find((test) => test.testId === initialTestId)
+            if (requestedTest?.enabled) setSelectedTestIds(new Set([initialTestId]))
+            else setMessage(requestedTest
+              ? `The saved test '${initialTestId}' is disabled. Resolve its REVIEW items before running it.`
+              : `The saved test '${initialTestId}' was not found in this workspace. Refresh the test list after saving.`)
+          }
+        })
         .catch((error: unknown) => { if (isMounted) setMessage(resolveError(error, 'Unable to load workspace tests.')) })
     }, 0)
     return () => {
       isMounted = false
       window.clearTimeout(timeout)
     }
-  }, [selectedApp?.appId, selectedApp?.codebasePath])
+  }, [initialAppId, initialTestId, selectedApp?.appId, selectedApp?.codebasePath])
 
   function buildRequest(testIds: string[]) {
     return {

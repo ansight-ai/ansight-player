@@ -1,7 +1,7 @@
 import { readSessionTimelineLink, sessionTimelineHref, type SessionTimelineLink } from './sessionLinks'
 import { observeLocalActivity } from './usage'
-import { Check, Copy, DownloadSimple, Archive, CaretDown, ChartLineUp, CircleNotch, CloudArrowUp, DeviceMobile, FlowArrow, Gear, HardDrives, Info, Link, NotePencil, Pulse, QrCode, SidebarSimple, Sparkle, SquaresFour, TestTube, Trash, UserCircle, VideoCamera, WifiHigh, X } from '@phosphor-icons/react'
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type SetStateAction } from 'react'
+import { ArrowClockwise, Check, Copy, DownloadSimple, Archive, CaretDown, ChartLineUp, CircleNotch, CloudArrowUp, DeviceMobile, FlowArrow, Gear, HardDrives, Info, Link, NotePencil, Pulse, QrCode, SidebarSimple, Sparkle, SquaresFour, TestTube, Trash, UserCircle, VideoCamera, WifiHigh, X } from '@phosphor-icons/react'
+import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type SetStateAction } from 'react'
 import { SessionIcon } from './SessionIcon'
 import { GithubRepositoryBadge } from '../components/GithubRepositoryBadge'
 import { SessionViewerPage, type SessionReplayPanelContext, type SessionViewerSource, type TimelineEditSelection } from '../replay/pages/SessionViewerPage'
@@ -26,7 +26,7 @@ import { SimulatorControlView } from './SimulatorControlView'
 import { TeamSessionExplorer } from './TeamSessionExplorer'
 import { TestHistoryPanel } from './TestHistoryPanel'
 import { TestExecutionPanel } from './TestExecutionPanel'
-import type { LocalAppGraphLiveRun, LocalEnrollmentInviteResult, LocalOperationResult, LocalRemoteRunnerRegistration, LocalRemoteRunnerStatus, LocalReplayBootstrap, LocalSessionCachePlan, LocalSessionSummary, LocalTestHistory, LocalTestRunSummary } from './types'
+import type { LocalAppGraphLiveRun, LocalEnrollmentInviteResult, LocalOperationResult, LocalRemoteRunnerRegistration, LocalRemoteRunnerStatus, LocalReplayBootstrap, LocalSessionCachePlan, LocalSessionSummary, LocalTaskExtraction, LocalTestHistory, LocalTestRunSummary } from './types'
 import type { SessionAnnotation } from '../replay/sessionViewerData'
 
 const linkedTraceRefreshIntervalMs = 8000
@@ -45,14 +45,11 @@ interface LocalSessionSelection {
   link: SessionTimelineLink | null
 }
 
-type TestExtractionReturn = { name: string; assertions: string; selectedTaskSectionIds: string[]; skipTaskSections: boolean }
+type TestExtractionReturn = { name: string; assertions: string; generationNotes: string; selectedTaskSectionIds: string[]; skipTaskSections: boolean }
 type TaskExtractionRequest = {
   period: TimelineEditSelection
   sessionId: string
   format?: 'ansight' | 'test'
-  returnPeriod?: TimelineEditSelection
-  taskName?: string
-  taskDescription?: string
   returnTest?: TestExtractionReturn
 }
 
@@ -122,11 +119,39 @@ export function LocalReplayApp() {
   const [appGraphPanelMode, setAppGraphPanelMode] = useState<'recording' | 'runs'>('recording')
   const [isAppGraphRefreshing, setIsAppGraphRefreshing] = useState(false)
   const [testHistoryInitialRun, setTestHistoryInitialRun] = useState<LocalTestRunSummary | null>(null)
+  const [testExecutionTarget, setTestExecutionTarget] = useState<{ appId: string; testId: string } | null>(null)
   const [taskExtractionRequest, setTaskExtractionRequest] = useState<TaskExtractionRequest | null>(null)
   const [annotationWorkflow, setAnnotationWorkflow] = useState<{ id: number; annotationId: string | null; returnRequest: TaskExtractionRequest } | null>(null)
   const annotationWorkflowIdRef = useRef(0)
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null)
   const [sessionActionError, setSessionActionError] = useState<string | null>(null)
+
+  async function openSessionTaskDrafts() {
+    if (!selectedSessionId) return
+    setSessionActionError(null)
+    try {
+      const response = await fetch('api/task-extractions', { cache: 'no-store' })
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      const extractions = await response.json() as LocalTaskExtraction[]
+      const drafts = extractions.filter((item) => item.sessionId === selectedSessionId && item.draft)
+      if (drafts.length === 0) {
+        setSessionActionError('No generated task drafts for this session yet.')
+        return
+      }
+      const startMs = Math.min(...drafts.map((item) => Date.parse(item.startUtc)))
+      const endMs = Math.max(...drafts.map((item) => Date.parse(item.endUtc)))
+      if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+        throw new Error('The saved task periods could not be read.')
+      }
+      setTaskExtractionRequest({
+        format: 'test',
+        period: { startMs, endMs, focusMs: startMs + (endMs - startMs) / 2 },
+        sessionId: selectedSessionId,
+      })
+    } catch (error) {
+      setSessionActionError(error instanceof Error ? error.message : 'Unable to open task drafts.')
+    }
+  }
 
   async function openSummary() {
     setSessionActionError(null)
@@ -1129,6 +1154,15 @@ export function LocalReplayApp() {
                 <Sparkle aria-hidden="true" />
                 Summary
               </button>
+              {bootstrap?.supportsTaskExtraction ? <button
+                className="local-banner-button"
+                onClick={() => void openSessionTaskDrafts()}
+                data-tooltip="Open generated task drafts for this session"
+                type="button"
+              >
+                <TestTube aria-hidden="true" />
+                Task drafts
+              </button> : null}
               {canManageSelectedSession ? (
                 <button
                   className="local-banner-button local-session-context-delete"
@@ -1270,7 +1304,9 @@ export function LocalReplayApp() {
       ) : null}
       {activePanel === 'test_execution' ? (
         <TestExecutionPanel
-          onClose={() => setActivePanel(null)}
+          initialAppId={testExecutionTarget?.appId}
+          initialTestId={testExecutionTarget?.testId}
+          onClose={() => { setActivePanel(null); setTestExecutionTarget(null) }}
           onOpenHistory={() => {
             setTestHistoryInitialRun(null)
             setActivePanel('test_history')
@@ -1302,15 +1338,16 @@ export function LocalReplayApp() {
       {taskExtractionRequest ? (() => {
         const extractionSession = sessions.find((candidate) => candidate.sessionId === taskExtractionRequest.sessionId)
         return extractionSession ? (
-          <Suspense fallback={<TaskExtractionLoadingPanel />}>
-            <TaskExtractionPanel
+          <TaskExtractionErrorBoundary onClose={() => setTaskExtractionRequest(null)}>
+            <Suspense fallback={<TaskExtractionLoadingPanel />}>
+              <TaskExtractionPanel
               key={`${extractionSession.sessionId}:${taskExtractionRequest.period.startMs}:${taskExtractionRequest.period.endMs}:${taskExtractionRequest.format ?? 'ansight'}`}
-              initialDescription={taskExtractionRequest.taskDescription}
               initialFormat={taskExtractionRequest.format}
               initialSelectedTaskSectionIds={taskExtractionRequest.returnTest?.selectedTaskSectionIds}
               initialSkipTaskSections={taskExtractionRequest.returnTest?.skipTaskSections}
-              initialTaskName={taskExtractionRequest.format === 'test' ? taskExtractionRequest.returnTest?.name : taskExtractionRequest.taskName}
+              initialTaskName={taskExtractionRequest.returnTest?.name}
               initialTestAssertions={taskExtractionRequest.returnTest?.assertions}
+              initialGenerationNotes={taskExtractionRequest.returnTest?.generationNotes}
               onAnnotateOnReplay={(annotationId, returnTest) => {
                 annotationWorkflowIdRef.current += 1
                 setAnnotationWorkflow({
@@ -1321,13 +1358,17 @@ export function LocalReplayApp() {
                 setTaskExtractionRequest(null)
               }}
               onClose={() => setTaskExtractionRequest(null)}
-              onExtractTask={(section) => setTaskExtractionRequest({ period: section.period, sessionId: extractionSession.sessionId, format: 'ansight', returnPeriod: taskExtractionRequest.period, taskName: section.name, taskDescription: section.description, returnTest: section.returnTest })}
-              onReturnToTest={taskExtractionRequest.returnPeriod ? () => setTaskExtractionRequest({ period: taskExtractionRequest.returnPeriod!, sessionId: extractionSession.sessionId, format: 'test', returnTest: taskExtractionRequest.returnTest }) : undefined}
+              onOpenTests={(appId, testId) => {
+                setTestExecutionTarget({ appId, testId })
+                setTaskExtractionRequest(null)
+                setActivePanel('test_execution')
+              }}
               period={taskExtractionRequest.period}
               session={extractionSession}
               sessions={sessions}
-            />
-          </Suspense>
+              />
+            </Suspense>
+          </TaskExtractionErrorBoundary>
         ) : null
       })() : null}
       {annotationWorkflow ? <div className="local-test-annotation-return" role="status">
@@ -1356,9 +1397,31 @@ export function LocalReplayApp() {
   )
 }
 
+class TaskExtractionErrorBoundary extends Component<{ children: ReactNode; onClose: () => void }, { failed: boolean }> {
+  state = { failed: false }
+
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+
+  render() {
+    if (!this.state.failed) return this.props.children
+    return <div className="local-admin-backdrop local-task-extraction-backdrop" role="presentation">
+      <section aria-label="Extraction explorer unavailable" className="local-admin-panel local-task-extraction-panel">
+        <header className="local-admin-header"><strong>Extraction explorer</strong><button className="button button--secondary" onClick={this.props.onClose} type="button"><X />Close explorer</button></header>
+        <main className="local-admin-content">
+          <h2>Reload the explorer</h2>
+          <p>The task editor could not load. This can happen when the local CLI was updated while this browser tab was open.</p>
+          <button className="button button--primary" onClick={() => window.location.reload()} type="button"><ArrowClockwise />Reload explorer</button>
+        </main>
+      </section>
+    </div>
+  }
+}
+
 function TaskExtractionLoadingPanel() {
   return (
-    <div className="local-admin-backdrop" role="presentation">
+    <div className="local-admin-backdrop local-task-extraction-backdrop" role="presentation">
       <section aria-label="Loading task extraction" className="local-admin-panel local-task-extraction-panel">
         <div className="local-replay-loading">
           <CircleNotch className="spin" aria-hidden="true" />

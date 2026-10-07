@@ -29,7 +29,7 @@ export function TestTaskSectionIntake({
       <span className="local-test-intake-step">Step 1</span>
       <div>
         <h3>Mark reusable parts</h3>
-        <p>Use the replay timeline to annotate the core steps of this session. Select the range annotations that should guide the automated test.</p>
+        <p>Annotate the core steps of this session. Selected ranges guide the test and each generates a reusable task draft when you choose Generate with AI.</p>
       </div>
       <button className="button button--secondary" disabled={isLoading} onClick={onAddAnnotation} type="button"><NotePencil />Annotate on replay</button>
     </div>
@@ -55,7 +55,7 @@ export function TestTaskSectionIntake({
     </div> : <div className="local-test-intake-empty"><NotePencil /><span><strong>No range annotations in this period</strong><small>Annotate a core step on the replay timeline, then return here to include it in the test.</small></span></div>}
 
     <div className="local-test-intake-footer">
-      <span>{skip ? 'The test will use the full replay without marked steps.' : selectedIds.length ? `${selectedIds.length} annotation${selectedIds.length === 1 ? '' : 's'} will guide the test.` : 'Select an annotation or choose to use the full replay.'}</span>
+      <span>{skip ? 'The test will use the full replay without marked steps or task drafts.' : selectedIds.length ? `${selectedIds.length} annotation${selectedIds.length === 1 ? '' : 's'} will guide the test and generate task drafts.` : 'Select an annotation or choose to use the full replay.'}</span>
       <label><input checked={skip} onChange={(event) => onSkipChange(event.target.checked)} type="checkbox" />Use full replay without marked steps</label>
     </div>
   </div>

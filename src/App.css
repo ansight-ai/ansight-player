@@ -6975,6 +6975,18 @@ body.network-details-resizing {
   gap: 14px;
 }
 
+.cloud-ai-summary-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cloud-ai-summary-progress > svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+}
+
 .cloud-ai-summary-heading {
   display: flex;
   align-items: flex-start;
@@ -7472,16 +7484,40 @@ body.network-details-resizing {
   border-bottom: 1px solid var(--border);
 }
 
-.analysis-entry > div > h3,
-.analysis-entry > div > p {
+.analysis-entry-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.analysis-entry-heading > div {
+  min-width: 0;
+}
+
+.analysis-entry-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.analysis-entry-actions .copy-text-button {
+  min-height: 26px;
+}
+
+.analysis-entry-heading > div:first-child > h3,
+.analysis-entry-heading > div:first-child > p {
   margin: 0;
 }
 
-.analysis-entry > div > h3 {
+.analysis-entry-heading > div:first-child > h3 {
   color: var(--text-primary);
 }
 
-.analysis-entry > div > span {
+.analysis-entry-heading > div:first-child > span {
   display: block;
   margin-top: 2px;
   color: var(--text-muted);

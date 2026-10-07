@@ -7484,6 +7484,7 @@ button.local-runner-status:hover {
   border: 1px solid var(--border);
   border-radius: 8px;
   cursor: pointer;
+  user-select: none;
 }
 
 .local-session-bulk-item:hover {
@@ -8053,8 +8054,61 @@ button.local-runner-status:hover {
   }
 }
 
+.local-task-extraction-backdrop {
+  inset: 0;
+  z-index: 60;
+}
+
 .local-task-extraction-panel {
-  width: min(1240px, calc(100vw - 36px));
+  width: 100vw;
+  max-width: none;
+  border-left: 0;
+  box-shadow: none;
+}
+
+.local-task-extraction-panel .local-admin-header { flex: none; align-items: center; }
+.local-task-extraction-panel .local-admin-header > div:first-child { min-width: 0; }
+.local-task-extraction-panel .local-admin-header > div:first-child > span { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.local-task-extraction-panel .local-admin-header > .local-admin-actions { flex: none; flex-wrap: wrap; justify-content: flex-end; }
+
+.local-extraction-draft-tabs {
+  display: flex;
+  flex: none;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px 18px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-muted);
+}
+.local-extraction-draft-tabs button {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  min-width: 110px;
+  padding: 8px 11px;
+  color: var(--text-secondary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+}
+.local-extraction-draft-tabs button.is-selected { color: var(--text-primary); border-color: var(--accent); background: var(--accent-soft); }
+.local-extraction-draft-tabs button:disabled { cursor: not-allowed; opacity: .55; }
+.local-extraction-draft-tabs button > svg { width: 17px; height: 17px; flex: none; color: var(--accent); }
+.local-extraction-draft-tabs .local-extraction-task-tab { width: min(310px, 70vw); }
+.local-extraction-draft-tabs button > span { display: grid; gap: 2px; min-width: 0; }
+.local-extraction-draft-tabs button > span > strong { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.local-extraction-draft-tabs button small { color: var(--text-muted); font-size: 9px; font-weight: 400; }
+
+@media (max-width: 700px) {
+  .local-task-extraction-panel .local-admin-header { align-items: flex-start; flex-wrap: wrap; }
+  .local-task-extraction-panel .local-admin-header > .local-admin-actions { width: 100%; justify-content: flex-start; }
 }
 
 .local-task-extraction-formats {
@@ -8177,6 +8231,38 @@ button.local-runner-status:hover {
 }
 .local-external-extraction-form > label > textarea { resize: vertical; }
 .local-external-extraction-form > label > small { color: var(--text-muted); font-size: 11px; font-weight: 400; }
+
+.local-test-generation-progress,
+.local-test-generation-result,
+.local-test-generated-tasks {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-muted);
+}
+.local-test-generation-progress { display: grid; gap: 10px; }
+.local-test-generation-progress > div { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.local-test-generation-progress svg,
+.local-test-generation-result svg { width: 18px; height: 18px; flex: none; color: var(--accent); }
+.local-test-generation-progress strong { min-width: 0; font-size: 12px; }
+.local-test-generation-progress span { margin-left: auto; color: var(--text-muted); font-size: 11px; white-space: nowrap; }
+.local-test-generation-progress progress { width: 100%; height: 6px; accent-color: var(--accent); }
+.local-test-generation-stages { display: grid; gap: 4px; margin: 0; padding-left: 22px; color: var(--text-muted); font-size: 11px; }
+.local-test-generation-stages li:last-child { color: var(--text-primary); font-weight: 600; }
+.local-test-generation-result { display: flex; align-items: flex-start; gap: 9px; }
+.local-test-generation-result span { display: grid; gap: 3px; min-width: 0; }
+.local-test-generation-result strong { font-size: 12px; }
+.local-test-generation-result small { color: var(--text-muted); font-size: 11px; overflow-wrap: anywhere; }
+.local-test-generated-tasks { display: grid; gap: 8px; }
+.local-test-generated-tasks > p { margin: 2px 0 0; color: var(--text-muted); font-size: 11px; line-height: 1.45; }
+.local-test-generated-task { display: flex; align-items: center; gap: 9px; padding: 9px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg-primary); }
+.local-test-generated-task > svg { width: 17px; height: 17px; flex: none; color: var(--accent); }
+.local-test-generated-task > span { display: grid; gap: 3px; min-width: 0; flex: 1; }
+.local-test-generated-task strong { font-size: 12px; }
+.local-test-generated-task small { color: var(--text-muted); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
+.local-test-generated-task .button { flex: none; padding: 6px 8px; font-size: 11px; }
+.local-test-generation-next-step { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
+.local-test-generation-next-step small { color: var(--text-muted); font-size: 11px; }
 
 @media (max-width: 700px) {
   .local-test-intake-heading { grid-template-columns: auto minmax(0, 1fr); }
@@ -8643,6 +8729,9 @@ button.local-runner-status:hover {
   padding-top: 14px;
   border-top: 1px solid var(--border);
 }
+
+.local-draft-run-task-list { display: grid; gap: 6px; }
+.local-draft-run-task-list label { display: flex; align-items: center; gap: 7px; font-size: 11px; }
 
 .local-task-extraction-test > label {
   display: flex;

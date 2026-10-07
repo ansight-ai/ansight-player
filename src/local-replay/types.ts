@@ -63,6 +63,7 @@ export type AppiumScriptExtraction = {
 
 export type WorkspaceTestExtraction = {
   suggestedName: string
+  testName?: string | null
   source: string
   generatedActionCount: number
   diagnostics: string[]
