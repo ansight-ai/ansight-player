@@ -218,6 +218,29 @@ export type LocalTaskExtractionModelPassTrace = {
   durationMilliseconds: number
   tokens: LocalTaskExtractionTokenUsage
   functionCalls: string[]
+  context?: LocalTaskExtractionTracePayload | null
+  assistantOutput?: LocalTaskExtractionTracePayload | null
+  succeeded?: boolean
+  errorMessage?: string | null
+}
+
+export type LocalTaskExtractionTracePayload = {
+  content: string
+  originalCharacterCount: number
+  wasTruncated: boolean
+  sha256: string
+}
+
+export type LocalTaskExtractionToolCallTrace = {
+  sequence: number
+  passSequence: number
+  callId: string
+  toolName: string
+  startedAtUtc: string
+  durationMilliseconds: number
+  arguments: LocalTaskExtractionTracePayload
+  result: LocalTaskExtractionTracePayload
+  isError: boolean
 }
 
 export type LocalTaskExtractionTrace = {
@@ -227,6 +250,7 @@ export type LocalTaskExtractionTrace = {
   tokens: LocalTaskExtractionTokenUsage
   calculatedCost?: LocalTaskExtractionRunCost | null
   modelPasses: LocalTaskExtractionModelPassTrace[]
+  toolCalls?: LocalTaskExtractionToolCallTrace[]
 }
 
 export type LocalTaskExtraction = {

@@ -1,5 +1,6 @@
-import { ArrowClockwise, Bug, ChartBar, CheckCircle, CircleNotch, Clock, Code, Coins, FloppyDisk, Info, Play, Robot, Stop, TestTube, Trash, WarningCircle, X, XCircle } from '@phosphor-icons/react'
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
+import { ArrowClockwise, Bug, ChartBar, CheckCircle, CircleNotch, Code, FloppyDisk, Info, Play, Robot, Stop, TestTube, Trash, WarningCircle, X, XCircle } from '@phosphor-icons/react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { TaskExtractionTraceViewer } from './TaskExtractionTraceViewer'
 import { agentReasoningModes, defaultAgentReasoning, type AgentReasoning } from '../agentReasoning'
 import { TypeScriptTaskEditor, type TypeScriptEditorDiagnostics } from './TypeScriptTaskEditor'
 import { TestHistoryPanel } from './TestHistoryPanel'
@@ -7,7 +8,7 @@ import { YamlTestEditor } from './YamlTestEditor'
 import { TestTaskSectionIntake } from './TestTaskSectionIntake'
 import { readSessionOperationStream } from './sessionOperationStream'
 import type { SessionAnnotation } from '../replay/sessionViewerData'
-import type { AppiumScriptExtraction, LocalDevice, LocalDeviceInventory, LocalOperationResult, LocalSessionSummary, LocalTaskAuthoringReference, LocalTaskAuthoringReferenceCatalog, LocalTaskExtraction, LocalTaskExtractionCapabilities, LocalTaskExtractionFailureDebugResult, LocalTaskExtractionTrace, LocalTestExecution, LocalTestHistory, LocalTestRunSummary, MaestroFlowExtraction, WorkspaceTestDraft, WorkspaceTestExtraction } from './types'
+import type { AppiumScriptExtraction, LocalDevice, LocalDeviceInventory, LocalOperationResult, LocalSessionSummary, LocalTaskAuthoringReference, LocalTaskAuthoringReferenceCatalog, LocalTaskExtraction, LocalTaskExtractionCapabilities, LocalTaskExtractionFailureDebugResult, LocalTestExecution, LocalTestExecutionProgress, LocalTestHistory, LocalTestRunSummary, MaestroFlowExtraction, WorkspaceTestDraft, WorkspaceTestExtraction } from './types'
 
 type SelectedPeriod = {
   startMs: number
@@ -1651,7 +1652,7 @@ export function TaskExtractionPanel({
           </aside>
         </div>
       </section>
-      {isTraceOpen && extraction?.trace ? <TaskExtractionTraceModal onClose={() => setIsTraceOpen(false)} trace={extraction.trace} /> : null}
+      {isTraceOpen && extraction?.trace ? <TaskExtractionTraceViewer onClose={() => setIsTraceOpen(false)} trace={extraction.trace} /> : null}
       {isDraftDevicePickerOpen ? <DraftRunDevicePicker appId={session.appId} devices={draftRunInventory?.devices ?? []} installedDeviceKeys={draftInstalledDeviceKeys} unknownDeviceKeys={draftUnknownDeviceKeys} hasApplicationArtifact={!!draftRunApplicationPath.trim()} onClose={closeDraftDevicePicker} onRefresh={() => void refreshDraftRunInventory()} onSelect={(key) => { setDraftRunDeviceKey(key); closeDraftDevicePicker() }} selectedKey={draftRunDeviceKey} /> : null}
       {isDraftRunDetailsOpen && draftRun ? <DraftRunDetailsModal onClose={() => setIsDraftRunDetailsOpen(false)} onViewTrace={draftRun.result?.traceRunId || lastDraftTraceRunId ? () => void openDraftTrace((draftRun.result?.traceRunId || lastDraftTraceRunId)!) : null} run={draftRun} /> : null}
       {draftTraceRun ? <TestHistoryPanel appId={session.appId} initialRun={draftTraceRun} onClose={() => setDraftTraceRun(null)} /> : null}
@@ -1672,9 +1673,42 @@ function DraftRunDetailsModal({ onClose, onViewTrace, run }: {
       </header>
       <p className="local-draft-run-details-message">{run.progress.at(-1)?.message || run.message}</p>
       {run.result?.traceError ? <p className="local-draft-run-details-error">{run.result.traceError}</p> : null}
-      <ol className="local-draft-run-details-timeline">{run.progress.map((step, index) => <li key={`${index}:${step.occurredAtUtc}`}><time>{new Date(step.occurredAtUtc).toLocaleTimeString()}</time><span>{step.message}</span></li>)}</ol>
+      <ol className="local-draft-run-details-timeline">{run.progress.map((step, index) => {
+        const kind = draftRunProgressKind(step)
+        return <li className={`local-draft-run-step--${kind}`} key={`${index}:${step.occurredAtUtc}`}><time>{new Date(step.occurredAtUtc).toLocaleTimeString()}</time><small>{draftRunProgressKindLabel(kind)}</small><span>{step.message}</span></li>
+      })}</ol>
     </section>
   </div>
+}
+
+type DraftRunProgressKind = 'context' | 'app-graph' | 'model' | 'task' | 'ui' | 'tool' | 'result'
+
+function draftRunProgressKind(step: LocalTestExecutionProgress): DraftRunProgressKind {
+  const stage = step.stage.toLowerCase()
+  if (stage === 'thinking' || stage === 'modelcompleted') return 'model'
+  if (stage === 'callingtool' || stage === 'toolcompleted') {
+    const toolName = /^Calling ([\w]+) with\b/.exec(step.message)?.[1]
+      ?? /^([\w]+) (?:completed in|failed after)\b/.exec(step.message)?.[1]
+    if (toolName === 'ansight_list_tasks' || toolName === 'ansight_run_task') return 'task'
+    if (toolName && /(_ui|screenshot|visual_tree|simulator|tap|swipe|type_text)/i.test(toolName)) return 'ui'
+    return 'tool'
+  }
+  if (stage === 'taskdiscovery') return 'task'
+  if (stage === 'appgraphupdated') return 'app-graph'
+  if (stage === 'instructioncompleted' || stage === 'completed' || stage === 'test.complete') return 'result'
+  return 'context'
+}
+
+function draftRunProgressKindLabel(kind: DraftRunProgressKind): string {
+  switch (kind) {
+    case 'app-graph': return 'App Graph'
+    case 'model': return 'Model'
+    case 'task': return 'Task'
+    case 'ui': return 'Live UI'
+    case 'tool': return 'Tool'
+    case 'result': return 'Result'
+    default: return 'Context'
+  }
 }
 
 function draftDeviceKey(device: LocalDevice): string {
@@ -1915,111 +1949,6 @@ function findActiveMention(value: string, cursor: number | null): ActiveMention 
 function formatReferenceKind(kind: LocalTaskAuthoringReference['kind']): string {
   if (kind === 'artifactProvider') return 'Provider'
   return kind === 'artifact' ? 'Artifact' : 'Tool'
-}
-
-function TaskExtractionTraceModal({
-  onClose,
-  trace,
-}: {
-  onClose: () => void
-  trace: LocalTaskExtractionTrace
-}) {
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose()
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
-
-  return (
-    <div className="modal-backdrop local-task-extraction-trace-backdrop" onMouseDown={onClose}>
-      <section aria-label="Task extraction trace" aria-modal="true" className="session-info-modal local-task-extraction-trace-modal" onMouseDown={(event) => event.stopPropagation()} role="dialog">
-        <div className="modal-heading">
-          <div>
-            <p className="eyebrow">Task extraction</p>
-            <h2>Usage trace</h2>
-            <p className="muted">{trace.status === 'collecting' ? 'Usage is still being finalized.' : `${trace.modelPasses.length.toLocaleString()} model passes recorded.`}</p>
-          </div>
-          <button aria-label="Close extraction trace" className="button button--secondary button--icon" onClick={onClose} type="button"><X /></button>
-        </div>
-
-        <div className="local-task-extraction-trace-summary">
-          <TraceMetric icon={<Coins />} label="Estimated cost" value={formatTraceCost(trace)} />
-          <TraceMetric icon={<ChartBar />} label="Total tokens" value={trace.tokens.totalTokens.toLocaleString()} />
-          <TraceMetric label="Input / output" value={`${trace.tokens.inputTokens.toLocaleString()} / ${trace.tokens.outputTokens.toLocaleString()}`} />
-          <TraceMetric label="Cached / reasoning" value={`${trace.tokens.cachedInputTokens.toLocaleString()} / ${trace.tokens.reasoningOutputTokens.toLocaleString()}`} />
-        </div>
-
-        {trace.message ? <p className="inline-message local-task-extraction-trace-message">{trace.message}</p> : null}
-
-        <section className="local-task-extraction-trace-passes">
-          <div className="local-task-extraction-trace-section-heading">
-            <div><p className="eyebrow">Trace</p><h3>Model passes</h3></div>
-            {trace.runId ? <code title={trace.runId}>Run {shortIdentifier(trace.runId)}</code> : null}
-          </div>
-          {trace.modelPasses.length ? trace.modelPasses.map((pass) => (
-            <article className="local-task-extraction-trace-pass" key={`${pass.sequence}:${pass.responseId ?? pass.completedAtUtc}`}>
-              <header>
-                <div><strong>Pass {pass.sequence}</strong><span>{pass.reasoning ?? 'Reasoning not recorded'}</span></div>
-                <span><Clock />{formatTraceDuration(pass.durationMilliseconds)}</span>
-              </header>
-              <div className="local-task-extraction-trace-token-grid">
-                <TraceToken label="Total" value={pass.tokens.totalTokens} />
-                <TraceToken label="Input" value={pass.tokens.inputTokens} />
-                <TraceToken label="Output" value={pass.tokens.outputTokens} />
-                <TraceToken label="Cached" value={pass.tokens.cachedInputTokens} />
-                <TraceToken label="Cache write" value={pass.tokens.cacheWriteInputTokens} />
-                <TraceToken label="Reasoning" value={pass.tokens.reasoningOutputTokens} />
-              </div>
-              <div className="local-task-extraction-trace-pass-footer">
-                <span>{new Date(pass.completedAtUtc).toLocaleTimeString()}</span>
-                {pass.functionCalls.length ? <span>Tools: {pass.functionCalls.join(', ')}</span> : <span>No tool calls</span>}
-                {pass.responseId ? <code title={pass.responseId}>{shortIdentifier(pass.responseId)}</code> : null}
-              </div>
-            </article>
-          )) : <p className="local-task-extraction-hint"><CircleNotch className={trace.status === 'collecting' ? 'spin' : undefined} />Waiting for the first model pass.</p>}
-        </section>
-      </section>
-    </div>
-  )
-}
-
-function TraceMetric({ icon, label, value }: { icon?: ReactNode; label: string; value: string }) {
-  return <div>{icon}<span>{label}</span><strong>{value}</strong></div>
-}
-
-function TraceToken({ label, value }: { label: string; value: number }) {
-  return <div><span>{label}</span><strong>{value.toLocaleString()}</strong></div>
-}
-
-function formatTraceCost(trace: LocalTaskExtractionTrace): string {
-  const cost = trace.calculatedCost
-  if (!cost) return trace.status === 'collecting' ? 'Calculating…' : 'Unavailable'
-  const micros = cost.costMicros ?? cost.customerCostMicros
-  if (micros == null) return 'Unavailable'
-  const currency = cost.currency || 'USD'
-  const value = micros / 1_000_000
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: 'currency',
-      currency,
-      minimumFractionDigits: value > 0 && value < 0.01 ? 4 : 2,
-      maximumFractionDigits: value > 0 && value < 0.01 ? 4 : 2,
-    }).format(value)
-  } catch {
-    return `${currency} ${value.toFixed(4)}`
-  }
-}
-
-function formatTraceDuration(durationMilliseconds: number): string {
-  if (durationMilliseconds < 1000) return `${durationMilliseconds.toLocaleString()} ms`
-  return `${(durationMilliseconds / 1000).toFixed(durationMilliseconds < 10_000 ? 1 : 0)} s`
-}
-
-function shortIdentifier(value: string): string {
-  return value.length <= 20 ? value : `${value.slice(0, 10)}…${value.slice(-6)}`
 }
 
 function statusTitle(status: LocalTaskExtraction['status']): string {

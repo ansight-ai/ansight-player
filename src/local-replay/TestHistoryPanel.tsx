@@ -6,6 +6,7 @@ import {
   CheckCircle,
   CircleNotch,
   Clock,
+  Info,
   MagnifyingGlass,
   MinusCircle,
   TestTube,
@@ -605,6 +606,8 @@ function connectionLabel(value: string | null | undefined, labels: Record<string
 
 type AuditGraphNodeKind = 'context' | 'app-graph' | 'model' | 'task' | 'ui' | 'tool' | 'result'
 
+const uncoveredStepHelpText = 'The model is explaining why it will handle a UI step manually: no task matches, a task cannot start yet, its scope or inputs do not fit, or only part of the requested work remains. It records the tasks it considered. This declaration alone does not mean the test failed.'
+
 type AuditGraphDetail = {
   label: string
   value: string
@@ -624,6 +627,7 @@ type AuditGraphNode = {
   cumulativeTokens: number
   isError: boolean
   details: AuditGraphDetail[]
+  helpText?: string
   ocrEvidence?: LocalTestOcrTraceEvidence | null
   accessibilityEvidence?: LocalTestAccessibilityTraceEvidence | null
   taskCallTrace?: TaskCallTrace
@@ -745,12 +749,14 @@ function TraceNodeGraph({ nodes, selectedNodeId, onSelectNode }: {
               {index > 0 ? <span className="local-test-trace-edge" aria-hidden="true"><i /></span> : null}
               <button
                 aria-pressed={selectedNodeId === node.id}
+                aria-description={node.helpText}
                 className={`local-test-trace-node local-test-trace-node--${node.kind}${node.isError ? ' local-test-trace-node--error' : ''}`}
                 onClick={() => onSelectNode(node.id)}
+                title={node.helpText}
                 type="button"
               >
                 <span className="local-test-trace-node-kind">{graphKindLabel(node.kind)}</span>
-                <strong>{node.title}</strong>
+                <span className="local-test-trace-title"><strong>{node.title}</strong>{node.helpText ? <Info aria-hidden="true" size={13} /> : null}</span>
                 <small>{node.subtitle}</small>
                 <span className="local-test-trace-node-stats">
                   <span>{node.tokenDelta > 0 ? `+${node.tokenDelta.toLocaleString()}` : '0'} tokens</span>
@@ -782,7 +788,7 @@ function TraceNodeInspector({
       <header>
         <span className={`local-test-trace-node-kind local-test-trace-node-kind--${node.kind}`}>{graphKindLabel(node.kind)}</span>
         <div>
-          <strong>{node.title}</strong>
+          <span className="local-test-trace-title"><strong>{node.title}</strong>{node.helpText ? <span aria-label={node.helpText} className="local-test-trace-info" role="img" tabIndex={0} title={node.helpText}><Info aria-hidden="true" size={14} /></span> : null}</span>
           <span>{node.subtitle}</span>
         </div>
         <span>{node.tokenDelta.toLocaleString()} tokens · {formatDuration(node.durationMilliseconds)} · T+{formatDuration(node.elapsedMilliseconds)}</span>
@@ -1260,7 +1266,7 @@ function FullTraceTimeline({ audit, view, onSelectNode }: { audit: LocalTestRunA
       <table className="local-trace-step-table"><thead><tr><th>Node</th><th>Step</th><th>Start</th><th>Duration</th><th>Status</th></tr></thead>
         <tbody>{timing.steps.map((step, index) => <tr key={index}>
           <td><span className={`local-trace-lane-label trace-lane-${step.lane}`}>{nodes.find((node) => node.id === step.nodeId)?.title ?? step.lane}</span></td>
-          <td><button type="button" onClick={() => step.nodeId && onSelectNode(step.nodeId)}>{startupStepLabel(step.name)}</button></td>
+          <td><button type="button" title={nodes.find((node) => node.id === step.nodeId)?.helpText} onClick={() => step.nodeId && onSelectNode(step.nodeId)}>{startupStepLabel(step.name)}</button></td>
           <td>+{(Date.parse(step.startedUtc) - timing.start).toLocaleString()} ms</td>
           <td>{step.durationMilliseconds.toLocaleString()} ms</td><td>{step.status}</td>
         </tr>)}</tbody>
@@ -1289,7 +1295,7 @@ function TraceLanes({ nodes, steps, start, onSelectNode }: { nodes: AuditGraphNo
       <span>{activeStep ? `+${(Date.parse(activeStep.startedUtc) - start).toLocaleString()} ms · ${activeStep.durationMilliseconds.toLocaleString()} ms · ${activeStep.status}` : 'Point to a bar or use Tab to inspect its timing.'}</span>
     </div>
     <div className="local-trace-lanes" role="region" tabIndex={0} aria-label="Complete trace by graph node. Scroll horizontally for more nodes and vertically through time.">
-      <div className="local-trace-lane-headings" style={columnsStyle}><span>Time</span>{lanes.map((lane, index) => <button type="button" className={`trace-node-${lane.kind}`} key={lane.id} onClick={() => onSelectNode(lane.id)}><small>{index + 1} · {graphKindLabel(lane.kind)}</small><strong>{lane.title}</strong></button>)}</div>
+      <div className="local-trace-lane-headings" style={columnsStyle}><span>Time</span>{lanes.map((lane, index) => <button type="button" className={`trace-node-${lane.kind}`} key={lane.id} onClick={() => onSelectNode(lane.id)} title={nodes.find((node) => node.id === lane.id)?.helpText}><small>{index + 1} · {graphKindLabel(lane.kind)}</small><strong>{lane.title}</strong></button>)}</div>
       <div className="local-trace-lane-columns" style={{ ...columnsStyle, height: height + 40 }}>
         <div className="local-trace-time-ruler">{Array.from({ length: 11 }, (_, index) => <span key={index} style={{ top: height * index / 10 }}>{(duration * index / 10000).toFixed(2)}s</span>)}</div>
         {lanes.map((lane) => {
@@ -1643,6 +1649,7 @@ function toolCallNode(
     cumulativeTokens,
     isError: call.isError,
     details,
+    helpText: call.toolName === 'ansight_declare_uncovered_step' ? uncoveredStepHelpText : undefined,
     ocrEvidence: call.ocrEvidence,
     accessibilityEvidence: call.accessibilityEvidence ?? readLegacyAccessibilityEvidence(call),
     taskCallTrace: call.toolName === 'ansight_run_task' ? readTaskCallTrace(call) : undefined,
