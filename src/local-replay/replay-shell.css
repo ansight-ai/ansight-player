@@ -8518,6 +8518,10 @@ button.local-runner-status:hover {
   color: var(--muted);
   font-size: 10px;
 }
+.local-yaml-test-editor-wrap { min-width: 0; }
+.local-yaml-test-editor-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 34px; color: var(--text-secondary); font-size: 12px; }
+.local-yaml-test-editor-actions .button { flex: none; padding: 5px 10px; font-size: 12px; }
+.local-yaml-test-id-conflict { color: var(--danger, #c53b36); }
 
 .local-task-extraction-validation-errors {
   display: flex;
@@ -9058,6 +9062,12 @@ button.local-runner-status:hover {
 .local-task-source-actions > button:hover,
 .local-task-source-body > header button:hover { background: var(--surface-muted); }
 .local-task-source-controls p { color: var(--warning); font-size: 13px; }
+.local-task-preview-modal .local-task-source-body { grid-template-rows: auto auto minmax(0, 1fr); }
+.local-task-preview-details { gap: 5px; }
+.local-task-preview-details p { color: var(--text-secondary); }
+.local-task-preview-details code { overflow-wrap: anywhere; font-size: 11px; color: var(--text-secondary); }
+.local-task-preview-source { overflow: hidden; }
+.local-task-preview-source p { margin: 16px 20px; }
 
 .local-test-startup-timing {
   padding: 20px;

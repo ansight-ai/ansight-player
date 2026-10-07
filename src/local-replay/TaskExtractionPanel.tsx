@@ -103,6 +103,7 @@ export function TaskExtractionPanel({
   const [testTitle, setTestTitle] = useState('')
   const [testSource, setTestSource] = useState('')
   const [testSavedPath, setTestSavedPath] = useState('')
+  const [isTestIdConflict, setIsTestIdConflict] = useState(false)
   const [testAssertions, setTestAssertions] = useState(initialTestAssertions ?? '')
   const [generationNotes, setGenerationNotes] = useState(initialGenerationNotes ?? '')
   const [taskSectionAnnotations, setTaskSectionAnnotations] = useState<SessionAnnotation[]>([])
@@ -1004,7 +1005,7 @@ export function TaskExtractionPanel({
   }
 
   async function saveTest() {
-    if (!workspaceTestDraft || !testSource.trim() || isTestDraftBusy || isTestDraftStale) return
+    if (!workspaceTestDraft || !testSource.trim() || isTestDraftBusy || isTestDraftStale || isTestIdConflict) return
     setIsTestDraftBusy(true)
     setMessage(null)
     try {
@@ -1586,7 +1587,7 @@ export function TaskExtractionPanel({
                 {externalDraft ? <>
                   {format === 'test' && isTestDraftStale ? <p className="local-task-extraction-hint"><WarningCircle />Selected annotations changed. Regenerate the YAML draft before running.</p> : null}
                   {format !== 'test' ? <><p className="local-task-extraction-hint">Check the starting state, selectors, text values, and intended outcome. Add an assertion before testing.</p><label htmlFor="local-external-source">{format === 'maestro' ? 'Maestro YAML' : 'Appium JavaScript'}</label></> : null}
-                  {format === 'test' ? <YamlTestEditor onChange={updateTestSource} source={testSource} validationError={externalValidation?.status === 'failed' ? externalValidation.message : null} /> : <textarea
+                  {format === 'test' ? <YamlTestEditor appId={session.appId} currentTestPath={testSavedPath} key={session.appId} onChange={updateTestSource} onIdConflictChange={setIsTestIdConflict} source={testSource} validationError={externalValidation?.status === 'failed' ? externalValidation.message : null} /> : <textarea
                     className="local-maestro-source"
                     id="local-external-source"
                     onChange={(event) => {
@@ -1634,7 +1635,7 @@ export function TaskExtractionPanel({
                     {format === 'test' ? <p className="local-task-extraction-hint">Save to ansight/tests adds the reviewed YAML to your workspace.</p> : null}
                     <div className="local-admin-actions">
                       <button className="button button--secondary" disabled={!externalSource.trim() || (format === 'test' && isTestDraftStale)} onClick={format === 'test' ? downloadTest : format === 'maestro' ? downloadMaestro : downloadAppium} type="button">Download {format === 'appium' ? 'JavaScript' : 'YAML'}</button>
-                      <button className="button button--primary" disabled={isExternalBusy || isExternalGenerating || externalValidation?.status !== 'passed' || !!externalSavedPath || (format === 'test' && isTestDraftStale)} onClick={() => void (format === 'test' ? saveTest() : format === 'maestro' ? saveMaestro() : saveAppium())} type="button"><FloppyDisk />Save to {format === 'test' ? 'ansight/tests' : format === 'maestro' ? '.maestro' : 'appium'}</button>
+                      <button className="button button--primary" disabled={isExternalBusy || isExternalGenerating || externalValidation?.status !== 'passed' || !!externalSavedPath || (format === 'test' && (isTestDraftStale || isTestIdConflict))} onClick={() => void (format === 'test' ? saveTest() : format === 'maestro' ? saveMaestro() : saveAppium())} type="button"><FloppyDisk />Save to {format === 'test' ? 'ansight/tests' : format === 'maestro' ? '.maestro' : 'appium'}</button>
                     </div>
                     {externalSavedPath ? <p className="local-task-extraction-saved"><CheckCircle />{externalSavedPath}</p> : null}
                     {format === 'test' && externalSavedPath && workspaceTestDraft ? (

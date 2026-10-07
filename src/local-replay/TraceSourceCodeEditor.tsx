@@ -8,7 +8,7 @@ import 'monaco-editor/editor/contrib/folding/browser/folding'
 import { useEffect, useRef } from 'react'
 import type { LocalTaskSourceModule } from './types'
 
-export default function TraceSourceCodeEditor({ module }: { module: LocalTaskSourceModule }) {
+export default function TraceSourceCodeEditor({ module }: { module: Pick<LocalTaskSourceModule, 'path' | 'language' | 'content'> }) {
   const container = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!container.current) return
