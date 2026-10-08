@@ -6,12 +6,12 @@ function omitCloudOnlyDynamicChunks(): Plugin {
   return {
     name: 'omit-cloud-only-dynamic-chunks',
     generateBundle(_options, bundle) {
-      const entry = bundle['session-replay.js']
+      const entry = Object.values(bundle).find((item) => item.type === 'chunk' && item.isEntry)
       if (!entry || entry.type !== 'chunk') {
         throw new Error('The local replay entry chunk was not generated.')
       }
 
-      const retainedChunks = new Set<string>(['session-replay.js'])
+      const retainedChunks = new Set<string>([entry.fileName])
       const pendingImports = [...entry.imports]
       while (pendingImports.length > 0) {
         const fileName = pendingImports.pop()
@@ -24,7 +24,7 @@ function omitCloudOnlyDynamicChunks(): Plugin {
       }
 
       for (const [fileName, item] of Object.entries(bundle)) {
-        if (item.type !== 'chunk' || fileName === 'session-replay.js') continue
+        if (item.type !== 'chunk' || fileName === entry.fileName) continue
         const isReplayEditorEntry = Object.keys(item.modules).some(
           (moduleId) => moduleId.endsWith('/local-replay/TaskExtractionPanel.tsx')
             || moduleId.endsWith('/local-replay/TraceSourceCodeEditor.tsx'),
@@ -48,6 +48,14 @@ function omitCloudOnlyDynamicChunks(): Plugin {
           delete bundle[fileName]
         }
       }
+
+      // Keep the CLI/package's legacy asset name, while the HTML and module graph
+      // use content hashes so an installed update cannot reuse the previous editor.
+      this.emitFile({
+        type: 'asset',
+        fileName: 'session-replay.js',
+        source: `import './${entry.fileName}';\n`,
+      })
     },
   }
 }
@@ -117,7 +125,7 @@ export default defineConfig({
           ? 'session-replay.css'
           : 'session-replay-[name]-[hash][extname]',
         chunkFileNames: 'session-replay-[name]-[hash].js',
-        entryFileNames: 'session-replay.js',
+        entryFileNames: 'session-replay-[hash].js',
       },
     },
   },
