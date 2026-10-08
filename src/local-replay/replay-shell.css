@@ -5860,14 +5860,18 @@ button.local-runner-status:hover {
   border-radius: 50%;
 }
 
-.local-test-trace-dot--context, .local-test-trace-node--context, .local-draft-run-step--context { --trace-kind-color: #8b9bb4; }
-.local-test-trace-dot--app-graph, .local-test-trace-node--app-graph, .local-draft-run-step--app-graph { --trace-kind-color: #a78bfa; }
-.local-test-trace-dot--model, .local-test-trace-node--model, .local-draft-run-step--model { --trace-kind-color: #60a5fa; }
-.local-test-trace-dot--task, .local-test-trace-node--task, .local-draft-run-step--task { --trace-kind-color: #f59e0b; }
-.local-test-trace-dot--ui, .local-test-trace-node--ui, .local-draft-run-step--ui { --trace-kind-color: #22c55e; }
-.local-test-trace-dot--tool, .local-test-trace-node--tool, .local-draft-run-step--tool { --trace-kind-color: #67e8f9; }
-.local-test-trace-dot--result, .local-test-trace-node--result, .local-draft-run-step--result { --trace-kind-color: #f472b6; }
-.local-test-trace-dot--context, .local-test-trace-dot--app-graph, .local-test-trace-dot--model, .local-test-trace-dot--task, .local-test-trace-dot--ui, .local-test-trace-dot--tool, .local-test-trace-dot--result { background: var(--trace-kind-color); }
+/* One category palette for graph nodes, legends, badges, live updates and timing views. */
+.local-test-trace-dot--context, .local-test-trace-node--context, .local-test-trace-node-kind--context, .local-draft-run-step--context, .trace-node-context { --trace-kind-color: #8b9bb4; }
+.local-test-trace-dot--app-graph, .local-test-trace-node--app-graph, .local-test-trace-node-kind--app-graph, .local-draft-run-step--app-graph, .trace-node-app-graph { --trace-kind-color: #a78bfa; }
+.local-test-trace-dot--model, .local-test-trace-node--model, .local-test-trace-node-kind--model, .local-draft-run-step--model, .trace-node-model { --trace-kind-color: #60a5fa; }
+.local-test-trace-dot--decision, .local-test-trace-node--decision, .local-test-trace-node-kind--decision, .local-draft-run-step--decision, .trace-node-decision { --trace-kind-color: #0d9488; }
+.local-test-trace-dot--discovery, .local-test-trace-node--discovery, .local-test-trace-node-kind--discovery, .local-draft-run-step--discovery, .trace-node-discovery { --trace-kind-color: #818cf8; }
+.local-test-trace-dot--task, .local-test-trace-node--task, .local-test-trace-node-kind--task, .local-draft-run-step--task, .trace-node-task { --trace-kind-color: #f59e0b; }
+.local-test-trace-dot--batch, .local-test-trace-node--batch, .local-test-trace-node-kind--batch, .local-draft-run-step--batch, .trace-node-batch, .local-test-trace-batch-badge { --trace-kind-color: #e879f9; }
+.local-test-trace-dot--ui, .local-test-trace-node--ui, .local-test-trace-node-kind--ui, .local-draft-run-step--ui, .trace-node-ui { --trace-kind-color: #22c55e; }
+.local-test-trace-dot--tool, .local-test-trace-node--tool, .local-test-trace-node-kind--tool, .local-draft-run-step--tool, .trace-node-tool { --trace-kind-color: #67e8f9; }
+.local-test-trace-dot--result, .local-test-trace-node--result, .local-test-trace-node-kind--result, .local-draft-run-step--result, .trace-node-result { --trace-kind-color: #f472b6; }
+.local-test-trace-dot--context, .local-test-trace-dot--app-graph, .local-test-trace-dot--model, .local-test-trace-dot--decision, .local-test-trace-dot--discovery, .local-test-trace-dot--task, .local-test-trace-dot--batch, .local-test-trace-dot--ui, .local-test-trace-dot--tool, .local-test-trace-dot--result { background: var(--trace-kind-color); }
 
 .local-test-trace-scroll {
   margin: 12px -13px 0;
@@ -5944,11 +5948,32 @@ button.local-runner-status:hover {
 
 .local-test-trace-node--error { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 72%, transparent); }
 
+.local-test-trace-node-badges { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.local-test-trace-batch-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: max-content;
+  padding: 4px 6px;
+  color: #0f172a;
+  background: var(--trace-kind-color);
+  border: 1px solid color-mix(in srgb, var(--trace-kind-color) 70%, #0f172a);
+  border-radius: 5px;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.local-test-trace-batch-badge > span { padding-left: 5px; border-left: 1px solid #0f172a55; }
+.local-trace-lane-headings .local-test-trace-batch-badge { margin-bottom: 6px; }
+.local-trace-step-table .local-test-trace-batch-badge { display: flex; margin-top: 5px; }
+
 .local-test-trace-node-kind {
   width: max-content;
   padding: 2px 5px;
   color: var(--text-muted);
-  background: var(--surface-raised);
+  background: color-mix(in srgb, var(--trace-kind-color, var(--text-muted)) 14%, var(--surface-raised));
+  border-left: 3px solid var(--trace-kind-color, var(--text-muted));
   border-radius: 4px;
   font-size: 7px;
   font-weight: 900;
@@ -6116,6 +6141,32 @@ button.local-runner-status:hover {
 
 .local-task-call-results {
   border-bottom: 1px solid var(--border);
+}
+
+.local-task-assertion {
+  border-top: 1px solid var(--border);
+  font-size: 10px;
+}
+
+.local-task-assertion > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 10px;
+  cursor: pointer;
+}
+
+.local-task-assertion > summary::before {
+  content: '▸';
+}
+
+.local-task-assertion[open] > summary::before {
+  content: '▾';
+}
+
+.local-task-assertion > summary strong {
+  overflow-wrap: anywhere;
 }
 
 .local-task-call-results > header {
@@ -8854,11 +8905,13 @@ button.local-runner-status:hover {
 .local-draft-run-details-header > div { display: flex; gap: 7px; }
 .local-draft-run-details-message { margin: 14px 0; color: var(--text-secondary); font-size: 13px; }
 .local-draft-run-details-error { color: var(--danger); font-size: 12px; }
-.local-draft-run-details-timeline { display: grid; gap: 0; min-height: 0; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+.local-draft-run-details-timeline { display: grid; gap: 0; min-height: 0; margin: 0; padding: 0; overflow-y: auto; overflow-anchor: none; overscroll-behavior: contain; list-style: none; }
 .local-draft-run-details-timeline li { display: grid; grid-template-columns: 90px 70px minmax(0, 1fr); gap: 14px; padding: 10px 8px; border-top: 1px solid var(--border); border-left: 6px solid var(--trace-kind-color, #8b9bb4); background: linear-gradient(90deg, color-mix(in srgb, var(--trace-kind-color, #8b9bb4) 12%, transparent), transparent 180px); font-size: 12px; line-height: 1.4; }
 .local-draft-run-details-timeline time { color: var(--text-secondary); white-space: nowrap; }
 .local-draft-run-details-timeline small { color: var(--text-secondary); font-size: 11px; font-weight: 700; }
-@media (max-width: 600px) { .local-draft-run-details-timeline li { grid-template-columns: 80px minmax(0, 1fr); gap: 4px 10px; } .local-draft-run-details-timeline li > span { grid-column: 1 / -1; } }
+.local-draft-run-discovery summary { cursor: pointer; }
+.local-draft-run-discovery p { margin: 10px 0 0; overflow-wrap: anywhere; }
+@media (max-width: 600px) { .local-draft-run-details-timeline li { grid-template-columns: 80px minmax(0, 1fr); gap: 4px 10px; } .local-draft-run-step-message { grid-column: 1 / -1; } }
 @media (max-width: 700px) { .local-draft-run-summary { flex-wrap: wrap; } .local-draft-run-summary-actions { width: 100%; } .local-draft-run-details-header { flex-wrap: wrap; } }
 .local-draft-device-modal { width: min(900px, 100%); color: var(--text-primary); background: var(--bg-primary); }
 .local-draft-device-picker { margin-top: 18px; }
@@ -9242,16 +9295,16 @@ button.local-runner-status:hover {
 .local-trace-lane-columns { display: grid; grid-template-columns: 65px repeat(4, minmax(0, 1fr)); }
 .local-trace-lane-headings { position: sticky; top: 0; z-index: 3; background: var(--bg-primary); }
 .local-trace-lane-headings > * { padding: 12px 8px; border-bottom: 3px solid var(--lane-color, var(--border-strong)); }
-.trace-lane-setup { --lane-color: #4c8b85; --lane-tint: #4c8b8518; }
-.trace-lane-agent { --lane-color: #547bd0; --lane-tint: #547bd018; }
-.trace-lane-tasks { --lane-color: #9965b4; --lane-tint: #9965b418; }
-.trace-lane-tools { --lane-color: #b47831; --lane-tint: #b4783118; }
+.local-trace-lane, .local-trace-lane-label, .local-trace-lane-headings > button {
+  --lane-color: var(--trace-kind-color, #8b9bb4);
+  --lane-tint: color-mix(in srgb, var(--trace-kind-color, #8b9bb4) 9%, transparent);
+}
 .local-trace-lane { position: relative; background: var(--lane-tint); border-left: 1px solid var(--border-strong); }
 .local-trace-time-ruler { position: relative; font-size: 11px; font-variant-numeric: tabular-nums; }
 .local-trace-time-ruler span { position: absolute; }
 .local-trace-lane-bar {
   position: absolute; overflow: hidden; min-height: 8px; padding: 0; border: 1px solid var(--bg-primary);
-  border-radius: 4px; background: var(--lane-color); color: white; text-align: left; cursor: pointer; font-size: 11px;
+  border-radius: 4px; background: var(--lane-color); color: #0f172a; text-align: left; cursor: pointer; font-size: 11px;
 }
 .local-trace-lane-bar:hover, .local-trace-lane-bar:focus-visible { outline: 2px solid var(--text-primary); z-index: 2; }
 .local-trace-lane-bar--failed { border: 2px solid #e84532; }
@@ -9259,12 +9312,6 @@ button.local-runner-status:hover {
 .local-trace-lane-headings > button { text-align: left; font: inherit; color: var(--text-primary); background: var(--bg-primary); border: 0; border-bottom: 3px solid var(--lane-color); cursor: pointer; }
 .local-trace-lane-headings > button small { display: block; margin-bottom: 6px; opacity: .7; }
 .local-trace-lane-headings > button strong { display: block; overflow-wrap: anywhere; }
-.trace-node-context { --lane-color: #4c8b85; --lane-tint: #4c8b8518; }
-.trace-node-model { --lane-color: #547bd0; --lane-tint: #547bd018; }
-.trace-node-task { --lane-color: #9965b4; --lane-tint: #9965b418; }
-.trace-node-ui, .trace-node-tool { --lane-color: #b47831; --lane-tint: #b4783118; }
-.trace-node-app-graph { --lane-color: #647887; --lane-tint: #64788718; }
-.trace-node-result { --lane-color: #638951; --lane-tint: #63895118; }
 .local-trace-no-timing { display: block; padding: 14px; color: var(--text-secondary); font-size: 12px; }
 
 .local-trace-lane-headings > span, .local-trace-time-ruler { position: sticky; left: 0; z-index: 2; background: var(--bg-primary); }

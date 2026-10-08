@@ -9,16 +9,19 @@ import {
   Info,
   MagnifyingGlass,
   MinusCircle,
+  StackSimple,
   TestTube,
   WarningCircle,
   X,
   XCircle,
 } from '@phosphor-icons/react'
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
-import { readTaskCallTrace, taskCallPayloadPreview } from './taskCallTrace'
-import type { TaskCallTrace } from './taskCallTrace'
+import { readTaskAssertionTrace, readTaskCallTrace, taskCallPayloadPreview } from './taskCallTrace'
+import type { TaskAssertionTrace, TaskCallTrace } from './taskCallTrace'
+import { TaskAssertionResults } from './TaskAssertionResults'
 import { readTaskSources, type TaskSourceEntry } from './taskSourceTrace'
 import { TaskSourceViewer } from './TaskSourceViewer'
+import { taskChoiceHelp, taskChoicePresentation, taskChoiceTitle, taskChoiceToolName } from './taskChoicePresentation'
 import type {
   LocalTestAppGraphPlan,
   LocalTestAccessibilityTraceEvidence,
@@ -604,9 +607,7 @@ function connectionLabel(value: string | null | undefined, labels: Record<string
   return value ? labels[value] ?? value : 'Not recorded'
 }
 
-type AuditGraphNodeKind = 'context' | 'app-graph' | 'model' | 'task' | 'ui' | 'tool' | 'result'
-
-const uncoveredStepHelpText = 'The model is explaining why it will handle a UI step manually: no task matches, a task cannot start yet, its scope or inputs do not fit, or only part of the requested work remains. It records the tasks it considered. This declaration alone does not mean the test failed.'
+type AuditGraphNodeKind = 'context' | 'app-graph' | 'model' | 'decision' | 'discovery' | 'task' | 'batch' | 'ui' | 'tool' | 'result'
 
 type AuditGraphDetail = {
   label: string
@@ -628,9 +629,11 @@ type AuditGraphNode = {
   isError: boolean
   details: AuditGraphDetail[]
   helpText?: string
+  batch?: { number: number, stepIndex?: number | null, stepCount?: number | null, parentNodeId?: string }
   ocrEvidence?: LocalTestOcrTraceEvidence | null
   accessibilityEvidence?: LocalTestAccessibilityTraceEvidence | null
   taskCallTrace?: TaskCallTrace
+  taskAssertionTrace?: TaskAssertionTrace
   taskSources?: TaskSourceEntry[]
   startupAudit?: LocalTestRunAudit
   modelPass?: LocalTestModelPassAudit
@@ -738,7 +741,7 @@ function TraceNodeGraph({ nodes, selectedNodeId, onSelectNode }: {
   return (
     <>
       <div className="local-test-trace-legend" aria-label="Trace node legend">
-        {(['context', 'app-graph', 'model', 'task', 'ui', 'tool', 'result'] as AuditGraphNodeKind[]).map((kind) => (
+        {(['context', 'app-graph', 'model', 'decision', 'discovery', 'task', 'batch', 'ui', 'tool', 'result'] as AuditGraphNodeKind[]).map((kind) => (
           <span key={kind}><i className={`local-test-trace-dot local-test-trace-dot--${kind}`} />{graphKindLabel(kind)}</span>
         ))}
       </div>
@@ -755,7 +758,7 @@ function TraceNodeGraph({ nodes, selectedNodeId, onSelectNode }: {
                 title={node.helpText}
                 type="button"
               >
-                <span className="local-test-trace-node-kind">{graphKindLabel(node.kind)}</span>
+                <span className="local-test-trace-node-badges"><span className="local-test-trace-node-kind">{graphKindLabel(node.kind)}</span><TraceBatchBadge batch={node.batch} /></span>
                 <span className="local-test-trace-title"><strong>{node.title}</strong>{node.helpText ? <Info aria-hidden="true" size={13} /> : null}</span>
                 <small>{node.subtitle}</small>
                 <span className="local-test-trace-node-stats">
@@ -774,6 +777,12 @@ function TraceNodeGraph({ nodes, selectedNodeId, onSelectNode }: {
   )
 }
 
+function TraceBatchBadge({ batch }: { batch: AuditGraphNode['batch'] }) {
+  if (!batch) return null
+  const step = batch.stepIndex ? `Step ${batch.stepIndex}${batch.stepCount ? ` of ${batch.stepCount}` : ''}` : 'Result'
+  return <span className="local-test-trace-batch-badge"><StackSimple aria-hidden="true" size={12} weight="bold" />Batch {batch.number}<span>{step}</span></span>
+}
+
 function TraceNodeInspector({
   node,
   onOpenEvidence,
@@ -786,16 +795,18 @@ function TraceNodeInspector({
   return (
     <div className="local-test-trace-inspector">
       <header>
-        <span className={`local-test-trace-node-kind local-test-trace-node-kind--${node.kind}`}>{graphKindLabel(node.kind)}</span>
+        <span className="local-test-trace-node-badges"><span className={`local-test-trace-node-kind local-test-trace-node-kind--${node.kind}`}>{graphKindLabel(node.kind)}</span><TraceBatchBadge batch={node.batch} /></span>
         <div>
           <span className="local-test-trace-title"><strong>{node.title}</strong>{node.helpText ? <span aria-label={node.helpText} className="local-test-trace-info" role="img" tabIndex={0} title={node.helpText}><Info aria-hidden="true" size={14} /></span> : null}</span>
           <span>{node.subtitle}</span>
         </div>
         <span>{node.tokenDelta.toLocaleString()} tokens · {formatDuration(node.durationMilliseconds)} · T+{formatDuration(node.elapsedMilliseconds)}</span>
       </header>
+      {node.batch?.parentNodeId ? <button type="button" onClick={() => onSelectNode(node.batch!.parentNodeId!)}>View Batch {node.batch.number} result</button> : null}
       {node.modelPass ? <AgentPassBreakdown key={`pass:${node.id}`} pass={node.modelPass} tools={node.requestedTools ?? []} onSelectNode={onSelectNode} /> : null}
       {node.startupAudit ? <StartupTiming audit={node.startupAudit} /> : null}
       {node.kind === 'task' && node.taskSources ? <TaskSourceViewer key={`source:${node.id}`} sources={node.taskSources} /> : null}
+      {node.kind === 'task' && node.taskAssertionTrace ? <TaskAssertionResults trace={node.taskAssertionTrace} /> : null}
       {node.kind === 'task' && node.taskCallTrace ? <TaskCallResults key={`calls:${node.id}`} trace={node.taskCallTrace} /> : null}
       {node.ocrEvidence || node.accessibilityEvidence ? (
         <div className="local-test-trace-evidence-actions">
@@ -825,6 +836,7 @@ function TraceNodeInspector({
     </div>
   )
 }
+
 
 function TaskCallResults({ trace }: { trace: TaskCallTrace }) {
   const [selectedCallId, setSelectedCallId] = useState<string | null>(trace.rows[0]?.id ?? null)
@@ -1265,7 +1277,7 @@ function FullTraceTimeline({ audit, view, onSelectNode }: { audit: LocalTestRunA
     {view === 'timeline' ? <TraceLanes nodes={nodes} steps={timing.steps} start={timing.start} onSelectNode={onSelectNode} /> :
       <table className="local-trace-step-table"><thead><tr><th>Node</th><th>Step</th><th>Start</th><th>Duration</th><th>Status</th></tr></thead>
         <tbody>{timing.steps.map((step, index) => <tr key={index}>
-          <td><span className={`local-trace-lane-label trace-lane-${step.lane}`}>{nodes.find((node) => node.id === step.nodeId)?.title ?? step.lane}</span></td>
+          <td><span className={`local-trace-lane-label trace-node-${nodes.find((node) => node.id === step.nodeId)?.kind ?? 'context'}`}>{nodes.find((node) => node.id === step.nodeId)?.title ?? step.lane}</span><TraceBatchBadge batch={nodes.find((node) => node.id === step.nodeId)?.batch} /></td>
           <td><button type="button" title={nodes.find((node) => node.id === step.nodeId)?.helpText} onClick={() => step.nodeId && onSelectNode(step.nodeId)}>{startupStepLabel(step.name)}</button></td>
           <td>+{(Date.parse(step.startedUtc) - timing.start).toLocaleString()} ms</td>
           <td>{step.durationMilliseconds.toLocaleString()} ms</td><td>{step.status}</td>
@@ -1281,7 +1293,7 @@ function TraceLanes({ nodes, steps, start, onSelectNode }: { nodes: AuditGraphNo
   const [columnWidth, setColumnWidth] = useState(200)
   const [activeStep, setActiveStep] = useState<InspectableTimingStep | null>(null)
   const lanes = nodes.map((node) => ({
-    id: node.id, title: node.title, kind: node.kind,
+    id: node.id, title: node.title, kind: node.kind, batch: node.batch,
   }))
   const columnsStyle = { gridTemplateColumns: `65px repeat(${lanes.length}, ${columnWidth}px)`, width: 65 + lanes.length * columnWidth }
   const duration = Math.max(1, ...steps.map((step) => Date.parse(step.startedUtc) - start + step.durationMilliseconds))
@@ -1295,7 +1307,7 @@ function TraceLanes({ nodes, steps, start, onSelectNode }: { nodes: AuditGraphNo
       <span>{activeStep ? `+${(Date.parse(activeStep.startedUtc) - start).toLocaleString()} ms · ${activeStep.durationMilliseconds.toLocaleString()} ms · ${activeStep.status}` : 'Point to a bar or use Tab to inspect its timing.'}</span>
     </div>
     <div className="local-trace-lanes" role="region" tabIndex={0} aria-label="Complete trace by graph node. Scroll horizontally for more nodes and vertically through time.">
-      <div className="local-trace-lane-headings" style={columnsStyle}><span>Time</span>{lanes.map((lane, index) => <button type="button" className={`trace-node-${lane.kind}`} key={lane.id} onClick={() => onSelectNode(lane.id)} title={nodes.find((node) => node.id === lane.id)?.helpText}><small>{index + 1} · {graphKindLabel(lane.kind)}</small><strong>{lane.title}</strong></button>)}</div>
+      <div className="local-trace-lane-headings" style={columnsStyle}><span>Time</span>{lanes.map((lane, index) => <button type="button" className={`trace-node-${lane.kind}`} key={lane.id} onClick={() => onSelectNode(lane.id)} title={nodes.find((node) => node.id === lane.id)?.helpText}><small>{index + 1} · {graphKindLabel(lane.kind)}</small><TraceBatchBadge batch={lane.batch} /><strong>{lane.title}</strong></button>)}</div>
       <div className="local-trace-lane-columns" style={{ ...columnsStyle, height: height + 40 }}>
         <div className="local-trace-time-ruler">{Array.from({ length: 11 }, (_, index) => <span key={index} style={{ top: height * index / 10 }}>{(duration * index / 10000).toFixed(2)}s</span>)}</div>
         {lanes.map((lane) => {
@@ -1355,7 +1367,7 @@ function AgentPassBreakdown({ pass, tools, onSelectNode }: {
   const [view, setView] = useState<'timeline' | 'table'>('timeline')
   const offset = (value: number | null | undefined) => value == null ? 'Not recorded' : `+${value.toLocaleString()} ms`
   return <details className="local-test-startup-timing" open>
-    <summary>Agent pass breakdown · {pass.durationMilliseconds.toLocaleString()} ms · {pass.functionCallCount} requested calls</summary>
+    <summary>Agent pass breakdown · {pass.durationMilliseconds.toLocaleString()} ms · {modelPassCallSummary(pass, tools)}</summary>
     <p>Milestone offsets are measured from each request attempt. Final parsing is a duration. Tool execution occurs separately after the response.</p>
     <div className="local-startup-view-switch" role="group" aria-label="Agent pass timing view">
       <button type="button" aria-pressed={view === 'timeline'} onClick={() => setView('timeline')}>Timeline</button>
@@ -1515,17 +1527,32 @@ function buildAuditGraphNodes(audit: LocalTestRunAudit): AuditGraphNode[] {
     || (left.type === 'model' ? 0 : 1) - (right.type === 'model' ? 0 : 1)
     || left.sequence - right.sequence)
 
+  const batchNumbers = new Map<string, number>()
+  const batchParents = new Map(audit.toolCalls.filter((call) => call.toolName === 'ansight_run_ui_batch').map((call) => [call.callId, call]))
   let cumulativeTokens = 0
   for (const event of events) {
     if (event.type === 'model') {
       const pass = event.pass
       cumulativeTokens += pass.tokens.totalTokens
-      nodes.push({ ...modelPassNode(pass, startedMilliseconds, cumulativeTokens), modelPass: pass,
-        requestedTools: audit.toolCalls.filter((call) => call.instructionIndex === pass.instructionIndex && call.instructionTurn === pass.instructionTurn) })
+      const requestedTools = audit.toolCalls.filter((call) => call.instructionIndex === pass.instructionIndex && call.instructionTurn === pass.instructionTurn)
+      nodes.push({ ...modelPassNode(pass, startedMilliseconds, cumulativeTokens, requestedTools), modelPass: pass, requestedTools })
       continue
     }
 
-    nodes.push(toolCallNode(event.call, startedMilliseconds, cumulativeTokens))
+    const call = event.call
+    const node = toolCallNode(call, startedMilliseconds, cumulativeTokens)
+    const batchId = call.batchCallId || (call.toolName === 'ansight_run_ui_batch' ? call.callId : null)
+    if (batchId) {
+      if (!batchNumbers.has(batchId)) batchNumbers.set(batchId, batchNumbers.size + 1)
+      const parent = batchParents.get(batchId)
+      node.batch = {
+        number: batchNumbers.get(batchId)!,
+        stepIndex: call.batchStepIndex,
+        stepCount: call.batchStepCount,
+        parentNodeId: parent && parent.callId !== call.callId ? `tool:${parent.sequence}` : undefined,
+      }
+    }
+    nodes.push(node)
   }
 
   nodes.push({
@@ -1551,6 +1578,7 @@ function modelPassNode(
   pass: LocalTestModelPassAudit,
   runStartedMilliseconds: number,
   cumulativeTokens: number,
+  tools: LocalTestToolCallAudit[],
 ): AuditGraphNode {
   const elapsedMilliseconds = elapsedAtEnd(runStartedMilliseconds, pass.startedUtc, pass.durationMilliseconds)
   const details: AuditGraphDetail[] = [
@@ -1580,7 +1608,7 @@ function modelPassNode(
     id: `model:${pass.sequence}`,
     kind: 'model',
     title: `Model pass ${pass.sequence}`,
-    subtitle: `Instruction ${pass.instructionIndex} · turn ${pass.instructionTurn} · ${pass.functionCallCount} call(s)`,
+    subtitle: `Instruction ${pass.instructionIndex} · turn ${pass.instructionTurn} · ${modelPassCallSummary(pass, tools)}`,
     durationMilliseconds: pass.durationMilliseconds,
     elapsedMilliseconds,
     tokenDelta: pass.tokens.totalTokens,
@@ -1590,17 +1618,27 @@ function modelPassNode(
   }
 }
 
+function modelPassCallSummary(pass: LocalTestModelPassAudit, tools: LocalTestToolCallAudit[]): string {
+  const batches = new Map<string, number>()
+  for (const tool of tools) if (tool.batchCallId && tool.batchStepCount) batches.set(tool.batchCallId, tool.batchStepCount)
+  const steps = [...batches.values()].reduce((sum, count) => sum + count, 0)
+  return steps ? `${batches.size} batch(es) · ${steps} planned tool steps` : `${pass.functionCallCount} call(s)`
+}
+
 function toolCallNode(
   call: LocalTestToolCallAudit,
   runStartedMilliseconds: number,
   cumulativeTokens: number,
 ): AuditGraphNode {
   const kind = toolCallKind(call.toolName)
+  const taskChoice = taskChoicePresentation(call)
   const taskReference = kind === 'task' ? readToolArgumentLabel(call.arguments?.content) : null
   const details: AuditGraphDetail[] = [
     payloadDetail('Arguments', call.arguments),
     payloadDetail('Result', call.result),
   ]
+  if (taskChoice?.evidence) details.unshift({ label: 'Why this choice', value: taskChoice.evidence })
+  if (taskChoice?.nextStep) details.unshift({ label: taskChoice.canUseAppControls ? 'Next step' : 'Proposed next step', value: taskChoice.nextStep })
   if (call.ocrEvidence) {
     details.push(
       payloadDetail('OCR detections', call.ocrEvidence.results),
@@ -1630,6 +1668,9 @@ function toolCallNode(
       instructionTurn: call.instructionTurn,
       callId: call.callId,
       correlationId: call.correlationId,
+      batchCallId: call.batchCallId,
+      batchStepIndex: call.batchStepIndex,
+      batchStepCount: call.batchStepCount,
       toolName: call.toolName,
       isAnsightTool: call.isAnsightTool,
       startedUtc: call.startedUtc,
@@ -1641,18 +1682,19 @@ function toolCallNode(
   return {
     id: `tool:${call.sequence}`,
     kind,
-    title: taskReference || readableToolName(call.toolName),
-    subtitle: call.message,
+    title: taskChoice?.title || taskReference || readableToolName(call.toolName),
+    subtitle: taskChoice?.summary ?? call.message,
     durationMilliseconds: call.durationMilliseconds,
     elapsedMilliseconds: elapsedAtEnd(runStartedMilliseconds, call.startedUtc, call.durationMilliseconds),
     tokenDelta: 0,
     cumulativeTokens,
     isError: call.isError,
     details,
-    helpText: call.toolName === 'ansight_declare_uncovered_step' ? uncoveredStepHelpText : undefined,
+    helpText: taskChoice ? taskChoiceHelp : undefined,
     ocrEvidence: call.ocrEvidence,
     accessibilityEvidence: call.accessibilityEvidence ?? readLegacyAccessibilityEvidence(call),
     taskCallTrace: call.toolName === 'ansight_run_task' ? readTaskCallTrace(call) : undefined,
+    taskAssertionTrace: call.toolName === 'ansight_run_task' ? readTaskAssertionTrace(call) : undefined,
     taskSources: call.toolName === 'ansight_run_task' ? readTaskSources(call) : undefined,
   }
 }
@@ -1685,7 +1727,10 @@ function payloadDetail(label: string, payload?: LocalTestAuditPayload | null): A
 }
 
 function toolCallKind(toolName: string): AuditGraphNodeKind {
-  if (toolName === 'ansight_list_tasks' || toolName === 'ansight_run_task') return 'task'
+  if (toolName === taskChoiceToolName) return 'decision'
+  if (toolName === 'ansight_list_tasks') return 'discovery'
+  if (toolName === 'ansight_run_task') return 'task'
+  if (toolName === 'ansight_run_ui_batch') return 'batch'
   if (/(_ui|screenshot|visual_tree|simulator|tap|swipe|type_text)/i.test(toolName)) return 'ui'
   return 'tool'
 }
@@ -1694,7 +1739,10 @@ function graphKindLabel(kind: AuditGraphNodeKind): string {
   switch (kind) {
     case 'app-graph': return 'App Graph'
     case 'model': return 'Model'
+    case 'decision': return 'Decision'
+    case 'discovery': return 'Discovery'
     case 'task': return 'Task'
+    case 'batch': return 'Batch'
     case 'ui': return 'Live UI'
     case 'tool': return 'Tool'
     case 'result': return 'Result'
@@ -1703,6 +1751,9 @@ function graphKindLabel(kind: AuditGraphNodeKind): string {
 }
 
 function readableToolName(toolName: string): string {
+  if (toolName === taskChoiceToolName) return taskChoiceTitle
+  if (toolName === 'ansight_list_tasks') return 'Find saved automation scripts'
+  if (toolName === 'ansight_run_ui_batch') return 'UI batch result'
   return toolName.replace(/^ansight_/, '').replaceAll('_', ' ')
 }
 

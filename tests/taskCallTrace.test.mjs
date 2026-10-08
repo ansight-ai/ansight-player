@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { readTaskCallTrace, taskCallPayloadPreview } from '../src/local-replay/taskCallTrace.ts'
+import { readTaskAssertionTrace, readTaskCallTrace, taskCallPayloadPreview } from '../src/local-replay/taskCallTrace.ts'
 
 function payload(content, wasTruncated = false) {
   return { content, originalCharacterCount: content.length, wasTruncated, sha256: 'test-hash' }
@@ -87,4 +87,52 @@ test('isolates malformed entries and malformed payloads while retaining readable
   assert.equal(trace.rows.length, 2)
   assert.equal(trace.rows[0].call.arguments, null)
   assert.equal(trace.rows[1].depth, 1)
+})
+
+test('retains expect outcomes and compared values even when the task result is truncated', () => {
+  const assertions = [
+    { assertionId: 'location', passed: true, message: 'Location present', expected: true, actual: true, matcher: 'expect.toBe' },
+    { assertionId: 'clipboard', passed: false, message: 'Clipboard matches', expected: '-33.56641', actual: '-33.56', matcher: 'expect.soft.not.toEqual' },
+  ]
+  const trace = readTaskAssertionTrace({ taskAssertions: assertions, result: payload('{"result":', true) })
+  assert.equal(trace.message, null)
+  assert.equal(trace.rows.length, 2)
+  assert.equal(trace.rows[0].assertion.passed, true)
+  assert.equal(trace.rows[1].assertion.passed, false)
+  assert.equal(trace.rows[1].assertion.expected, '-33.56641')
+  assert.equal(trace.rows[1].assertion.actual, '-33.56')
+  assert.equal(trace.rows[1].assertion.matcher, 'expect.soft.not.toEqual')
+})
+
+test('recovers older assertion summaries without inventing expected or actual values', () => {
+  const assertion = { assertionId: 'clipboard', passed: false, message: 'Mismatch' }
+  for (const value of [{ assertions: [assertion] }, { result: { assertions: [assertion] } }]) {
+    const trace = readTaskAssertionTrace({ result: payload(JSON.stringify(value)) })
+    assert.equal(trace.rows.length, 1)
+    assert.equal('expected' in trace.rows[0].assertion, false)
+    assert.equal('actual' in trace.rows[0].assertion, false)
+  }
+  const trace = readTaskAssertionTrace({ taskAssertions: [], result: payload(JSON.stringify({ assertions: [assertion] })) })
+  assert.equal(trace.rows.length, 0)
+  assert.match(trace.message, /did not execute/)
+})
+
+test('keeps nested task assertions distinct and preserves explicit null values', () => {
+  const assertion = { assertionId: 'same-id', passed: true, expected: null, actual: null }
+  const trace = readTaskAssertionTrace({ taskAssertions: [assertion], taskCalls: [
+    apiCall({ assertions: [assertion], childCalls: [apiCall({ assertions: [assertion] })] }),
+    apiCall({ sequence: 2, result: payload(JSON.stringify({ assertions: [assertion] })) }),
+  ] })
+  assert.deepEqual(trace.rows.map(row => row.taskPath), ['', '1', '1.1', '2'])
+  assert.equal(new Set(trace.rows.map(row => row.id)).size, 4)
+  assert.equal(trace.rows[0].assertion.actual, null)
+  assert.equal('actual' in trace.rows[0].assertion, true)
+})
+
+test('handles missing and malformed assertion data without showing an invented pass', () => {
+  assert.match(readTaskAssertionTrace({ result: payload('truncated', true) }).message, /not retained/)
+  const trace = readTaskAssertionTrace({ taskAssertions: [null, {}, { assertionId: 'no-result' }, { assertionId: 'failed', passed: false }] })
+  assert.match(trace.message, /could not be read/)
+  assert.equal(trace.rows.length, 1)
+  assert.equal(trace.rows[0].assertion.passed, false)
 })

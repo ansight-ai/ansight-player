@@ -148,6 +148,8 @@ export type LocalTaskExtractionAssertion = {
   message: string
   expected?: unknown
   actual?: unknown
+  matcher?: string | null
+  completedAtUtc?: string | null
 }
 
 export type LocalTaskExtractionToolCall = {
@@ -1000,6 +1002,7 @@ export type LocalRepositoryTaskToolCall = {
   result?: LocalTestAuditPayload | null
   sourceTrace?: LocalTaskSourceTrace | null
   childCalls?: LocalRepositoryTaskToolCall[] | null
+  assertions?: LocalTaskExtractionAssertion[] | null
 }
 
 export type LocalTestToolCallAudit = {
@@ -1016,10 +1019,14 @@ export type LocalTestToolCallAudit = {
   result: LocalTestAuditPayload
   isError: boolean
   message: string
+  batchCallId?: string | null
+  batchStepIndex?: number | null
+  batchStepCount?: number | null
   ocrEvidence?: LocalTestOcrTraceEvidence | null
   accessibilityEvidence?: LocalTestAccessibilityTraceEvidence | null
   taskSource?: LocalTaskSourceTrace | null
   taskCalls?: LocalRepositoryTaskToolCall[] | null
+  taskAssertions?: LocalTaskExtractionAssertion[] | null
 }
 
 export type LocalTestAppGraphBinding = {
