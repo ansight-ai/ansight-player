@@ -1,4 +1,5 @@
 import { artifactTimelineHref } from './artifactLinks'
+import { summariseLocalAnnotation } from './annotationSummary'
 import { readSessionOperationStream, type SessionOperationProgress } from './sessionOperationStream'
 import type { ArtifactComparisonSource, ArtifactListResult, ArtifactDiffResult } from '../replay/components/artifactComparison'
 import type {
@@ -45,6 +46,7 @@ const artifactComparison: ArtifactComparisonSource = {
 export const localReplaySource: SessionViewerSource = {
   mode: 'local',
   runLocalSummary: runLocalSummary,
+  summariseAnnotation: summariseLocalAnnotation,
   deleteLocalSummary: deleteLocalSummary,
   artifactComparison,
   artifactFileOperations: {

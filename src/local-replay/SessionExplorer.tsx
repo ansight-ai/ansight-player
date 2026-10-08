@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { createPortal } from 'react-dom'
 import { SessionFilterModal } from './SessionFilterModal'
 import { SessionIcon } from './SessionIcon'
+import { SessionDeviceBadge } from './SessionDeviceBadge'
 import { emptySessionFilters, hasSessionFilters, matchesSessionFilters, type SessionFilters } from './sessionFilters'
 import { addSessionRange } from './sessionSelection'
 import type { LocalSessionSummary } from './types'
@@ -263,6 +264,7 @@ export function SessionExplorer({
                           </span>
                           <span className="local-session-card-meta">
                             <span><Clock aria-hidden="true" />{formatSessionDuration(session)}</span>
+                            <SessionDeviceBadge isSimulatorOrEmulator={session.isSimulatorOrEmulator} platform={session.runtimePlatform} />
                           </span>
                         </span>
                       </button>

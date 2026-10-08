@@ -3,6 +3,7 @@ import { observeLocalActivity } from './usage'
 import { ArrowClockwise, Check, Copy, DownloadSimple, Archive, CaretDown, ChartLineUp, CircleNotch, CloudArrowUp, DeviceMobile, FlowArrow, Gear, HardDrives, Info, Link, NotePencil, Pulse, QrCode, SidebarSimple, Sparkle, SquaresFour, TestTube, Trash, UserCircle, VideoCamera, WifiHigh, X } from '@phosphor-icons/react'
 import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type SetStateAction } from 'react'
 import { SessionIcon } from './SessionIcon'
+import { SessionDeviceBadge } from './SessionDeviceBadge'
 import { GithubRepositoryBadge } from '../components/GithubRepositoryBadge'
 import { SessionViewerPage, type SessionReplayPanelContext, type SessionViewerSource, type TimelineEditSelection } from '../replay/pages/SessionViewerPage'
 import { AccountCompanionPanel } from './AccountCompanionPanel'
@@ -1118,7 +1119,10 @@ export function LocalReplayApp() {
                 <SessionIcon appIconUrl={selectedSession.appIconUrl} platform={selectedSession.runtimePlatform} />
               </span>
               <span className="local-session-context-title">
-                <strong>{selectedSession.name || selectedSession.clientName}</strong>
+                <span className="local-session-context-name">
+                  <strong>{selectedSession.name || selectedSession.clientName}</strong>
+                  <SessionDeviceBadge isSimulatorOrEmulator={selectedSession.isSimulatorOrEmulator} platform={selectedSession.runtimePlatform} />
+                </span>
                 <span className="local-session-id">
                   <span>{selectedSession.sessionId}</span>
                   <button aria-label="Copy session ID" data-tooltip="Copy session ID" type="button" onClick={() => void copySessionId(selectedSession.sessionId)}>
