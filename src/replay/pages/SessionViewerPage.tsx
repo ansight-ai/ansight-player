@@ -1,6 +1,10 @@
 import { resolveDeviceFrame } from '../deviceFrame'
+import { agentReasoningModes, defaultAgentReasoning, type AgentReasoning } from '../../agentReasoning'
+import type { AnnotationSummaryOptions } from '../../local-replay/annotationSummary'
+import { AnnotationSummaryProgress } from '../components/AnnotationSummaryProgress'
 import { deferredTelemetryReport, type DeferredTelemetryReport } from '../deferredTelemetry'
 import { DeferredTelemetryStatus } from '../components/DeferredTelemetryStatus'
+import { AiOperationMessage } from '../components/AiOperationMessage'
 import { timelineCornerPaths } from '../timelineCurve'
 import { formatMetricValue, isFlutterDiagnosticChannel, isFpsChannel, metricAxisMaximum, metricPresentation } from '../metricPresentation'
 import { ArtifactComparisonExplorer } from '../components/ArtifactComparisonExplorer'
@@ -341,6 +345,7 @@ export type SessionViewerSource = {
   mode: 'cloud' | 'local'
   loadPayload: (sessionId: string, superAdminMode: boolean) => Promise<SessionViewerPayload>
   runLocalSummary?: (sessionId: string, onProgress: (progress: SessionOperationProgress) => void) => Promise<void>
+  summariseAnnotation?: (sessionId: string, options: AnnotationSummaryOptions, onProgress: (progress: SessionOperationProgress) => void) => Promise<string>
   deleteLocalSummary?: (sessionId: string, analysisId: string) => Promise<string>
   loadAiReadState?: (sessionId: string) => Promise<SessionAiReadState>
   createAiExtraction?: (request: CreateSessionAiExtractionRequest) => Promise<string>
@@ -687,6 +692,7 @@ export function SessionViewerPage({
   onBack,
   onSessionExtracted,
   onReplayPanelWidthChange,
+  onReplayRangeChange,
   aiViewKind,
   onAiViewKindChange,
   onSessionInfoOpenChange,
@@ -709,6 +715,8 @@ export function SessionViewerPage({
   onSessionExtracted?: (sessionId: string) => void | Promise<void>
   /** Reports the device column's width so an embedding shell can align its own chrome with the player's cards. */
   onReplayPanelWidthChange?: (width: number) => void
+  /** Reports the full replay range, independent of timeline zoom or selection. */
+  onReplayRangeChange?: (sessionId: string, range: TimelineEditSelection | null) => void
   aiViewKind?: SessionAiExtractionKind | null
   onAiViewKindChange?: (kind: SessionAiExtractionKind | null) => void
   onSessionInfoOpenChange?: (isOpen: boolean) => void
@@ -1381,6 +1389,14 @@ export function SessionViewerPage({
     () => resolveTimelineRange(payload?.session ?? null, captureSession, timelineReplayIndex, timelineMetricIndex, annotations),
     [annotations, captureSession, payload?.session, timelineMetricIndex, timelineReplayIndex],
   )
+  useEffect(() => {
+    const isCurrentSession = payload?.session.id === sessionId || payload?.session.session_id === sessionId
+    onReplayRangeChange?.(sessionId, !isLoading && isCurrentSession ? {
+      startMs: timelineRange.startMs,
+      endMs: timelineRange.endMs,
+      focusMs: timelineRange.initialMs,
+    } : null)
+  }, [isLoading, onReplayRangeChange, payload?.session.id, payload?.session.session_id, sessionId, timelineRange.endMs, timelineRange.initialMs, timelineRange.startMs])
   const effectiveSessionDurationMs = resolveEffectiveSessionDurationMs(payload?.session.duration_ms ?? null, timelineRange)
   const effectiveScrubAtMs = resolveEffectiveScrubAt(scrubAtMs, timelineRange, isLiveSession)
   const isFollowingLive = isLiveSession && scrubAtMs === null
@@ -2975,6 +2991,7 @@ export function SessionViewerPage({
 
       {annotationEditorDraft ? (
         <AnnotationEditorModal
+          key={`${sessionId}:${annotationEditorDraft.annotation.annotationId}`}
           draft={annotationEditorDraft}
           isSubmitting={isAnnotationSubmitting}
           onClose={() => setAnnotationEditorDraft(null)}
@@ -2982,6 +2999,9 @@ export function SessionViewerPage({
             ? (annotationId) => void deleteAnnotation(annotationId)
             : undefined}
           onSave={(annotation) => void saveAnnotation(annotation)}
+          onSummarise={source.summariseAnnotation
+            ? (options, onProgress) => source.summariseAnnotation!(sessionId, options, onProgress)
+            : undefined}
         />
       ) : null}
 
@@ -6604,7 +6624,7 @@ function AnalysisSection({
           </div>
           <p className="muted">Analyzes session evidence and selected screenshots, then saves the summary with this local session.</p>
           {isLocalSummaryRunning ? <p className="inline-message cloud-ai-summary-progress" role="status"><CircleNotch className="spin" aria-hidden="true" /><span>{localSummaryProgress ?? 'Analyzing session…'}</span><span className="muted" aria-hidden="true">{localSummaryElapsedSeconds}s elapsed</span></p> : null}
-          {localSummaryMessage ? <p className="inline-message" role="status">{localSummaryMessage}</p> : null}
+          {localSummaryMessage ? <AiOperationMessage message={localSummaryMessage} role="status" /> : null}
         </section>
       ) : null}
       {hasAnalyses ? (
@@ -6757,7 +6777,7 @@ function CloudAiResultsPanel({
         </div>
       </div>
 
-      {aiMessage ? <p className="inline-message">{aiMessage}</p> : null}
+      {aiMessage ? <AiOperationMessage message={aiMessage} /> : null}
       {kind === 'analysis' && aiDurationFeedback ? <p className="inline-message inline-message--warning cloud-ai-feedback">{aiDurationFeedback.message}</p> : null}
       {accessBlock ? <CloudAiAccessCallout block={accessBlock} /> : null}
 
@@ -6945,7 +6965,7 @@ function CloudAiExtractionPanel({
         </div>
       ) : null}
 
-      {aiMessage ? <p className="inline-message">{aiMessage}</p> : null}
+      {aiMessage ? <AiOperationMessage message={aiMessage} /> : null}
       {accessBlock ? <CloudAiAccessCallout block={accessBlock} /> : null}
 
       <div className="cloud-ai-form">
@@ -7791,20 +7811,56 @@ function AnnotationEditorModal({
   onClose,
   onDelete,
   onSave,
+  onSummarise,
 }: {
   draft: AnnotationEditorDraft
   isSubmitting: boolean
   onClose: () => void
   onDelete?: (annotationId: string) => void
   onSave: (annotation: SessionAnnotation) => void
+  onSummarise?: (options: AnnotationSummaryOptions, onProgress: (progress: SessionOperationProgress) => void) => Promise<string>
 }) {
   const [comment, setComment] = useState(() => buildAnnotationComment(draft.annotation))
   const [status, setStatus] = useState(draft.annotation.status ?? '')
+  const [reasoning, setReasoning] = useState<AgentReasoning>(defaultAgentReasoning)
+  const [isSummarising, setIsSummarising] = useState(false)
+  const [summaryProgress, setSummaryProgress] = useState<SessionOperationProgress | null>(null)
+  const [summaryError, setSummaryError] = useState<string | null>(null)
+  const [summaryElapsedSeconds, setSummaryElapsedSeconds] = useState(0)
+  const isBusy = isSubmitting || isSummarising
   const normalizedComment = normalizeAnnotationComment(comment)
+
+  useEffect(() => {
+    if (!isSummarising) return
+    const timer = window.setInterval(() => setSummaryElapsedSeconds(seconds => seconds + 1), 1000)
+    return () => window.clearInterval(timer)
+  }, [isSummarising])
+
+  async function handleSummarise() {
+    if (!onSummarise || isBusy || !draft.annotation.startUtc || !draft.annotation.endUtc) return
+    setIsSummarising(true)
+    setSummaryError(null)
+    setSummaryElapsedSeconds(0)
+    setSummaryProgress({ stage: 'loading', message: 'Connecting to the local host…' })
+    try {
+      const summary = await onSummarise({
+        startUtc: draft.annotation.startUtc,
+        endUtc: draft.annotation.endUtc,
+        reasoning,
+      }, setSummaryProgress)
+      setComment(summary)
+      setSummaryProgress({ stage: 'complete', message: 'Summary ready. Review the comment, then save the annotation.' })
+    } catch (error) {
+      setSummaryError(getErrorMessage(error, 'Unable to summarise the section.'))
+      setSummaryProgress(null)
+    } finally {
+      setIsSummarising(false)
+    }
+  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!normalizedComment) {
+    if (isBusy || !normalizedComment) {
       return
     }
 
@@ -7825,6 +7881,7 @@ function AnnotationEditorModal({
 
   const startMs = toTimestamp(draft.annotation.startUtc)
   const endMs = toTimestamp(draft.annotation.endUtc)
+  const canSummarise = !!onSummarise && startMs !== null && endMs !== null && endMs > startMs
   const timeDisplay = startMs === null
     ? 'Current session position'
     : endMs !== null && endMs > startMs
@@ -7832,26 +7889,45 @@ function AnnotationEditorModal({
       : formatDateTimeFromMs(startMs)
 
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
+    <div className="modal-backdrop" onMouseDown={() => { if (!isBusy) onClose() }}>
       <form className="session-info-modal annotation-editor-modal" onMouseDown={(event) => event.stopPropagation()} onSubmit={handleSubmit}>
         <div className="modal-heading">
           <h2>{draft.annotation.label?.trim() ? 'Edit annotation' : 'Add annotation'}</h2>
-          <button aria-label="Close annotation editor" className="annotation-editor-close" disabled={isSubmitting} onClick={onClose} type="button">
+          <button aria-label="Close annotation editor" className="annotation-editor-close" disabled={isBusy} onClick={onClose} type="button">
             <X aria-hidden="true" />
           </button>
         </div>
 
         <div className="annotation-editor-body">
           <p className="annotation-editor-time"><Clock aria-hidden="true" />{timeDisplay}</p>
+          {canSummarise ? (
+            <div className="annotation-summary">
+              <div className="annotation-summary-controls">
+                <label>
+                  <span>Reasoning mode</span>
+                  <select disabled={isBusy} value={reasoning} onChange={event => setReasoning(event.target.value as AgentReasoning)}>
+                    {agentReasoningModes.map(mode => <option key={mode.value} value={mode.value}>{mode.label}</option>)}
+                  </select>
+                </label>
+                <button className="button button--secondary button--compact annotation-summary-action" aria-busy={isSummarising} disabled={isBusy} onClick={() => void handleSummarise()} type="button">
+                  <Sparkle className={isSummarising ? 'summary-sparkle-pulse' : undefined} aria-hidden="true" />
+                  {isSummarising ? 'Summarising…' : 'Summarise section'}
+                </button>
+              </div>
+              <p className="muted">Use the selected time range to generate a summary. This replaces the comment below.</p>
+              {summaryProgress ? <AnnotationSummaryProgress progress={summaryProgress} elapsedSeconds={summaryElapsedSeconds} reasoning={reasoning} isRunning={isSummarising} /> : null}
+              {summaryError ? <AiOperationMessage message={summaryError} role="alert" /> : null}
+            </div>
+          ) : null}
           <label className="annotation-comment-field">
             <span>Comment <strong>required</strong></span>
             <textarea
               autoFocus
               aria-keyshortcuts="Meta+Enter"
-              disabled={isSubmitting}
+              disabled={isBusy}
               onChange={(event) => setComment(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key !== 'Enter' || !event.metaKey || event.repeat || event.nativeEvent.isComposing || isSubmitting || !normalizedComment) {
+                if (event.key !== 'Enter' || !event.metaKey || event.repeat || event.nativeEvent.isComposing || isBusy || !normalizedComment) {
                   return
                 }
 
@@ -7866,7 +7942,7 @@ function AnnotationEditorModal({
           <label className="annotation-status-field">
             <span>Status</span>
             <input
-              disabled={isSubmitting}
+              disabled={isBusy}
               onChange={(event) => setStatus(event.target.value)}
               placeholder="e.g. resolved"
               type="text"
@@ -7877,14 +7953,14 @@ function AnnotationEditorModal({
 
         <div className="annotation-editor-actions">
           {onDelete && draft.annotation.annotationId ? (
-            <button className="button button--danger" disabled={isSubmitting} onClick={() => onDelete(draft.annotation.annotationId!)} type="button">
+            <button className="button button--danger" disabled={isBusy} onClick={() => onDelete(draft.annotation.annotationId!)} type="button">
               <Trash aria-hidden="true" />
               Delete
             </button>
           ) : <span />}
           <div>
-            <button className="button button--secondary" disabled={isSubmitting} onClick={onClose} type="button">Cancel</button>
-            <button className="button button--primary" disabled={isSubmitting || !normalizedComment} type="submit">
+            <button className="button button--secondary" disabled={isBusy} onClick={onClose} type="button">Cancel</button>
+            <button className="button button--primary" disabled={isBusy || !normalizedComment} type="submit">
               {isSubmitting ? <CircleNotch className="spin" aria-hidden="true" /> : <Check aria-hidden="true" />}
               Save annotation
             </button>
@@ -11672,9 +11748,6 @@ function getErrorMessage(error: unknown, fallback: string): string {
 
 function getAiExtractionErrorMessage(error: unknown, fallback: string): string {
   const message = getErrorMessage(error, fallback)
-  if (/no AI billing allowance remaining|no active OpenAI billing period/i.test(message)) {
-    return 'This organisation has no billable AI credit remaining. Ask an Ansight administrator to update its billing allowance.'
-  }
   if (/does not have an active cloud and AI access grant/i.test(message)) {
     return 'This organisation does not currently have cloud and AI access. Ask an Ansight administrator to enable a trial, month, or year.'
   }

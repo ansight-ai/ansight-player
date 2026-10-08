@@ -1,4 +1,4 @@
-export type SessionOperationProgress = { message: string; completed?: number; total?: number }
+export type SessionOperationProgress = { message: string; stage?: string; completed?: number; total?: number }
 
 export async function readSessionOperationStream<T>(
   response: Response,

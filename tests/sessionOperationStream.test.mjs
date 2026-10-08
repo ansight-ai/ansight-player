@@ -23,3 +23,19 @@ test('host errors and interrupted operations do not appear successful', async ()
   await assert.rejects(readSessionOperationStream(response(['{"status":"error","message":"Save failed"}\n']), () => {}), /Save failed/)
   await assert.rejects(readSessionOperationStream(response(['{"status":"running","progress":{"message":"Saving"}}\n']), () => {}), /ended before/)
 })
+
+test('stage progress is delivered while the summary response is still pending', async () => {
+  let controller
+  const body = new ReadableStream({ start(value) { controller = value } })
+  const progress = []
+  let finished = false
+  const result = readSessionOperationStream(new Response(body), value => progress.push(value))
+  result.then(() => { finished = true })
+  controller.enqueue(new TextEncoder().encode('{"status":"running","progress":{"stage":"loading","message":"Loading session evidence…"}}\n'))
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(progress, [{ stage: 'loading', message: 'Loading session evidence…' }])
+  assert.equal(finished, false)
+  controller.enqueue(new TextEncoder().encode('{"status":"success","result":{"comment":"Ready"}}\n'))
+  controller.close()
+  assert.deepEqual(await result, { comment: 'Ready' })
+})

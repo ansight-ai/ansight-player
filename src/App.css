@@ -569,6 +569,34 @@
   border-color: rgba(245, 158, 11, 0.38);
 }
 
+.ai-billing-notice {
+  display: grid;
+  gap: 10px;
+  border-color: color-mix(in srgb, var(--warning) 55%, var(--border));
+  background: color-mix(in srgb, var(--warning) 7%, var(--surface));
+}
+
+.ai-billing-notice-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+}
+
+.ai-billing-notice-heading svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+
+.ai-billing-notice p {
+  margin: 0;
+}
+
+.ai-billing-notice .button {
+  justify-self: start;
+}
+
 .authenticated-layout {
   min-height: 100vh;
   padding-left: 220px;
@@ -9085,6 +9113,177 @@ body.session-replay-resizing {
 
 .annotation-comment-field {
   display: grid;
+}
+
+.annotation-summary {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.annotation-summary p {
+  margin: 0;
+  font-size: 12px;
+}
+
+.annotation-summary-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+}
+
+.annotation-summary-controls label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.annotation-summary-controls select {
+  min-width: 140px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  background: var(--surface);
+  font: inherit;
+}
+
+.annotation-summary-controls .annotation-summary-action[aria-busy='true']:disabled {
+  opacity: 1;
+  color: var(--accent);
+}
+
+.annotation-summary-progress {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.annotation-summary-progress-heading,
+.annotation-summary-progress-heading strong,
+.annotation-summary-ready {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.annotation-summary-progress-heading {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.annotation-summary-progress-heading strong {
+  font-size: 14px;
+}
+
+.annotation-summary-progress-heading svg,
+.annotation-summary-ready svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.annotation-summary-elapsed {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.annotation-summary-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.annotation-summary-steps li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.annotation-summary-steps .is-current {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.annotation-summary-step-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 22px;
+  height: 22px;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.annotation-summary-step-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+.is-current > .annotation-summary-step-icon,
+.is-complete > .annotation-summary-step-icon {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
+.annotation-summary-activity {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--border);
+}
+
+.annotation-summary-activity > span {
+  display: block;
+  width: 35%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  animation: summary-activity 1.8s ease-in-out infinite alternate;
+}
+
+.annotation-summary-current {
+  font-weight: 600;
+}
+
+.summary-sparkle-pulse {
+  animation: summary-sparkle-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes summary-activity {
+  from { transform: translateX(0); }
+  to { transform: translateX(186%); }
+}
+
+@keyframes summary-sparkle-pulse {
+  50% { opacity: 0.45; transform: scale(0.9); }
+}
+
+@media (max-width: 600px) {
+  .annotation-summary-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .summary-sparkle-pulse,
+  .annotation-summary-activity > span { animation: none; }
 }
 
 .annotation-comment-field > span strong {
