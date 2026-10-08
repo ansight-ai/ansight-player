@@ -51,6 +51,9 @@ export function TaskExtractionTraceViewer({ onClose, trace }: { onClose: () => v
         <TraceMetric label="Input / output" value={`${trace.tokens.inputTokens.toLocaleString()} / ${trace.tokens.outputTokens.toLocaleString()}`} />
         <TraceMetric label="Cached / reasoning" value={`${trace.tokens.cachedInputTokens.toLocaleString()} / ${trace.tokens.reasoningOutputTokens.toLocaleString()}`} />
       </div>
+      <p className="muted local-task-extraction-trace-message">
+        <strong>One-off optimisation.</strong> Extraction turns the recorded workflow into a reusable task. Once saved, the task can run repeatedly without repeating this extraction cost or asking AI to work out the same steps again.
+      </p>
       {trace.message ? <p className="inline-message local-task-extraction-trace-message">{trace.message}</p> : null}
       <section className="local-task-extraction-trace-passes">
         <div className="local-task-extraction-trace-section-heading"><div><p className="eyebrow">Trace</p><h3>Execution trace <span className="local-test-trace-count">{nodes.length} nodes</span></h3></div>

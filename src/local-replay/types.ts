@@ -76,6 +76,7 @@ export type WorkspaceTestExtraction = {
   source: string
   generatedActionCount: number
   diagnostics: string[]
+  automationIds?: string[] | null
 }
 
 export type WorkspaceTestDraft = {
@@ -266,6 +267,7 @@ export type LocalTaskExtraction = {
   startUtc: string
   endUtc: string
   taskName: string
+  taskNameIsAuthoritative?: boolean
   description: string
   mode: 'hosted' | 'directWebSocket'
   model: string
@@ -273,6 +275,9 @@ export type LocalTaskExtraction = {
   reasoningEffort: ProviderReasoningEffort
   reasoningConfigurationRevision: string
   validateSelectors: boolean
+  automationIds?: string[] | null
+  trimToTechnology: boolean
+  includeOnlyNecessaryFeatures: boolean
   createdAtUtc: string
   updatedAtUtc: string
   progress: LocalTaskExtractionProgress[]
@@ -537,6 +542,7 @@ export type LocalRepositoryTask = {
   appId: string
   title: string
   description: string
+  inputSchema?: Record<string, unknown>
   feature?: string | null
   keywords: string[]
   declaredHostTools: string[]

@@ -1,4 +1,5 @@
 import type { LocalRepositoryTask, LocalWorkspaceTest } from './types'
+import { getPromptReferenceCompletionRange, getPromptReferenceHover, referenceToken } from './testPromptReferences.ts'
 
 export type TestSchemaProperty = {
   description?: string
@@ -19,7 +20,7 @@ export type TestCompletion = {
   insertText: string
   detail: string
   documentation?: string
-  kind: 'key' | 'value' | 'task'
+  kind: 'key' | 'value' | 'task' | 'selector'
   startColumn: number
   endColumn: number
 }
@@ -41,7 +42,23 @@ export type TestIdDeclaration = Pick<TestIdConflict, 'lineNumber' | 'startColumn
 
 const keyPattern = /^\s*([A-Za-z][\w-]*):/
 
-export function getTestCompletions(source: string, lineNumber: number, column: number, schema: TestSchema, tasks: LocalRepositoryTask[]): TestCompletion[] {
+export function getTestCompletions(source: string, lineNumber: number, column: number, schema: TestSchema, tasks: LocalRepositoryTask[], automationIds?: readonly string[] | null): TestCompletion[] {
+  const mention = getPromptReferenceCompletionRange(source, lineNumber, column)
+  if (mention) {
+    const candidates: TestCompletion[] = [
+      ...tasks.filter((task) => task.enabled).map((task): TestCompletion => ({
+        label: referenceToken('task', task.taskId), insertText: referenceToken('task', task.taskId),
+        kind: 'task', detail: task.title || 'Repository task',
+        documentation: `${task.description || ''}\n\nInputs: ${JSON.stringify(task.inputSchema ?? {})}`, ...mention,
+      })),
+      ...[...new Set(automationIds ?? [])].sort().map((id): TestCompletion => ({
+        label: referenceToken('selector', id), insertText: referenceToken('selector', id),
+        kind: 'selector', detail: `Automation ID: ${id}`,
+        documentation: `Recorded selector: ${JSON.stringify({ automationId: id, matchMode: 'exact' })}`, ...mention,
+      })),
+    ]
+    return candidates.filter((candidate) => candidate.label.startsWith(mention.prefix))
+  }
   const lines = source.split(/\r?\n/)
   const line = lines[lineNumber - 1] ?? ''
   const before = line.slice(0, column - 1)
@@ -108,6 +125,11 @@ export function getTestKeyDocumentation(source: string, lineNumber: number, colu
 }
 
 export function getTestTaskHover(source: string, lineNumber: number, column: number, tasks: LocalRepositoryTask[]): TestTaskHover | null {
+  const mention = getPromptReferenceHover(source, lineNumber, column)
+  if (mention?.kind === 'task') {
+    const task = tasks.find((candidate) => candidate.taskId === mention.id)
+    return task ? { task, startColumn: mention.startColumn, endColumn: mention.endColumn } : null
+  }
   const lines = source.split(/\r?\n/)
   const line = lines[lineNumber - 1] ?? ''
   const indentation = line.match(/^\s*/)?.[0].length ?? 0

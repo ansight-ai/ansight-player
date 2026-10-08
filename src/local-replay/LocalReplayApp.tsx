@@ -28,7 +28,7 @@ import { SimulatorControlView } from './SimulatorControlView'
 import { TeamSessionExplorer } from './TeamSessionExplorer'
 import { TestHistoryPanel } from './TestHistoryPanel'
 import { TestExecutionPanel } from './TestExecutionPanel'
-import type { LocalAppGraphLiveRun, LocalEnrollmentInviteResult, LocalGettingStartedState, LocalOperationResult, LocalRemoteRunnerRegistration, LocalRemoteRunnerStatus, LocalReplayBootstrap, LocalSessionCachePlan, LocalSessionSummary, LocalTaskExtraction, LocalTestHistory, LocalTestRunSummary, WorkspaceTestDraft } from './types'
+import type { LocalAppGraphLiveRun, LocalEnrollmentInviteResult, LocalGettingStartedState, LocalOperationResult, LocalRemoteRunnerRegistration, LocalRemoteRunnerStatus, LocalReplayBootstrap, LocalSessionCachePlan, LocalSessionSummary, LocalTestHistory, LocalTestRunSummary } from './types'
 import type { SessionAnnotation } from '../replay/sessionViewerData'
 
 const linkedTraceRefreshIntervalMs = 8000
@@ -53,6 +53,7 @@ type TaskExtractionRequest = {
   sessionId: string
   format?: 'ansight' | 'test'
   draftId?: string
+  wholeReplay?: boolean
   returnTest?: TestExtractionReturn
 }
 
@@ -171,42 +172,25 @@ export function LocalReplayApp() {
   const [testHistoryInitialRun, setTestHistoryInitialRun] = useState<LocalTestRunSummary | null>(null)
   const [testExecutionTarget, setTestExecutionTarget] = useState<{ appId: string; testId: string } | null>(null)
   const [taskExtractionRequest, setTaskExtractionRequest] = useState<TaskExtractionRequest | null>(null)
+  const [replayRange, setReplayRange] = useState<{ sessionId: string; period: TimelineEditSelection | null } | null>(null)
+  const handleReplayRangeChange = useCallback((sessionId: string, period: TimelineEditSelection | null) => {
+    setReplayRange({ sessionId, period })
+  }, [])
+  const selectedReplayPeriod = replayRange?.sessionId === selectedSessionId ? replayRange.period : null
   const [annotationWorkflow, setAnnotationWorkflow] = useState<{ id: number; annotationId: string | null; returnRequest: TaskExtractionRequest } | null>(null)
   const annotationWorkflowIdRef = useRef(0)
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null)
   const [sessionActionError, setSessionActionError] = useState<string | null>(null)
 
-  async function openSessionTaskDrafts() {
-    if (!selectedSessionId) return
+  function openSessionTestGeneration() {
+    if (!selectedSessionId || !selectedReplayPeriod) return
     setSessionActionError(null)
-    try {
-      const [taskResponse, testResponse] = await Promise.all([
-        fetch('api/task-extractions', { cache: 'no-store' }),
-        fetch(`api/task-extractions/test-drafts?sessionId=${encodeURIComponent(selectedSessionId)}`, { cache: 'no-store' }),
-      ])
-      if (!taskResponse.ok || !testResponse.ok) throw new Error('Unable to load saved drafts.')
-      const extractions = await taskResponse.json() as LocalTaskExtraction[]
-      const testDrafts = await testResponse.json() as WorkspaceTestDraft[]
-      const drafts = extractions.filter((item) => item.sessionId === selectedSessionId && item.draft)
-      if (drafts.length === 0 && testDrafts.length === 0) {
-        setSessionActionError('No generated drafts for this session yet.')
-        return
-      }
-      const latestTestDraft = testDrafts[0]
-      const startMs = latestTestDraft ? Date.parse(latestTestDraft.startUtc) : Math.min(...drafts.map((item) => Date.parse(item.startUtc)))
-      const endMs = latestTestDraft ? Date.parse(latestTestDraft.endUtc) : Math.max(...drafts.map((item) => Date.parse(item.endUtc)))
-      if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
-        throw new Error('The saved draft period could not be read.')
-      }
-      setTaskExtractionRequest({
-        format: 'test',
-        draftId: latestTestDraft?.draftId,
-        period: { startMs, endMs, focusMs: startMs + (endMs - startMs) / 2 },
-        sessionId: selectedSessionId,
-      })
-    } catch (error) {
-      setSessionActionError(error instanceof Error ? error.message : 'Unable to open task drafts.')
-    }
+    setTaskExtractionRequest({
+      format: 'test',
+      wholeReplay: true,
+      period: selectedReplayPeriod,
+      sessionId: selectedSessionId,
+    })
   }
 
   async function openSummary() {
@@ -1240,13 +1224,15 @@ export function LocalReplayApp() {
                 Summary
               </button>
               {bootstrap?.supportsTaskExtraction ? <button
+                aria-label="Generate test from whole replay"
                 className="local-banner-button"
-                onClick={() => void openSessionTaskDrafts()}
-                data-tooltip="Open saved YAML and automation task drafts for this session"
+                disabled={!selectedReplayPeriod}
+                onClick={openSessionTestGeneration}
+                data-tooltip={selectedReplayPeriod ? 'Generate a test from the whole replay' : 'Loading replay…'}
                 type="button"
               >
                 <TestTube aria-hidden="true" />
-                Drafts
+                Generate test
               </button> : null}
               {canManageSelectedSession ? (
                 <button
@@ -1288,6 +1274,7 @@ export function LocalReplayApp() {
               isEmbedded
               isLiveSession={selectedSession?.isConnected === true}
               onReplayPanelWidthChange={setReplayPanelWidth}
+              onReplayRangeChange={handleReplayRangeChange}
               isSignedIn={false}
               onSessionInfoOpenChange={handleSessionInfoOpenChange}
               onAiViewKindChange={setAiViewKind}
@@ -1448,8 +1435,9 @@ export function LocalReplayApp() {
               key={`${extractionSession.sessionId}:${taskExtractionRequest.period.startMs}:${taskExtractionRequest.period.endMs}:${taskExtractionRequest.format ?? 'ansight'}:${taskExtractionRequest.draftId ?? ''}`}
               initialDraftId={taskExtractionRequest.draftId}
               initialFormat={taskExtractionRequest.format}
+              wholeReplay={taskExtractionRequest.wholeReplay}
               initialSelectedTaskSectionIds={taskExtractionRequest.returnTest?.selectedTaskSectionIds}
-              initialSkipTaskSections={taskExtractionRequest.returnTest?.skipTaskSections}
+              initialSkipTaskSections={taskExtractionRequest.returnTest?.skipTaskSections ?? taskExtractionRequest.wholeReplay}
               initialTaskName={taskExtractionRequest.returnTest?.name}
               initialTestAssertions={taskExtractionRequest.returnTest?.assertions}
               initialGenerationNotes={taskExtractionRequest.returnTest?.generationNotes}

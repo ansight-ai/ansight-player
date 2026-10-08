@@ -86,3 +86,35 @@ test('detects conflicting test IDs across apps without flagging the same saved f
   assert.equal(getTestIdDeclaration('id: ""'), null)
   assert.equal(getTestIdDeclaration('  id: copy-eagle-rock-location'), null)
 })
+
+test('completes inline task and selector mentions in prompt and validation prose', () => {
+  for (const source of ['prompt: Run @task/op', 'prompt: |-\n  Run @task/op', 'prompt: >-\n  First: run @task/op', 'validation:\n  assertions:\n    - Verify after @task/op']) {
+    const lines = source.split('\n')
+    const line = lines.at(-1)
+    const completions = getTestCompletions(source, lines.length, line.length + 1, schema, tasks, ['profile-tab'])
+    assert.deepEqual(completions.map((item) => item.label), ['@task/open-settings'])
+    assert.equal(completions[0].startColumn, line.indexOf('@') + 1)
+    assert.ok(completions[0].documentation.includes('Navigates to settings'))
+  }
+  const source = 'prompt: Tap @selector/'
+  const completions = getTestCompletions(source, 1, source.length + 1, schema, tasks, ['Profile tab', 'com.app:id/copy', 'Profile tab'])
+  assert.deepEqual(completions.map((item) => item.label), ['@selector/Profile%20tab', '@selector/com.app%3Aid%2Fcopy'])
+  assert.ok(completions.every((item) => item.kind === 'selector' && item.documentation.includes('"matchMode":"exact"')))
+})
+
+test('mention completion replaces the whole token while preserving adjacent punctuation', () => {
+  const source = 'prompt: Run @task/open-settings.'
+  const completions = getTestCompletions(source, 1, source.indexOf('open-') + 4, schema, tasks)
+  assert.equal(completions[0].endColumn, source.length)
+  const updated = source.slice(0, completions[0].startColumn - 1) + completions[0].insertText + source.slice(completions[0].endColumn - 1)
+  assert.equal(updated, source)
+})
+
+test('mentions provide task previews in prompt text and ignore metadata and YAML comments', () => {
+  const source = 'prompt: Run @task/open-settings.'
+  assert.equal(getTestTaskHover(source, 1, source.indexOf('@task/') + 8, tasks)?.task.taskId, 'open-settings')
+  for (const source of ['name: @task/op', '# prompt: @task/op', 'prompt: Go home # @task/op', 'prompt: someone@task/op', 'prompt: \\@task/op']) {
+    assert.equal(getTestCompletions(source, 1, source.length + 1, schema, tasks).filter((item) => item.kind === 'task').length, 0, source)
+  }
+  assert.equal(schema.required.includes('validation'), false)
+})

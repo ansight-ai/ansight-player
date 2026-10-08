@@ -2140,6 +2140,7 @@ button.local-runner-status:hover {
   padding: 20px; background: rgb(0 0 0 / .62);
 }
 .local-session-delete-modal {
+  --delete-danger: #b91c1c;
   width: min(460px, 100%); padding: 24px; color: var(--text-primary);
   background: var(--bg-primary); border: 1px solid var(--border);
   border-radius: 14px; box-shadow: 0 24px 80px rgb(0 0 0 / .45);
@@ -2151,8 +2152,12 @@ button.local-runner-status:hover {
 .local-session-delete-modal p[role='status'] { display: flex; align-items: center; gap: 8px; }
 .local-session-delete-modal footer { display: flex; justify-content: flex-end; gap: 9px; }
 .local-session-delete-modal button { min-height: 34px; padding: 6px 13px; color: var(--text-secondary); background: var(--surface-muted); border: 1px solid var(--border); border-radius: 7px; font-size: 12px; font-weight: 750; }
-.local-session-delete-modal button.local-session-delete-confirm { color: #fff; background: var(--danger); border-color: var(--danger); }
+.local-session-delete-modal button.local-session-delete-confirm { color: #fff; background: var(--delete-danger); border-color: var(--delete-danger); }
 .local-session-delete-modal button:disabled { cursor: not-allowed; opacity: .6; }
+.local-session-delete-modal button.local-session-delete-confirm:disabled { opacity: 1; }
+.local-saved-draft-delete-dialog { max-width: calc(100vw - 40px); }
+.local-saved-draft-delete-dialog::backdrop { background: rgb(0 0 0 / .62); }
+.local-saved-draft-delete-dialog strong { overflow-wrap: anywhere; }
 .local-session-filter-modal {
   display: grid; grid-template-rows: auto minmax(0, 1fr) auto; width: min(690px, 100%); max-height: min(760px, calc(100vh - 40px));
   color: var(--text-primary); background: var(--bg-primary); border: 1px solid var(--border);
@@ -8580,6 +8585,85 @@ button.local-runner-status:hover {
   line-height: 1.4;
 }
 
+.local-task-name-hint {
+  color: var(--muted);
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.local-task-name-hint--error {
+  color: var(--danger);
+}
+
+#local-task-extraction-name[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.local-task-contract-options {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.local-task-contract-options-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.local-task-contract-options-heading button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--accent);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.local-task-contract-options-heading svg { width: 16px; height: 16px; }
+
+.local-task-contract-info-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.62);
+}
+
+.local-task-contract-info-modal {
+  width: min(560px, 100%);
+  max-height: min(720px, 90vh);
+  overflow: auto;
+  padding: 24px;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
+}
+
+.local-task-contract-info-modal > header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.local-task-contract-info-modal h2 { margin: 0 0 10px; }
+.local-task-contract-info-modal h3 { margin: 20px 0 6px; font-size: 15px; }
+.local-task-contract-info-modal p { line-height: 1.5; }
+.local-task-contract-info-modal ul { padding-left: 20px; line-height: 1.5; }
+.local-task-contract-info-modal li + li { margin-top: 8px; }
+.local-task-contract-info-modal code { overflow-wrap: anywhere; }
+.local-task-contract-info-modal header button { border: 0; background: none; color: inherit; cursor: pointer; }
+.local-task-contract-info-modal header svg { width: 20px; height: 20px; }
+
 .local-task-extraction-summary {
   margin: 0;
   color: var(--muted);
@@ -8607,6 +8691,7 @@ button.local-runner-status:hover {
 
 .local-task-extraction-editor-status {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 12px;
   color: var(--muted);
@@ -8867,6 +8952,8 @@ button.local-runner-status:hover {
   padding-top: 14px;
   border-top: 1px solid var(--border);
 }
+
+.local-task-extraction-test-actions > button:first-child { flex: 1; }
 .local-task-extraction-validation .local-validation-passed svg { color: var(--success); }
 
 .local-draft-run-task-picker { min-width: 0; margin: 0; padding: 12px; border: 1px solid var(--border); border-radius: 10px; }
@@ -8938,7 +9025,8 @@ button.local-runner-status:hover {
 
 .local-task-extraction-result {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
+  overflow-wrap: anywhere;
   gap: 8px;
   margin: 0;
   padding: 10px 12px;

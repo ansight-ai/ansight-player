@@ -8,11 +8,16 @@ import './monacoEnvironment'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { getTestCompletions, getTestIdConflict, getTestIdDeclaration, getTestKeyDocumentation, getTestTaskHover, type TestSchema } from './yamlTestCompletions'
 import type { LocalRepositoryTask, LocalRepositoryWorkspaceCatalog, LocalWorkspaceTest } from './types'
+import { getPromptReferenceDiagnostics, getPromptReferenceHover } from './testPromptReferences'
 
 const SourceCodeEditor = lazy(() => import('./TraceSourceCodeEditor'))
 
-export function YamlTestEditor({ appId, source, onChange, onIdConflictChange, currentTestPath, validationError }: {
+export function YamlTestEditor({ appId, automationIds, sessionId, startUtc, endUtc, source, onChange, onIdConflictChange, currentTestPath, validationError }: {
   appId: string
+  automationIds?: readonly string[] | null
+  sessionId?: string
+  startUtc?: string
+  endUtc?: string
   source: string
   onChange: (source: string) => void
   onIdConflictChange?: (conflict: boolean) => void
@@ -26,6 +31,8 @@ export function YamlTestEditor({ appId, source, onChange, onIdConflictChange, cu
   const initialSourceRef = useRef(source)
   const schemaRef = useRef<TestSchema | null>(null)
   const tasksRef = useRef<LocalRepositoryTask[]>([])
+  const tasksLoadedRef = useRef(false)
+  const automationIdsRef = useRef(automationIds)
   const testsRef = useRef<LocalWorkspaceTest[]>([])
   const currentTestPathRef = useRef(currentTestPath)
   const onIdConflictChangeRef = useRef(onIdConflictChange)
@@ -38,6 +45,39 @@ export function YamlTestEditor({ appId, source, onChange, onIdConflictChange, cu
   useEffect(() => { onChangeRef.current = onChange }, [onChange])
   useEffect(() => { onIdConflictChangeRef.current = onIdConflictChange }, [onIdConflictChange])
   useEffect(() => { currentTestPathRef.current = currentTestPath; updateIdConflict() }, [currentTestPath])
+  useEffect(() => {
+    automationIdsRef.current = automationIds
+    updateReferenceDiagnostics()
+    if (schemaRef.current) showAvailableTaskSuggestions(editorRef.current, modelRef.current, schemaRef.current, tasksRef.current, automationIds)
+    if (!sessionId || !startUtc || !endUtc) return
+    const controller = new AbortController()
+    const query = new URLSearchParams({ sessionId, startUtc, endUtc })
+    fetch(`api/task-extractions/test-selectors?${query}`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+        return await response.json() as string[]
+      })
+      .then((ids) => {
+        if (controller.signal.aborted) return
+        automationIdsRef.current = ids
+        updateReferenceDiagnostics()
+        if (schemaRef.current) showAvailableTaskSuggestions(editorRef.current, modelRef.current, schemaRef.current, tasksRef.current, ids)
+      })
+      .catch(() => { /* Retain the draft's recorded IDs if its source session is unavailable. */ })
+    return () => controller.abort()
+  }, [automationIds, sessionId, startUtc, endUtc])
+
+  function updateReferenceDiagnostics() {
+    const model = modelRef.current
+    if (!model) return
+    monaco.editor.setModelMarkers(model, 'ansight-prompt-references',
+      getPromptReferenceDiagnostics(model.getValue(), tasksLoadedRef.current ? tasksRef.current : null, automationIdsRef.current).map((diagnostic) => ({
+        message: diagnostic.message,
+        severity: diagnostic.severity === 'error' ? monaco.MarkerSeverity.Error : monaco.MarkerSeverity.Warning,
+        startLineNumber: diagnostic.lineNumber, endLineNumber: diagnostic.lineNumber,
+        startColumn: diagnostic.startColumn, endColumn: diagnostic.endColumn,
+      })))
+  }
 
   function updateIdConflict() {
     const model = modelRef.current
@@ -78,14 +118,14 @@ export function YamlTestEditor({ appId, source, onChange, onIdConflictChange, cu
     })
     editorRef.current = editor
     const completionProvider = monaco.languages.registerCompletionItemProvider('yaml', {
-      triggerCharacters: [':', ' ', '-'],
+      triggerCharacters: [':', ' ', '-', '@', '/'],
       provideCompletionItems(candidate, position) {
         const schema = schemaRef.current
         if (candidate !== model || !schema) return { suggestions: [] }
-        return { suggestions: getTestCompletions(candidate.getValue(), position.lineNumber, position.column, schema, tasksRef.current).map((completion) => ({
+        return { suggestions: getTestCompletions(candidate.getValue(), position.lineNumber, position.column, schema, tasksRef.current, automationIdsRef.current).map((completion) => ({
           label: completion.label,
           kind: completion.kind === 'key' ? monaco.languages.CompletionItemKind.Property
-            : completion.kind === 'task' ? monaco.languages.CompletionItemKind.Reference
+            : completion.kind === 'task' || completion.kind === 'selector' ? monaco.languages.CompletionItemKind.Reference
               : monaco.languages.CompletionItemKind.Value,
           insertText: completion.insertText,
           detail: completion.detail,
@@ -107,9 +147,15 @@ export function YamlTestEditor({ appId, source, onChange, onIdConflictChange, cu
               { value: `**${escapeMarkdown(task.title || task.taskId)}**` },
               { value: `Task ID: \`${escapeMarkdown(task.taskId)}\`` },
               ...(task.description ? [{ value: escapeMarkdown(task.description) }] : []),
+              ...(task.inputSchema ? [{ value: `Inputs:\n\n\`\`\`json\n${JSON.stringify(task.inputSchema, null, 2)}\n\`\`\`` }] : []),
               { value: 'Select the task ID, then use **Preview task** below the editor.' },
             ],
           }
+        }
+        const reference = getPromptReferenceHover(candidate.getValue(), position.lineNumber, position.column)
+        if (reference?.kind === 'selector') return {
+          range: new monaco.Range(position.lineNumber, reference.startColumn, position.lineNumber, reference.endColumn),
+          contents: [{ value: `Exact automation-ID selector:\n\n\`\`\`json\n${JSON.stringify({ automationId: reference.id, matchMode: 'exact' }, null, 2)}\n\`\`\`` }],
         }
         const schema = schemaRef.current
         if (!schema) return null
@@ -125,6 +171,7 @@ export function YamlTestEditor({ appId, source, onChange, onIdConflictChange, cu
       onChangeRef.current(model.getValue())
       updateSelectedTask()
       updateIdConflict()
+      updateReferenceDiagnostics()
     })
     const cursorSubscription = editor.onDidChangeCursorPosition(updateSelectedTask)
     const clickSubscription = editor.onMouseDown((event) => {
@@ -137,6 +184,7 @@ export function YamlTestEditor({ appId, source, onChange, onIdConflictChange, cu
       }
     })
     updateIdConflict()
+    updateReferenceDiagnostics()
     const updateTheme = () => monaco.editor.setTheme(editorTheme())
     const themeObserver = new MutationObserver(updateTheme)
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
@@ -152,6 +200,7 @@ export function YamlTestEditor({ appId, source, onChange, onIdConflictChange, cu
       hoverProvider.dispose()
       monaco.editor.setModelMarkers(model, 'ansight-yaml', [])
       monaco.editor.setModelMarkers(model, 'ansight-test-id', [])
+      monaco.editor.setModelMarkers(model, 'ansight-prompt-references', [])
       editor.dispose()
       model.dispose()
       editorRef.current = null
@@ -168,7 +217,7 @@ export function YamlTestEditor({ appId, source, onChange, onIdConflictChange, cu
       })
       .then((schema) => {
         schemaRef.current = schema
-        showAvailableTaskSuggestions(editorRef.current, modelRef.current, schema, tasksRef.current)
+        showAvailableTaskSuggestions(editorRef.current, modelRef.current, schema, tasksRef.current, automationIdsRef.current)
       })
       .catch(() => { schemaRef.current = null })
     return () => controller.abort()
@@ -177,16 +226,21 @@ export function YamlTestEditor({ appId, source, onChange, onIdConflictChange, cu
   useEffect(() => {
     const controller = new AbortController()
     tasksRef.current = []
+    tasksLoadedRef.current = false
+    updateReferenceDiagnostics()
     fetch(`api/apps/workspace?appId=${encodeURIComponent(appId)}`, { cache: 'no-store', signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`)
         return await response.json() as LocalRepositoryWorkspaceCatalog
       })
       .then((catalog) => {
+        if (controller.signal.aborted) return
         tasksRef.current = catalog.tasks.filter((task) => task.appId.toLowerCase() === appId.toLowerCase())
-        if (schemaRef.current) showAvailableTaskSuggestions(editorRef.current, modelRef.current, schemaRef.current, tasksRef.current)
+        tasksLoadedRef.current = true
+        updateReferenceDiagnostics()
+        if (schemaRef.current) showAvailableTaskSuggestions(editorRef.current, modelRef.current, schemaRef.current, tasksRef.current, automationIdsRef.current)
       })
-      .catch(() => { tasksRef.current = [] })
+      .catch(() => { if (!controller.signal.aborted) { tasksRef.current = []; tasksLoadedRef.current = false; updateReferenceDiagnostics() } })
     return () => controller.abort()
   }, [appId])
 
@@ -234,6 +288,7 @@ export function YamlTestEditor({ appId, source, onChange, onIdConflictChange, cu
 
   return <div className="local-yaml-test-editor-wrap">
     <div className="local-yaml-test-editor" ref={containerRef} />
+    <small>Use @task/ for workspace tasks and @selector/ for recorded automation IDs. Put actions and checks together in the prompt.</small>
     <div className="local-yaml-test-editor-actions">
       <span>{conflictMessage ? <span role="alert" className="local-yaml-test-id-conflict">{conflictMessage}</span>
         : idCatalogStatus === 'error' ? <span role="status">Could not check existing test IDs; Validate will check before saving.</span>
@@ -307,11 +362,12 @@ function showAvailableTaskSuggestions(
   model: monaco.editor.ITextModel | null,
   schema: TestSchema,
   tasks: LocalRepositoryTask[],
+  automationIds?: readonly string[] | null,
 ): void {
   const position = editor?.getPosition()
   if (!editor?.hasTextFocus() || !model || !position) return
-  const suggestions = getTestCompletions(model.getValue(), position.lineNumber, position.column, schema, tasks)
-  if (suggestions.some((suggestion) => suggestion.kind === 'task')) {
+  const suggestions = getTestCompletions(model.getValue(), position.lineNumber, position.column, schema, tasks, automationIds)
+  if (suggestions.some((suggestion) => suggestion.kind === 'task' || suggestion.kind === 'selector')) {
     editor.trigger('ansight-yaml', 'editor.action.triggerSuggest', {})
   }
 }

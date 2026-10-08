@@ -31,7 +31,7 @@ export function TestTaskSectionIntake({
     && (Date.parse(annotation.startUtc!) < period.startMs || Date.parse(annotation.endUtc!) > period.endMs))
   return <div className="local-test-intake">
     <div className="local-test-intake-heading">
-      <span className="local-test-intake-step">Step 1</span>
+      <span className="local-test-intake-step">Optional</span>
       <div>
         <h3>Mark reusable parts</h3>
         <p>Select session annotations to guide the test and generate reusable task drafts. Selecting a range outside the current replay expands the test period.</p>
@@ -61,10 +61,10 @@ export function TestTaskSectionIntake({
           </div>
         </article>
       })}
-    </div> : <div className="local-test-intake-empty"><NotePencil /><span><strong>No range annotations in this session</strong><small>Annotate a core step on the replay timeline, then return here to include it in the test.</small></span></div>}
+    </div> : <div className="local-test-intake-empty"><NotePencil /><span><strong>No range annotations in this session</strong><small>You can generate a test directly from the replay. Add annotations when you want reusable task drafts too.</small></span></div>}
 
     <div className="local-test-intake-footer">
-      <span>{selectedIds.length ? `${selectedIds.length} marked step${selectedIds.length === 1 ? '' : 's'} will guide the test and generate task drafts.${selectedOutsidePeriod ? ' The test period expands to include the selected ranges.' : ''}` : 'No marked steps selected. The test will use the entire selected timeline range.'}</span>
+      <span>{selectedIds.length ? `${selectedIds.length} marked step${selectedIds.length === 1 ? '' : 's'} will guide the test and generate task drafts. The test includes the entire selected timeline range.${selectedOutsidePeriod ? ' The test period expands to include the selected ranges.' : ''}` : 'No marked steps selected. The test will use the entire selected timeline range.'}</span>
     </div>
   </div>
 }

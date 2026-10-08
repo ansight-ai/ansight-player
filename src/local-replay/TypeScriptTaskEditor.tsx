@@ -22,7 +22,8 @@ import 'monaco-editor/editor/contrib/rename/browser/rename'
 import 'monaco-editor/editor/contrib/snippet/browser/snippetController2'
 import 'monaco-editor/editor/contrib/suggest/browser/suggestController'
 import './monacoEnvironment'
-import { useEffect, useRef, type MutableRefObject } from 'react'
+import { useEffect, useMemo, useRef, type MutableRefObject } from 'react'
+import { validateRecordedAutomationIds, withRecordedAutomationIds } from './recordedAutomationIds'
 import type { LocalTaskSupportModule } from './types'
 
 export type TypeScriptEditorDiagnostics = {
@@ -39,6 +40,7 @@ type DiagnosticMessage = string | {
 const semanticValidationTimeoutMs = 10_000
 
 export function TypeScriptTaskEditor({
+  automationIds,
   fileName,
   onChange,
   onDiagnosticsChange,
@@ -47,6 +49,7 @@ export function TypeScriptTaskEditor({
   supportModules,
   typeDefinitions,
 }: {
+  automationIds?: readonly string[] | null
   fileName: string
   onChange: (source: string) => void
   onDiagnosticsChange: (diagnostics: TypeScriptEditorDiagnostics) => void
@@ -64,6 +67,7 @@ export function TypeScriptTaskEditor({
   const initialSourceRef = useRef(source)
   const validationRequestRef = useRef(0)
   const validationTimerRef = useRef<number | null>(null)
+  const recordedDefinitions = useMemo(() => withRecordedAutomationIds(typeDefinitions, automationIds), [typeDefinitions, automationIds])
 
   useEffect(() => {
     onChangeRef.current = onChange
@@ -90,7 +94,7 @@ export function TypeScriptTaskEditor({
 
     const definitionUri = 'file:///ansight/tasks/ansight-task.d.ts'
     const disposable = typescriptDefaults.addExtraLib(
-      typeDefinitions,
+      recordedDefinitions,
       definitionUri,
     )
     const supportDisposables = supportModules.map((module) => typescriptDefaults.addExtraLib(
@@ -109,7 +113,7 @@ export function TypeScriptTaskEditor({
       disposable.dispose()
       supportDisposables.forEach((supportDisposable) => supportDisposable.dispose())
     }
-  }, [supportModules, typeDefinitions])
+  }, [supportModules, recordedDefinitions])
 
   useEffect(() => {
     const container = containerRef.current
@@ -142,6 +146,7 @@ export function TypeScriptTaskEditor({
       'semanticHighlighting.enabled': true,
       stickyScroll: { enabled: true },
       suggest: { showWords: false },
+      quickSuggestions: { other: true, comments: false, strings: true },
       tabSize: 2,
       theme: resolveEditorTheme(),
       wordWrap: 'off',
@@ -174,8 +179,34 @@ export function TypeScriptTaskEditor({
 
   useEffect(() => {
     const model = modelRef.current
+    if (!model) return
+    const validate = () => {
+      monaco.editor.setModelMarkers(model, 'ansight-recorded-selectors', validateRecordedAutomationIds(model.getValue(), automationIds).map((warning) => {
+        const start = model.getPositionAt(warning.start)
+        const end = model.getPositionAt(warning.end)
+        return {
+          message: warning.message,
+          severity: monaco.MarkerSeverity.Warning,
+          startLineNumber: start.lineNumber,
+          startColumn: start.column,
+          endLineNumber: end.lineNumber,
+          endColumn: end.column,
+        }
+      }))
+    }
+    validate()
+    scheduleSemanticValidation(model, validationRequestRef, validationTimerRef, onDiagnosticsChangeRef)
+    const subscription = model.onDidChangeContent(validate)
+    return () => {
+      subscription.dispose()
+      if (!model.isDisposed()) monaco.editor.setModelMarkers(model, 'ansight-recorded-selectors', [])
+    }
+  }, [automationIds, fileName])
+
+  useEffect(() => {
+    const model = modelRef.current
     if (model && model.getValue() !== source) model.setValue(source)
-  }, [source])
+  }, [fileName, source])
 
   useEffect(() => {
     editorRef.current?.updateOptions({ readOnly })
@@ -247,7 +278,8 @@ async function runSemanticValidation(
     diagnosticsRef.current({
       errorCount: markers.filter((marker) => marker.severity === monaco.MarkerSeverity.Error).length,
       isReady: true,
-      warningCount: markers.filter((marker) => marker.severity === monaco.MarkerSeverity.Warning).length,
+      warningCount: markers.filter((marker) => marker.severity === monaco.MarkerSeverity.Warning).length
+        + monaco.editor.getModelMarkers({ resource: model.uri, owner: 'ansight-recorded-selectors' }).length,
     })
   } catch {
     if (request !== requestRef.current || model.isDisposed()) return
