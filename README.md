@@ -77,3 +77,11 @@ repository; embedding or installing them is the consuming application’s job.
 ## Optional local-host features
 
 Account, remote-runner, team-sharing and cloud-analysis panels are supplied by the host's private extension. Public compatibility components delegate to `OptionalPlayerPanel`; bootstrap metadata identifies the installed same-origin bundle. The loader imports it only when the user selects that feature. Public local playback and capture inspection work without it.
+
+## Connectivity evidence
+
+The shared Connectivity tab works with local application-event records and cloud segmented captures. Optional `SessionViewerSource.loadConnectivity` and `SessionViewerDataServices.loadSessionConnectivity` return a `ConnectivityWindow`. Cloud providers should use `loadConnectivityWindow` from `@ansight/player/replay/connectivity`, resolving segment paths against the authenticated capture manifest. Failed downloads must reject; do not report them as unavailable connections.
+
+The view uses the common playhead, shows measurement provenance and age, distinguishes unknown gaps from disconnections, and separates quality sources, transports, and units. Quality points are not interpolated. The tab remains available for captures without connectivity observations and explains when evidence is missing. Recorded unknown states and observation gaps remain visible.
+
+The tab shows a compact connection status, relevant flags, and plain-language history. Missing quality fields are hidden; captured signal strength, OS link quality, and upstream/downstream link estimates appear with their measurement age and charts around the playhead. Technical details retain normal/unknown flags, provenance, capabilities, raw data and collector observations. Connectivity does not add a separate lane beneath the main playback timeline. Unknown quality is never inferred from an available connection. Tooltips include values, units, measurement time, source, and age at observation.

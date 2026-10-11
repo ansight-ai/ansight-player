@@ -1,3 +1,4 @@
+import { connectivityFromEvents, type ConnectivityWindow } from './connectivity'
 import { getCloudPlayerAdapter } from '../adapters/cloudPlayerAdapter'
 import type { TeamSession } from '../types'
 
@@ -597,7 +598,13 @@ function resolveImageExtension(format: string | undefined): string {
   return normalizedFormat === 'jpeg' ? 'jpg' : normalizedFormat
 }
 
+export async function loadSessionConnectivity(payload: SessionViewerPayload, fromMs: number, toMs: number): Promise<ConnectivityWindow> {
+  const loader = getCloudPlayerAdapter().sessions.loadSessionConnectivity
+  return loader ? loader(payload, fromMs, toMs) : connectivityFromEvents(payload.capture.session?.applicationEvents ?? [], fromMs, toMs)
+}
+
 export type SessionViewerDataServices = {
+  loadSessionConnectivity?: (payload: SessionViewerPayload, fromMs: number, toMs: number) => Promise<ConnectivityWindow>
   loadSessionViewerPayload: (sessionId: string, options?: LoadSessionViewerPayloadOptions) => Promise<SessionViewerPayload>
   createRawSessionArchiveSignedUrl: (session: TeamSession) => Promise<string>
   loadSessionViewerExternalPayload: (payload: SessionViewerPayload, options?: LoadSessionViewerExternalPayloadOptions) => Promise<SessionViewerPayload>

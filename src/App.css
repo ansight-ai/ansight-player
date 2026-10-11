@@ -15506,3 +15506,52 @@ button.token-ledger-row {
   margin-top: 18px;
   font-size: clamp(26px, 3vw, 34px);
 }
+
+/* Passive connectivity evidence shares the replay clock in both players. */
+.connectivity-events-heading { display: flex; align-items: center; font-size: 12px; margin: 22px 0 8px; }
+.connectivity-events-heading h3 { margin: 0; font-size: 13px; }
+.connectivity-note { color: var(--text-muted); }
+.connectivity-panel { padding: 20px; min-width: 0; }
+.connectivity-status-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 20px; }
+.connectivity-status-row > strong { display: flex; align-items: center; gap: 8px; font-size: 15px; }
+.connectivity-status-dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: var(--text-muted); }
+.connectivity-status-dot--available { background: #368b79; }
+.connectivity-status-dot--unavailable { background: #cb664c; }
+.connectivity-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.connectivity-badges > span { padding: 3px 8px; border-radius: 4px; background: var(--bg-secondary); border: 1px solid var(--border); font-size: 11px; }
+.connectivity-measurements { margin-top: 16px; }
+.connectivity-measurements dl { display: flex; flex-wrap: wrap; gap: 12px 28px; margin: 0 0 6px; }
+.connectivity-measurements dt { color: var(--text-muted); font-size: 12px; }
+.connectivity-measurements dd { margin: 3px 0 0; font-size: 14px; font-weight: 600; }
+.connectivity-details { margin-top: 18px; border-top: 1px solid var(--border); padding-top: 12px; }
+.connectivity-details > summary { cursor: pointer; color: var(--text-muted); font-size: 12px; }
+.connectivity-details h4 { font-size: 12px; margin: 16px 0 8px; }
+.connectivity-details .connectivity-note { overflow-wrap: anywhere; }
+.connectivity-flags { display: flex; flex-wrap: wrap; gap: 20px; margin: 20px 0; }
+.connectivity-flags dt { font-size: 12px; color: var(--text-muted); }
+.connectivity-flags dd { margin: 4px 0 0; }
+.connectivity-note { font-size: 12px; line-height: 1.6; }
+.connectivity-event-list { max-height: 360px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px; }
+.connectivity-event-list button { display: flex; width: 100%; gap: 16px; padding: 12px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.connectivity-event-list button:hover { background: var(--border); }
+.connectivity-event-list button:last-child { border-bottom: 0; }
+.connectivity-event-list button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.connectivity-event-list button { font: inherit; font-size: 13px; }
+.connectivity-event-list time { min-width: 60px; font-variant-numeric: tabular-nums; color: var(--text-muted); }
+.connectivity-quality figure { margin: 12px 0; border: 1px solid var(--border); padding: 12px; border-radius: 8px; }
+.connectivity-quality figcaption { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }
+.connectivity-quality svg { width: 100%; height: 100px; }
+.connectivity-quality circle { fill: var(--accent); cursor: pointer; }
+.connectivity-quality circle:hover, .connectivity-quality circle:focus { fill: #cb664c; r: 7; }
+.connectivity-panel pre { overflow: auto; max-height: 360px; font-size: 12px; }
+
+.connectivity-quality svg text { fill: var(--text-muted); font-size: 11px; }
+
+
+.connectivity-quality figcaption strong span, .connectivity-quality-provenance, .connectivity-quality-scale { color: var(--text-muted); font-size: 11px; font-weight: normal; }
+.connectivity-quality-provenance { margin: 3px 0 6px; }
+.connectivity-quality-grid { stroke: var(--border); stroke-width: 1; }
+.connectivity-quality-cursor { stroke: var(--text-primary); stroke-width: 2; pointer-events: none; }
+.connectivity-quality circle.connectivity-quality-point--good { fill: #368b79; }
+.connectivity-quality circle.connectivity-quality-point--moderate { fill: #b78a20; }
+.connectivity-quality circle.connectivity-quality-point--minimal { fill: #cb664c; }

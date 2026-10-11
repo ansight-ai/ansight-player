@@ -1,3 +1,6 @@
+import { ConnectivityPanel } from '../ConnectivityPanel'
+import { connectivityFromEvents, type ConnectivityWindow } from '../connectivity'
+import { loadSessionConnectivity } from '../sessionViewerData'
 import { resolveDeviceFrame } from '../deviceFrame'
 import { agentReasoningModes, defaultAgentReasoning, type AgentReasoning } from '../../agentReasoning'
 import type { AnnotationSummaryOptions } from '../../local-replay/annotationSummary'
@@ -161,7 +164,7 @@ import type {
   TeamSession,
 } from '../../types'
 
-type ViewerTab = 'live-log' | 'network' | 'annotations' | 'visual-tree' | 'artifacts' | 'files' | 'attachments'
+type ViewerTab = 'connectivity' | 'live-log' | 'network' | 'annotations' | 'visual-tree' | 'artifacts' | 'files' | 'attachments'
 
 type SessionAiForm = {
   kind: SessionAiExtractionKind
@@ -342,6 +345,7 @@ type SessionImageUrlBatch = {
 }
 
 export type SessionViewerSource = {
+  loadConnectivity?: (payload: SessionViewerPayload, fromMs: number, toMs: number) => Promise<ConnectivityWindow>
   mode: 'cloud' | 'local'
   loadPayload: (sessionId: string, superAdminMode: boolean) => Promise<SessionViewerPayload>
   runLocalSummary?: (sessionId: string, onProgress: (progress: SessionOperationProgress) => void) => Promise<void>
@@ -619,6 +623,7 @@ const cloudSessionViewerSource: SessionViewerSource = {
   loadAiReadState: loadSessionAiReadState,
   loadPayload: (sessionId, superAdminMode) => loadSessionViewerPayload(sessionId, { superAdminMode }),
   hydratePayload: loadSessionViewerExternalPayload,
+  loadConnectivity: loadSessionConnectivity,
 }
 
 function createDefaultSummaryAiForm(provider: AiProvider = 'openai'): SessionAiForm {
@@ -1399,6 +1404,28 @@ export function SessionViewerPage({
   }, [isLoading, onReplayRangeChange, payload?.session.id, payload?.session.session_id, sessionId, timelineRange.endMs, timelineRange.initialMs, timelineRange.startMs])
   const effectiveSessionDurationMs = resolveEffectiveSessionDurationMs(payload?.session.duration_ms ?? null, timelineRange)
   const effectiveScrubAtMs = resolveEffectiveScrubAt(scrubAtMs, timelineRange, isLiveSession)
+  const connectivityBucket = Math.floor(effectiveScrubAtMs / 60_000)
+  const [connectivityRemote, setConnectivityRemote] = useState<{ sessionId: string; bucket: number; data?: ConnectivityWindow; error?: string } | null>(null)
+  const localConnectivity = useMemo(() => connectivityFromEvents(captureSession?.applicationEvents ?? [], Math.max(timelineRange.startMs, connectivityBucket * 60_000 - 60_000), Math.min(timelineRange.endMs, (connectivityBucket + 2) * 60_000)), [captureSession?.applicationEvents, connectivityBucket, timelineRange.startMs, timelineRange.endMs])
+  useEffect(() => {
+    if (!payload || !source.loadConnectivity) return
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      source.loadConnectivity!(payload, Math.max(timelineRange.startMs, connectivityBucket * 60_000 - 60_000), Math.min(timelineRange.endMs, (connectivityBucket + 2) * 60_000))
+        .then((data) => { if (!cancelled) setConnectivityRemote({ sessionId, bucket: connectivityBucket, data }) })
+        .catch((error: unknown) => { if (!cancelled) setConnectivityRemote({ sessionId, bucket: connectivityBucket, error: error instanceof Error ? error.message : 'Download failed' }) })
+    }, 120)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [payload, source.loadConnectivity, connectivityBucket, sessionId, timelineRange.startMs, timelineRange.endMs])
+  const remoteConnectivityForSession = connectivityRemote?.sessionId === sessionId ? connectivityRemote : null
+  const connectivityData = remoteConnectivityForSession?.data ?? localConnectivity
+  const connectivityLoading = Boolean(source.loadConnectivity && (remoteConnectivityForSession?.bucket !== connectivityBucket))
+  const seekConnectivity = (time: number) => {
+    if (!isLiveSession) onReplayInteracted?.()
+    setSelectedVisualTreeSnapshotKey(null)
+    setSelectedArtifactSnapshotKey(null)
+    setScrubAtMs(clamp(time, timelineRange.startMs, timelineRange.endMs))
+  }
   const isFollowingLive = isLiveSession && scrubAtMs === null
   const isAppBackgroundedAtScrub = useMemo(() => isTimestampInBackgroundState(lifecycleTransitions, effectiveScrubAtMs), [effectiveScrubAtMs, lifecycleTransitions])
   const explicitlySelectedVisualTree = useMemo(
@@ -2794,6 +2821,7 @@ export function SessionViewerPage({
       <section className="panel">
         <div className="viewer-tabs" role="tablist" aria-label="Session sections">
           <TabButton activeTab={effectiveActiveTab} badge={allLogs.length} icon={<ListBullets aria-hidden="true" />} label="Logs" tab="live-log" onSelect={selectUsageTab} />
+          <TabButton activeTab={effectiveActiveTab} icon={<GlobeSimple aria-hidden="true" />} label="Connectivity" tab="connectivity" onSelect={selectUsageTab} />
           {isLocalReplay ? <TabButton activeTab={effectiveActiveTab} badge={networkRequests.length} icon={<GlobeSimple aria-hidden="true" />} label="Network" tab="network" onSelect={selectUsageTab} /> : null}
           {annotations.length > 0 ? <TabButton activeTab={effectiveActiveTab} badge={annotations.length} icon={<NotePencil aria-hidden="true" />} label="Annotations" tab="annotations" onSelect={selectUsageTab} /> : null}
           <TabButton activeTab={effectiveActiveTab} badge={visualTrees.length} icon={<TreeStructure aria-hidden="true" />} label="Visual tree" tab="visual-tree" onSelect={selectUsageTab} />
@@ -2904,6 +2932,7 @@ export function SessionViewerPage({
             timelineRange={timelineRange}
           />
         ) : null}
+        {effectiveActiveTab === 'connectivity' ? <ConnectivityPanel data={connectivityData} atMs={effectiveScrubAtMs} startMs={timelineRange.startMs} endMs={timelineRange.endMs} onSeek={seekConnectivity} loading={connectivityLoading} error={remoteConnectivityForSession?.error} /> : null}
         {effectiveActiveTab === 'network' && (captureSession.captureSource !== 'device' || networkRequests.length > 0) ? (
           <NetworkSection requests={networkRequests} />
         ) : null}

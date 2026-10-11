@@ -386,7 +386,11 @@
     "./replay/components/ArtifactFileActions.css": "./dist/library/replay/components/ArtifactFileActions.css",
     "./replay/components/MediaFilePreview.css": "./dist/library/replay/components/MediaFilePreview.css",
     "./replay/components/ArtifactComparisonExplorer.css": "./dist/library/replay/components/ArtifactComparisonExplorer.css",
-    "./replay/pages/AppGraphsPanel.css": "./dist/library/replay/pages/AppGraphsPanel.css"
+    "./replay/pages/AppGraphsPanel.css": "./dist/library/replay/pages/AppGraphsPanel.css",
+    "./replay/connectivity": {
+      "types": "./dist/library/replay/connectivity.d.ts",
+      "default": "./dist/library/replay/connectivity.js"
+    }
   },
   "peerDependencies": {
     "react": "^19.2.5",
