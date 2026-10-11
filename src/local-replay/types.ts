@@ -552,6 +552,9 @@ export type LocalRepositoryTask = {
 }
 
 export type LocalWorkspaceTest = {
+  taskId?: string | null
+  isTaskOnly?: boolean
+  taskInput?: Record<string, unknown> | null
   enabled: boolean
   testId: string
   name: string
@@ -817,6 +820,7 @@ export type LocalTestBatchItemAudit = {
   status: string
   message: string
   agentRunId?: string | null
+  taskRunId?: string | null
   sessionId?: string | null
   agentAuditFilePath?: string | null
   durationMilliseconds: number
@@ -856,6 +860,7 @@ export type LocalTestBatchHistoryEntry = {
 }
 
 export type LocalTestRunSummary = {
+  executionKind?: string
   runId: string
   batchRunId?: string | null
   workspacePath?: string | null
@@ -1064,7 +1069,19 @@ export type LocalTestAppGraphPlan = {
   transitions: LocalTestAppGraphTransition[]
 }
 
+export type LocalTaskTestResult = {
+  runId: string
+  taskId: string
+  status: string | number
+  message: string
+  assertions: LocalTaskExtractionAssertion[]
+  toolCalls: LocalRepositoryTaskToolCall[]
+  sourceTrace?: LocalTaskSourceTrace | null
+}
+
 export type LocalTestRunAudit = {
+  executionKind?: string
+  taskResult?: LocalTaskTestResult | null
   startupSteps?: LocalTestStartupStep[]
   schemaVersion?: number
   runId: string

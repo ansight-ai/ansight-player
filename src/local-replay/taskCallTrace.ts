@@ -11,7 +11,7 @@ export type TaskAssertionTrace = {
   message: string | null
 }
 
-export function readTaskAssertionTrace(toolCall: LocalTestToolCallAudit): TaskAssertionTrace {
+export function readTaskAssertionTrace(toolCall: Partial<Pick<LocalTestToolCallAudit, 'result' | 'taskCalls' | 'taskAssertions'>>): TaskAssertionTrace {
   const rows: TaskAssertionTraceRow[] = []
   let legacy: Record<string, unknown> | null = null
   try {
@@ -83,7 +83,7 @@ export type TaskCallTrace = {
   message: string | null
 }
 
-export function readTaskCallTrace(toolCall: LocalTestToolCallAudit): TaskCallTrace {
+export function readTaskCallTrace(toolCall: Partial<Pick<LocalTestToolCallAudit, 'result' | 'taskCalls'>>): TaskCallTrace {
   if (Array.isArray(toolCall.taskCalls)) {
     return buildTrace(toolCall.taskCalls)
   }
@@ -99,7 +99,7 @@ export function readTaskCallTrace(toolCall: LocalTestToolCallAudit): TaskCallTra
   } catch {
     return {
       rows: [],
-      message: toolCall.result.wasTruncated
+      message: toolCall.result?.wasTruncated
         ? 'The saved task result was truncated, so its API calls cannot be read. Rerun with --trace to capture individual call results.'
         : 'The saved task result could not be read. Rerun with --trace to capture individual call results.',
     }
@@ -109,7 +109,7 @@ export function readTaskCallTrace(toolCall: LocalTestToolCallAudit): TaskCallTra
   if (!isRecord(result) || !Array.isArray(result.toolCalls)) {
     return {
       rows: [],
-      message: toolCall.result.wasTruncated || (isRecord(envelope) && envelope.truncated === true)
+      message: toolCall.result?.wasTruncated || (isRecord(envelope) && envelope.truncated === true)
         ? 'The saved task result was truncated, so its API calls cannot be read. Rerun with --trace to capture individual call results.'
         : 'No API call results were recorded for this task run.',
     }

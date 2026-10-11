@@ -2,6 +2,15 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { readTaskAssertionTrace, readTaskCallTrace, taskCallPayloadPreview } from '../src/local-replay/taskCallTrace.ts'
 
+test('direct task test evidence is readable without an agent tool-call envelope', () => {
+  const trace = {
+    taskAssertions: [{ assertionId: 'receipt', passed: true, expected: 'paid', actual: 'paid' }],
+    taskCalls: [apiCall()],
+  }
+  assert.equal(readTaskAssertionTrace(trace).rows[0].assertion.assertionId, 'receipt')
+  assert.equal(readTaskCallTrace(trace).rows[0].call.toolName, 'ansight.getLiveVisualTree')
+})
+
 function payload(content, wasTruncated = false) {
   return { content, originalCharacterCount: content.length, wasTruncated, sha256: 'test-hash' }
 }

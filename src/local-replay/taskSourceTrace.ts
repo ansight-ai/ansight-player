@@ -2,7 +2,7 @@ import type { LocalTaskSourceTrace, LocalTestToolCallAudit } from './types'
 
 export type TaskSourceEntry = LocalTaskSourceTrace & { invocation: string }
 
-export function readTaskSources(call: LocalTestToolCallAudit): TaskSourceEntry[] {
+export function readTaskSources(call: Partial<Pick<LocalTestToolCallAudit, 'result' | 'taskSource' | 'taskCalls'>>): TaskSourceEntry[] {
   let legacy: Record<string, unknown> = {}
   try {
     const parsed: unknown = JSON.parse(call.result?.content ?? '{}')

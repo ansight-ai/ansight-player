@@ -12,7 +12,9 @@ const tasks = [
 test('completes schema keys without repeating existing keys', () => {
   const source = 'appId: demo\npro'
   const completions = getTestCompletions(source, 2, 4, schema, tasks)
-  assert.ok(completions.some((item) => item.label === 'prompt' && item.detail === 'Required test key'))
+  assert.ok(completions.some((item) => item.label === 'prompt' && item.detail === 'Test schema key'))
+  assert.ok(completions.some((item) => item.label === 'taskId'))
+  assert.ok(completions.some((item) => item.label === 'taskInput'))
   assert.ok(!completions.some((item) => item.label === 'appId'))
   assert.ok(getTestKeyDocumentation(source, 1, 3, schema)?.startsWith('Required.'))
 })

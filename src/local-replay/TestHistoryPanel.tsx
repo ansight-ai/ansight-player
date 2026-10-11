@@ -438,6 +438,7 @@ function buildTestHistoryItems(history: LocalTestHistory | null, appId?: string 
           test.status,
           test.message,
           test.agentRunId,
+          test.taskRunId,
           test.sessionId,
         ]),
       ].filter(Boolean).join(' '),
@@ -460,7 +461,7 @@ function createTestRunHistoryItem(run: LocalTestRunSummary): TestHistoryItem {
     title: run.displayName,
     status: run.status,
     startedUtc: run.startedUtc,
-    detail: `${run.totalTokens.toLocaleString()} tokens · ${formatDuration(run.durationMilliseconds)}${cost}`,
+    detail: `${run.executionKind === 'task' ? 'Deterministic task' : `${run.totalTokens.toLocaleString()} tokens`} · ${formatDuration(run.durationMilliseconds)}${cost}`,
     searchText: [
       run.runId,
       run.workspacePath,
@@ -517,7 +518,7 @@ function InspectionDetail({
         </dl>
         <div className="local-test-history-tests">
           {batch.tests.map((test) => (
-            <TestAuditCard audit={test.agentRunId ? runsById.get(test.agentRunId) : undefined} key={`${test.index}:${test.testId}`} test={test} />
+            <TestAuditCard audit={(test.taskRunId ?? test.agentRunId) ? runsById.get((test.taskRunId ?? test.agentRunId)!) : undefined} key={`${test.index}:${test.testId}`} test={test} />
           ))}
         </div>
       </>
@@ -559,8 +560,10 @@ function RunAuditDetail({ audit, displayName }: { audit: LocalTestRunAudit, disp
       </div>
       <div className="local-test-run-summary">
         <span>{formatDuration(audit.durationMilliseconds)}</span>
-        <span>{audit.tokens.totalTokens.toLocaleString()} tokens</span>
-        <span>{audit.modelPassCount} model passes</span>
+        {audit.executionKind === 'task' ? <span>Deterministic task</span> : <>
+          <span>{audit.tokens.totalTokens.toLocaleString()} tokens</span>
+          <span>{audit.modelPassCount} model passes</span>
+        </>}
         <span>{audit.ansightToolCallCount} tool calls</span>
         {audit.calculatedCost ? <span>{formatCalculatedRunCost(audit.calculatedCost)}</span> : null}
       </div>
@@ -570,6 +573,22 @@ function RunAuditDetail({ audit, displayName }: { audit: LocalTestRunAudit, disp
 }
 
 function RunAuditExecutions({ audit }: { audit: LocalTestRunAudit }) {
+  if (audit.taskResult) {
+    const task = audit.taskResult
+    const trace = { taskAssertions: task.assertions, taskCalls: task.toolCalls, taskSource: task.sourceTrace }
+    return <div className="local-test-history-executions">
+      <p>{task.message}</p>
+      <dl className="local-test-history-metadata">
+        <div><dt>Task</dt><dd>{task.taskId}</dd></div>
+        <div><dt>App</dt><dd>{audit.appId}</dd></div>
+        <div><dt>Session</dt><dd>{audit.sessionId}</dd></div>
+        <div><dt>Run</dt><dd>{audit.runId}</dd></div>
+      </dl>
+      <TaskAssertionResults trace={readTaskAssertionTrace(trace)} />
+      <TaskCallResults trace={readTaskCallTrace(trace)} />
+      <TaskSourceViewer sources={readTaskSources(trace)} />
+    </div>
+  }
   return (
     <div className="local-test-history-executions">
       <details className="local-test-run-details">
