@@ -36,6 +36,8 @@ import {
   List,
   ListBullets,
   MagnifyingGlass,
+  MagnifyingGlassMinus,
+  MagnifyingGlassPlus,
   NotePencil,
   Paperclip,
   Play,
@@ -4731,7 +4733,7 @@ function SessionTimelineChart({
       if (isZoomGesture) {
         event.preventDefault()
         event.stopPropagation()
-        const bounds = chartShell.getBoundingClientRect()
+        const bounds = scrubberTrackRef.current?.getBoundingClientRect() ?? chartShell.getBoundingClientRect()
         const anchorRatio = bounds.width <= 0
           ? 0.5
           : clamp((event.clientX - bounds.left) / bounds.width, 0, 1)
@@ -4764,7 +4766,7 @@ function SessionTimelineChart({
       const gestureEvent = event as SafariGestureEvent
       event.preventDefault()
       event.stopPropagation()
-      const bounds = chartShell.getBoundingClientRect()
+      const bounds = scrubberTrackRef.current?.getBoundingClientRect() ?? chartShell.getBoundingClientRect()
       const pointerRatio = bounds.width <= 0 || !Number.isFinite(gestureEvent.clientX)
         ? 0.5
         : clamp((gestureEvent.clientX - bounds.left) / bounds.width, 0, 1)
@@ -5160,6 +5162,9 @@ function SessionTimelineChart({
           ) : null}
         </div>
         <div className="timeline-chart-actions" aria-label="Timeline playback controls">
+          <button type="button" className="timeline-edit-button" aria-label="Zoom timeline in" title="Zoom in (or pinch / Ctrl+scroll)" disabled={visibleDuration <= minVisibleDuration} onClick={() => zoomTimeline(0.5)}><MagnifyingGlassPlus aria-hidden="true" /></button>
+          <button type="button" className="timeline-edit-button" aria-label="Zoom timeline out" title="Zoom out" disabled={!canZoomOut} onClick={() => zoomTimeline(2)}><MagnifyingGlassMinus aria-hidden="true" /></button>
+          <button type="button" className="timeline-edit-button" aria-label="Fit full timeline" title="Fit full timeline" disabled={!canZoomOut} onClick={() => zoomTimeline(fullDuration / visibleDuration)}><ArrowsOut aria-hidden="true" /></button>
           {onSelectTimelineRange ? (
             <button
               aria-label={isRangeSelectionActive ? 'Cancel timeline range selection' : 'Select timeline range'}
