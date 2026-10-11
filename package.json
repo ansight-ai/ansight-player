@@ -1,6 +1,6 @@
 {
   "name": "@ansight/player",
-  "version": "0.1.18",
+  "version": "0.1.23",
   "type": "module",
   "scripts": {
     "dev": "vite --config vite.config.ts",
@@ -393,6 +393,10 @@
     "./replay/connectivity": {
       "types": "./dist/library/replay/connectivity.d.ts",
       "default": "./dist/library/replay/connectivity.js"
+    },
+    "./replay/networkPerformance": {
+      "types": "./dist/library/replay/networkPerformance.d.ts",
+      "default": "./dist/library/replay/networkPerformance.js"
     }
   },
   "peerDependencies": {
