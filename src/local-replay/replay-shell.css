@@ -2874,6 +2874,43 @@ button.local-runner-status:hover {
   border-top: 1px solid var(--border);
 }
 
+.local-network-subtitle, .local-network-note { color: var(--text-muted); font-size: 12px; line-height: 1.6; }
+.local-network-panel .local-network-subtitle { margin-top: 4px; overflow-wrap: anywhere; }
+.local-network-header-actions { display: flex; align-items: center; gap: 10px; }
+.local-network-header-actions button[aria-expanded="true"] { color: var(--accent); border-color: var(--accent); }
+.local-network-panel .local-playback-status { overflow-wrap: anywhere; }
+.local-network-active-control { position: fixed; right: 20px; bottom: 20px; z-index: 27; display: flex; align-items: center; gap: 8px; max-width: calc(100vw - 40px); padding: 8px; border: 1px solid var(--accent); border-radius: 10px; background: var(--bg-primary); box-shadow: 0 4px 18px #0002; }
+.local-network-active-control button { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 0; border-radius: 6px; background: transparent; color: var(--text-primary); font: inherit; font-size: 12px; cursor: pointer; }
+.local-network-active-control button:first-child { min-width: 0; text-align: left; }
+.local-network-active-control button:last-child { color: var(--accent); flex-shrink: 0; }
+.local-network-active-control button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.local-network-active-control svg { width: 18px; height: 18px; flex: 0 0 18px; }
+.local-network-slider-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.local-network-profiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 0; margin: 0; border: 0; min-width: 0; }
+.local-network-profiles > legend { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.local-network-profile { display: flex; align-items: flex-start; gap: 9px; padding: 13px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--input-bg); cursor: pointer; }
+.local-network-profile--selected { border-color: var(--accent); background: var(--accent-soft); }
+.local-network-profile:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.local-network-profile input { accent-color: var(--accent); width: 14px; height: 14px; flex: 0 0 14px; margin: 2px 0 0; }
+.local-network-profile span { display: grid; gap: 5px; min-width: 0; }
+.local-network-profile strong { font-size: 12px; }
+.local-network-profile small { font-size: 11px; color: var(--text-muted); line-height: 1.5; }
+.local-network-profiles:disabled { opacity: 0.65; }
+.local-network-advanced, .local-network-sliders { display: grid; gap: 16px; }
+.local-network-advanced { padding-top: 14px; border-top: 1px solid var(--border); }
+.local-network-slider-heading > label { font-size: 12px; font-weight: 650; }
+.local-network-exact { display: flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: 11px; }
+.local-network-exact input { width: 86px; min-height: 30px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; color: var(--text-primary); background: var(--input-bg); font-size: 12px; }
+.local-network-exact input:focus-visible { outline: 2px solid var(--accent); }
+.local-network-slider input[type="range"] { width: 100%; height: 22px; margin: 7px 0 0; padding: 0; accent-color: var(--accent); cursor: pointer; }
+.local-network-slider input[type="range"]:disabled { cursor: default; opacity: 0.45; }
+.local-network-slider-scale { display: flex; justify-content: space-between; color: var(--text-muted); font-size: 10px; }
+.local-network-duration { grid-template-columns: 1fr 140px; align-items: center; }
+.local-network-details { font-size: 12px; color: var(--text-muted); }
+.local-network-details summary { cursor: pointer; }
+.local-network-details[open] { display: grid; gap: 10px; }
+@media (max-width: 380px) { .local-network-profiles { grid-template-columns: 1fr; } }
+
 .local-location-map-shell {
   position: relative;
   min-height: 310px;

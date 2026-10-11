@@ -7,6 +7,7 @@ import {
   MapPin,
   PencilSimpleLine,
   WarningCircle,
+  WifiHigh,
 } from '@phosphor-icons/react'
 import {
   useCallback,
@@ -61,6 +62,7 @@ export function SimulatorControlView({
   isAnnotationEditorOpen,
   onCreateAnnotation,
   onOpenDeviceLocation,
+  onOpenDeviceNetwork,
   platform,
   selectedAnnotationId,
   sessionId,
@@ -72,6 +74,7 @@ export function SimulatorControlView({
   isAnnotationEditorOpen: boolean
   onCreateAnnotation?: (geometry: ScreenshotAnnotationGeometryDraft) => void
   onOpenDeviceLocation?: () => void
+  onOpenDeviceNetwork?: () => void
   platform?: string | null
   selectedAnnotationId: string | null
   sessionId: string
@@ -530,7 +533,7 @@ export function SimulatorControlView({
     : undefined
   const canAnnotate = !!onCreateAnnotation && !!frame
   const isAnnotating = canAnnotate && annotationMode
-  const controlCount = 3 + Number(!!onOpenDeviceLocation) + Number(canAnnotate)
+  const controlCount = 3 + Number(!!onOpenDeviceLocation) + Number(!!onOpenDeviceNetwork) + Number(canAnnotate)
   const controlsClassName = controlCount > 3
     ? `local-simulator-controls local-simulator-controls--${controlCount}`
     : 'local-simulator-controls'
@@ -621,6 +624,11 @@ export function SimulatorControlView({
         <button onClick={() => void sendCommand('button', { button: 'lock' }).catch(showCommandError)} title="Lock" type="button">
           <Lock aria-hidden="true" /><span>Lock</span>
         </button>
+        {onOpenDeviceNetwork ? (
+          <button onClick={onOpenDeviceNetwork} title="Network" type="button">
+            <WifiHigh aria-hidden="true" /><span>Network</span>
+          </button>
+        ) : null}
         {onOpenDeviceLocation ? (
           <button onClick={onOpenDeviceLocation} title="Location" type="button">
             <MapPin aria-hidden="true" /><span>Location</span>

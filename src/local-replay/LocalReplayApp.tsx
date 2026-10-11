@@ -14,6 +14,7 @@ import { AppGraphRecordingPanel } from './AppGraphRecordingPanel'
 import { CoreSettingsPanel } from './CoreSettingsPanel'
 import { DeviceManagementPanel } from './DeviceManagementPanel'
 import { DeviceLocationPanel } from './DeviceLocationPanel'
+import { DeviceNetworkPanel } from './DeviceNetworkPanel'
 import { EditSessionMetadataPanel } from './EditSessionMetadataPanel'
 import { HostHealthPanel } from './HostHealthPanel'
 import { HostManagementPanel } from './HostManagementPanel'
@@ -156,6 +157,23 @@ export function LocalReplayApp() {
     if (!isOpen) setAiViewKind(null)
   }, [])
   const [isLocationOpen, setIsLocationOpen] = useState(false)
+  const [networkTarget, setNetworkTarget] = useState<{ sessionId: string; appName: string; isOpen: boolean } | null>(null)
+  const closeNetworkControls = useCallback((keepActive: boolean) => setNetworkTarget(current => keepActive && current ? { ...current, isOpen: false } : null), [])
+  const reopenNetworkControls = useCallback(() => setNetworkTarget(current => current ? { ...current, isOpen: true } : null), [])
+  useEffect(() => {
+    if (networkTarget) return
+    let retainedSession: LocalSessionSummary | undefined
+    try { retainedSession = sessions.find(session => window.sessionStorage.getItem(`ansight.network:${session.sessionId}`)) }
+    catch { return /* Storage is optional. */ }
+    if (!retainedSession) return
+    const session = retainedSession
+    const timer = window.setTimeout(() => setNetworkTarget(current => current ?? {
+      sessionId: session.sessionId,
+      appName: session.name || session.clientName || session.appId,
+      isOpen: false,
+    }), 0)
+    return () => window.clearTimeout(timer)
+  }, [networkTarget, sessions])
   const [activePanel, setActivePanel] = useState<LocalGlobalPanel>(null)
   const runnerStatus: LocalRemoteRunnerStatus | null = null
   const runnerRegistration: LocalRemoteRunnerRegistration | null = null
@@ -512,6 +530,7 @@ export function LocalReplayApp() {
     const deviceIdentifier = selectedSession.runtimeDeviceIdentifier
     const platform = selectedSession.runtimePlatform
     const sessionId = selectedSession.sessionId
+    const appName = selectedSession.name || selectedSession.clientName || selectedSession.appId
     return ({ annotations, captureToolbar, frame, isAnnotationEditorOpen, onCreateAnnotation, selectedAnnotationId }: SessionReplayPanelContext) => (
       <SimulatorControlView
         annotations={annotations}
@@ -522,6 +541,7 @@ export function LocalReplayApp() {
         key={sessionId}
         onCreateAnnotation={onCreateAnnotation}
         onOpenDeviceLocation={bootstrap?.supportsDeviceLocation ? openDeviceLocation : undefined}
+        onOpenDeviceNetwork={() => setNetworkTarget(current => current ? { ...current, isOpen: true } : { sessionId, appName, isOpen: true })}
         platform={platform}
         selectedAnnotationId={selectedAnnotationId}
         sessionId={sessionId}
@@ -536,6 +556,9 @@ export function LocalReplayApp() {
     selectedSession?.runtimeDeviceIdentifier,
     selectedSession?.runtimePlatform,
     selectedSession?.sessionId,
+    selectedSession?.name,
+    selectedSession?.clientName,
+    selectedSession?.appId,
   ])
 
   const refreshAppGraphRuns = useCallback(async () => {
@@ -1331,6 +1354,7 @@ export function LocalReplayApp() {
         </main>
       </div>
 
+      {networkTarget ? <DeviceNetworkPanel key={networkTarget.sessionId} {...networkTarget} onClose={closeNetworkControls} onOpen={reopenNetworkControls} /> : null}
       {isLocationOpen ? (
         <DeviceLocationPanel
           mapboxAccessToken={bootstrap?.mapboxAccessToken ?? ''}
