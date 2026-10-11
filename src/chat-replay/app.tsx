@@ -37,6 +37,7 @@ function Player() {
   const [frameError, setFrameError] = useState('');
   const [actionError, setActionError] = useState('');
   const [retry, setRetry] = useState(0);
+  const [attachingMoment, setAttachingMoment] = useState(false);
   const [openingFullReplay, setOpeningFullReplay] = useState(false);
   const [refreshingAnnotations, setRefreshingAnnotations] = useState(false);
   const [annotationError, setAnnotationError] = useState('');
@@ -88,19 +89,19 @@ function Player() {
     for (const id of ids) pending.current.set(id, work);
   }, [replay, position, data.connected, retry]);
 
-  function context() {
-    return { sessionId: replay!.sessionId, title: replay!.title, playheadUtc: new Date(time).toISOString(),
-      screenshotFrameId: frame!.frameId, screenshotCapturedAtUtc: frame!.capturedAtUtc,
+  async function attachMoment() {
+    if (!replay || !frame || !data.connected || attachingMoment) return;
+    const context = { sessionId: replay.sessionId, title: replay.title, playheadUtc: new Date(time).toISOString(),
+      screenshotFrameId: frame.frameId, screenshotCapturedAtUtc: frame.capturedAtUtc,
       annotationId: selectedMarker?.id ?? null, annotationLabel: selectedMarker?.label ?? null,
       note: 'This is selection metadata. Fetch the Ansight screenshot to inspect the pixels.' };
+    setAttachingMoment(true);
+    try {
+      setActionError('');
+      await bridge.updateModelContext({ content: [{ type: 'text', text: JSON.stringify(context) }] });
+    } catch { setActionError('Could not attach this moment to the chat. Please try again.'); }
+    finally { setAttachingMoment(false); }
   }
-  useEffect(() => {
-    if (!replay || !frame || !data.connected) return;
-    const timer = setTimeout(() => {
-      void bridge.updateModelContext({ content: [{ type: 'text', text: JSON.stringify(context()) }] }).catch(() => {});
-    }, 350);
-    return () => clearTimeout(timer);
-  }, [replay, frame, data.connected, time]);
 
   function seek(next: number) { setFrameError(''); setTime(next); }
   async function expand() {
@@ -165,7 +166,10 @@ function Player() {
         style={{ backgroundImage: `linear-gradient(to right, var(--accent) ${100 * (time - replay.startMs) / Math.max(1, replay.endMs - replay.startMs)}%, var(--line) 0)` }}
         onChange={event => seek(Number(event.target.value))} />
       <span className="clock">{elapsed(time - replay.startMs)} <span>/ {elapsed(replay.endMs - replay.startMs)}</span></span>
-      <button className="full-replay" disabled={!data.connected || openingFullReplay} onClick={openFullReplay}>{openingFullReplay ? 'Opening…' : 'Open full replay'} <span aria-hidden="true">↗</span></button>
+      <div className="replay-actions">
+        <button className="attach-moment" disabled={!data.connected || !frame || attachingMoment} onClick={attachMoment}>{attachingMoment ? 'Attaching…' : 'Attach this moment'}</button>
+        <button className="full-replay" disabled={!data.connected || openingFullReplay} onClick={openFullReplay}>{openingFullReplay ? 'Opening…' : 'Open full replay'} <span aria-hidden="true">↗</span></button>
+      </div>
     </div>
     <section className="markers" aria-label="Replay annotations" aria-busy={refreshingAnnotations}>
       <div className="annotations-heading"><h2>Annotations <span>{replay.markers.length}</span></h2>

@@ -15,7 +15,7 @@ button.expand{border:1px solid var(--line);border-radius:7px;background:var(--su
 .annotation-shape{stroke:var(--accent);stroke-width:3;fill:#fa441f20;pointer-events:none}
 .loading{color:#d1c7bf;font-size:13px;text-align:center;max-width:80%;display:flex;flex-direction:column;align-items:center;gap:10px}
 .loading button{padding:7px 14px;border:0;border-radius:6px}
-.transport{display:grid;grid-template-columns:auto minmax(60px,1fr) auto auto;align-items:center;gap:10px;padding:10px 12px}
+.transport{display:grid;grid-template-columns:auto minmax(60px,1fr) auto;align-items:center;gap:10px;padding:10px 12px}
 .frame-controls{display:flex;gap:4px}
 .frame-controls button{height:28px;min-width:28px;border:0;border-radius:6px;background:var(--subtle);font-size:21px;line-height:1}
 .seek-track{appearance:none;-webkit-appearance:none;min-width:0;width:100%;height:24px;margin:0;border:0;background-size:100% 4px;background-position:center;background-repeat:no-repeat;border-radius:2px;cursor:pointer;touch-action:pan-y}
@@ -23,7 +23,8 @@ button.expand{border:1px solid var(--line);border-radius:7px;background:var(--su
 .seek-track::-moz-range-thumb{width:12px;height:12px;border-radius:50%;border:0;background:var(--accent);box-shadow:0 0 0 2px var(--surface)}
 .clock{font-size:11px;font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
 .clock span{color:var(--muted);font-weight:400}
-.full-replay{font-size:11px;font-weight:600;white-space:nowrap;border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:6px 8px}
+.replay-actions{grid-column:1/-1;display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px}
+.attach-moment,.full-replay{font-size:11px;font-weight:600;white-space:nowrap;border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:6px 8px}
 .full-replay span{color:var(--accent);margin-left:4px}
 .markers{border-top:1px solid var(--line);padding:10px 12px;font-size:12px}
 .annotations-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}

@@ -36,12 +36,17 @@ recording access, image loading, and native annotation persistence in C#.
 There is no standalone replay plugin or JavaScript server to deploy.
 
 The embedded viewer keeps just the session title, screen, compact scrubber,
-screenshot stepping, elapsed time, expand, and Open full replay. Recorded touches
-stay visible automatically. Saved annotations appear in a list below the controls,
+screenshot stepping, elapsed time, expand, Attach this moment, and Open full replay.
+Recorded touches stay visible automatically. Saved annotations appear in a list below the controls,
 with their text and timestamps; selecting one seeks to that moment. Refresh
 annotations reloads notes saved in the full player without moving the playhead.
 Saved annotation geometry remains visible on the screen. Annotation editing and
 other inspection actions live in the full player.
+
+Attach this moment adds the selected session, timestamp, screenshot reference, and
+nearby annotation to the chat context. Opening a replay, scrubbing, stepping through
+screenshots, and selecting or refreshing annotations do not attach context
+automatically.
 
 Open full replay calls the local MCP backend to open the selected session in the
 default browser, using the resident host's current address. The backend accepts
