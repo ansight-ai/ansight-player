@@ -18,7 +18,8 @@ npm run pack:release
 The build produces two outputs:
 
 - `dist/library`: importable JavaScript, TypeScript declarations and component assets.
-- `dist/local`: the complete local HTML/JavaScript/CSS application embedded by the CLI host.
+- `dist/local`: the complete local HTML/JavaScript/CSS application and self-contained
+  `chat-replay.html` widget embedded by the CLI host.
 
 The versioned `@ansight/player` package contains both compiled outputs, TypeScript
 declarations and licence notices. Its exports use `dist/library`; `src/` stays in
@@ -26,6 +27,16 @@ this repository and is excluded from release packages.
 React and React DOM are peer dependencies so an embedding application shares its
 own React instance. The player has no dependency on the SDK, CLI source, cloud
 repository, Supabase client or cloud credentials.
+
+## In-chat replay
+
+`src/chat-replay` contains the compact viewer used by `ansight mcp serve`.
+It builds with the normal player release. The CLI implements the MCP server,
+recording access, image loading, and native annotation persistence in C#.
+There is no standalone replay plugin or JavaScript server to deploy.
+
+Run `npm run test:chat-replay` for touch coordinate, gesture, and scrubber checks.
+The CLI repository owns backend tests and the packaged MCP smoke test.
 
 ## Applications and adapters
 

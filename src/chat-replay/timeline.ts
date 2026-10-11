@@ -1,4 +1,4 @@
-import type { SessionImageFrame, SessionAnnotation } from '../../../src/replay/sessionViewerData';
+import type { SessionImageFrame, SessionAnnotation } from '../replay/sessionViewerData';
 import type { Touch } from './touches';
 
 // Preserve the existing player's frame IDs, timestamps, and annotation semantics.

@@ -1,5 +1,5 @@
 import { useRef, useState, type PointerEvent } from 'react';
-import type { SessionAnnotationGeometry } from '../../../src/replay/sessionViewerData';
+import type { SessionAnnotationGeometry } from '../replay/sessionViewerData';
 
 export type GeometryDraft = { kind: 0 | 1; x: number; y: number; width?: number; height?: number };
 type Point = { x: number; y: number };

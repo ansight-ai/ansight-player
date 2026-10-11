@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { buildFingerprint } from './build-fingerprint.mjs'
 const root = fileURLToPath(new URL('..', import.meta.url))
-for (const file of ['dist/library/index.js', 'dist/library/index.d.ts', 'dist/local/session-replay.html', 'dist/local/session-replay.js', 'LICENSE', 'NOTICE']) {
+for (const file of ['dist/library/index.js', 'dist/library/index.d.ts', 'dist/local/session-replay.html', 'dist/local/session-replay.js', 'dist/local/chat-replay.html', 'LICENSE', 'NOTICE']) {
   if (!existsSync(`${root}/${file}`)) throw new Error(`Missing ${file}; run npm run build before packing.`)
 }
 const manifest = JSON.parse(readFileSync(`${root}/package.json`, 'utf8'))
