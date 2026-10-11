@@ -3,9 +3,8 @@ import { createRoot } from 'react-dom/client';
 import { App } from '@modelcontextprotocol/ext-apps';
 import { elapsed, frameAt, type ImageFrame, type Replay } from './timeline';
 import { buildGestures, visibleTouches } from './touches';
-import { AnnotationDrawing, AnnotationEditor, AnnotationShape, type GeometryDraft } from './annotations';
-import type { SessionAnnotation } from '../replay/sessionViewerData';
-import logo from '../assets/ansight-logo.png';
+import { RecordedTouchOverlay } from '../replay/components/RecordedTouchOverlay';
+import { AnnotationShape } from './annotations';
 import '@fontsource/outfit/400.css';
 import '@fontsource/outfit/600.css';
 import './style.css';
@@ -37,14 +36,10 @@ function Player() {
   const [imageVersion, setImageVersion] = useState(0);
   const [frameError, setFrameError] = useState('');
   const [actionError, setActionError] = useState('');
-  const [expandedMarkers, setExpandedMarkers] = useState(false);
   const [retry, setRetry] = useState(0);
-  const [showTouches, setShowTouches] = useState(true);
-  const [drawing, setDrawing] = useState(false);
-  const [annotationDraft, setAnnotationDraft] = useState<{ id: string; frameId: string; geometry: GeometryDraft } | null>(null);
-  const [annotationBusy, setAnnotationBusy] = useState(false);
+  const [openingFullReplay, setOpeningFullReplay] = useState(false);
+  const [refreshingAnnotations, setRefreshingAnnotations] = useState(false);
   const [annotationError, setAnnotationError] = useState('');
-  const [annotationMessage, setAnnotationMessage] = useState('');
   const cache = useRef(new Map<string, string>());
   const pending = useRef(new Map<string, Promise<void>>());
   const generation = useRef(0);
@@ -53,21 +48,17 @@ function Player() {
   const frame = replay?.frames[position];
   const imageUrl = frame && cache.current.get(frame.frameId);
   const selectedMarker = replay?.markers.find(marker => Math.abs(marker.timeMs - time) < 1000);
-  const selectedAnnotation = replay?.annotations.find(annotation => annotation.annotationId === selectedMarker?.id);
   const gestures = useMemo(() => buildGestures(replay?.touches ?? []), [replay]);
   const dimensions = { width: frame?.width || 1000, height: frame?.height || 1000 };
   const viewHeight = 1000 * dimensions.height / dimensions.width;
-  const touches = showTouches ? visibleTouches(gestures, time, dimensions) : [];
-  const nextTouch = gestures.find(gesture => gesture.startMs > time + 1 && gesture.startMs >= (replay?.startMs ?? 0));
-  const previousTouch = gestures.findLast(gesture => gesture.startMs < time - 1 && gesture.startMs >= (replay?.startMs ?? 0));
+  const touches = visibleTouches(gestures, time, dimensions);
 
   useEffect(() => { subscribers.add(setData); setData(snapshot); return () => { subscribers.delete(setData); }; }, []);
   useEffect(() => {
     generation.current++;
     cache.current.clear(); pending.current.clear();
     for (const image of data.images) cache.current.set(image.frameId, image.dataUrl);
-    setTime(replay?.initialTimeMs ?? 0); setFrameError(''); setActionError(''); setExpandedMarkers(false); setShowTouches(true);
-    setDrawing(false); setAnnotationDraft(null); setAnnotationError('');
+    setTime(replay?.initialTimeMs ?? 0); setFrameError(''); setActionError(''); setAnnotationError('');
     setImageVersion(version => version + 1);
   }, [replay?.frames, data.images]);
 
@@ -111,48 +102,7 @@ function Player() {
     return () => clearTimeout(timer);
   }, [replay, frame, data.connected, time]);
 
-  function seek(next: number) { if (annotationDraft || drawing) return; setFrameError(''); setTime(next); }
-  async function askAnnotation(annotation: SessionAnnotation) {
-    await bridge.sendMessage({ role: 'user', content: [{ type: 'text', text:
-      `Act on Ansight annotation ${annotation.annotationId} in session ${replay!.sessionId}. Read the saved annotation and its screenshot with read_replay_annotation, inspect the relevant code, and address the issue. Annotation: ${annotation.label}${annotation.notes ? `\n${annotation.notes}` : ''}` }] });
-  }
-  async function ask() {
-    try {
-      setActionError('');
-      await bridge.updateModelContext({ content: [{ type: 'text', text: JSON.stringify(context()) }] });
-      if (selectedAnnotation) { await askAnnotation(selectedAnnotation); return; }
-      await bridge.sendMessage({ role: 'user', content: [{ type: 'text', text:
-        `Review this moment in Ansight session ${replay!.sessionId}: ${new Date(time).toISOString()}, screenshot ${frame!.frameId}${selectedMarker ? `, marker "${selectedMarker.label}"` : ''}. Use the recorded screenshot and related evidence to explain what is happening.` }] });
-    } catch (error) { setActionError(error instanceof Error ? error.message : 'Could not send the selected moment.'); }
-  }
-  async function refreshAnnotations() {
-    const result = await bridge.callServerTool({ name: 'refresh_replay_annotations', arguments: { sessionId: replay!.sessionId } });
-    if (result.isError) throw new Error(result.content?.find(item => item.type === 'text')?.text as string || 'Could not refresh annotations.');
-    // Refresh annotations without resetting the user's playhead or screenshot cache.
-    const nextReplay = { ...replay!, markers: result._meta?.markers as Replay['markers'], annotations: result._meta?.annotations as SessionAnnotation[] };
-    snapshot = { ...snapshot, replay: nextReplay };
-    setData(current => ({ ...current, replay: nextReplay }));
-    return nextReplay;
-  }
-  async function saveAnnotation(comment: string, status: string, askAfter: boolean) {
-    if (!annotationDraft || annotationBusy) return;
-    setAnnotationBusy(true); setAnnotationError('');
-    try {
-      const result = await bridge.callServerTool({ name: 'create_replay_annotation', arguments: {
-        sessionId: replay!.sessionId, annotationId: annotationDraft.id, frameId: annotationDraft.frameId,
-        geometry: annotationDraft.geometry, comment, status,
-      } });
-      if (result.isError) throw new Error(result.content?.find(item => item.type === 'text')?.text as string || 'Could not save annotation.');
-      const annotation = result._meta?.annotation as SessionAnnotation;
-      await refreshAnnotations();
-      setTime(Date.parse(annotation.startUtc!)); setAnnotationDraft(null); setAnnotationMessage('Annotation saved in Ansight.');
-      if (askAfter) {
-        try { await askAnnotation(annotation); }
-        catch { setActionError('Annotation saved. The chat message could not be sent; select the annotation and try Ask ChatGPT again.'); }
-      }
-    } catch (error) { setAnnotationError(error instanceof Error ? error.message : 'Could not save annotation.'); }
-    finally { setAnnotationBusy(false); }
-  }
+  function seek(next: number) { setFrameError(''); setTime(next); }
   async function expand() {
     try {
       setActionError('');
@@ -161,91 +111,73 @@ function Player() {
     } catch { setActionError('This host could not expand the player.'); }
   }
   async function openFullReplay() {
+    if (openingFullReplay || !replay) return;
+    setOpeningFullReplay(true);
     try {
       setActionError('');
-      const result = await bridge.openLink({ url: replay!.fullReplayUrl });
-      if (result.isError) throw new Error('The host could not open the full replay.');
+      const result = await bridge.callServerTool({ name: 'open_replay_in_browser', arguments: { sessionId: replay.sessionId } });
+      if (result.isError) throw new Error(result.content?.find(item => item.type === 'text')?.text as string || 'Could not open the local host player.');
     } catch (error) { setActionError(error instanceof Error ? error.message : 'Could not open the full replay.'); }
+    finally { setOpeningFullReplay(false); }
+  }
+  async function refreshAnnotations() {
+    if (refreshingAnnotations || !replay) return;
+    const currentGeneration = generation.current;
+    setRefreshingAnnotations(true); setAnnotationError('');
+    try {
+      const result = await bridge.callServerTool({ name: 'refresh_replay_annotations', arguments: { sessionId: replay.sessionId } });
+      if (currentGeneration !== generation.current) return;
+      if (result.isError) throw new Error(result.content?.find(item => item.type === 'text')?.text as string || 'Could not refresh annotations.');
+      const markers = result._meta?.markers as Replay['markers'] | undefined;
+      const annotations = result._meta?.annotations as Replay['annotations'] | undefined;
+      if (!Array.isArray(markers) || !Array.isArray(annotations)) throw new Error('The host returned no annotation list.');
+      // Keep the same frames and images so refreshing never resets the playhead or cache.
+      publish({ replay: { ...replay, markers, annotations } });
+    } catch (error) {
+      if (currentGeneration === generation.current) setAnnotationError(error instanceof Error ? error.message : 'Could not refresh annotations.');
+    } finally { setRefreshingAnnotations(false); }
   }
 
-  if (!replay) return <div className="empty" role="status"><span className="brand"><img src={logo} alt="Ansight" /></span>
-    <p>{data.error || 'Loading your capture…'}</p></div>;
-  const visibleMarkers = expandedMarkers ? replay.markers : replay.markers.slice(0, 5);
+  if (!replay) return <div className="empty" role="status">{data.error || 'Loading replay…'}</div>;
   return <main className={`player${data.fullscreen ? ' fullscreen' : ''}`} data-frame={frame?.frameId} data-loaded={Boolean(imageUrl)} data-image-version={imageVersion}>
-    <header><div className="heading"><div className="eyebrow"><span className="brand"><img src={logo} alt="Ansight" /></span><span className="badge"><i /> Local capture</span></div>
-      <h1>{replay.title}</h1><p>{replay.appName} · {replay.frames.length} screenshots · {replay.markers.length} markers</p></div>
+    <header><div className="heading">
+      <h1>{replay.title}</h1></div>
       {data.canExpand && <button className="expand" onClick={expand} aria-label={data.fullscreen ? 'Exit fullscreen' : 'Expand replay'}>{data.fullscreen ? '↙' : '↗'}</button>}</header>
     <section className="stage" aria-label="Recorded app screen">
       {imageUrl ? <svg className="recorded-frame" viewBox={`0 0 1000 ${viewHeight}`} preserveAspectRatio="xMidYMid meet">
         <image key={frame!.frameId} href={imageUrl} x="0" y="0" width="1000" height={viewHeight}
           role="img" aria-label={`Recorded screen at ${frame!.capturedAtUtc}`} onError={() => setFrameError('Screenshot could not be decoded.')} />
-        <g className="touch-overlay" aria-hidden="true" data-testid="touch-overlay">
-          {touches.map(touch => <g key={touch.id} data-touch-id={touch.id} data-x={touch.point.x} data-y={touch.point.y} opacity={touch.opacity}>
-            {touch.trail.length > 1 && <>
-              <polyline className="touch-trail-outline" points={touch.trail.map(point => `${point.x * 1000},${point.y * viewHeight}`).join(' ')} vectorEffect="non-scaling-stroke" />
-              <polyline className="touch-trail" points={touch.trail.map(point => `${point.x * 1000},${point.y * viewHeight}`).join(' ')} vectorEffect="non-scaling-stroke" />
-            </>}
-            <circle className="touch-ring-outline" cx={touch.point.x * 1000} cy={touch.point.y * viewHeight} r={touch.radius} vectorEffect="non-scaling-stroke" />
-            <circle className="touch-ring" cx={touch.point.x * 1000} cy={touch.point.y * viewHeight} r={touch.radius} vectorEffect="non-scaling-stroke" />
-            <circle className="touch-center" cx={touch.point.x * 1000} cy={touch.point.y * viewHeight} r="12" />
-          </g>)}
-        </g>
+        <RecordedTouchOverlay touches={touches} viewHeight={viewHeight} />
         <g aria-hidden="true">{(replay.annotations ?? []).flatMap(annotation => (annotation.geometry ?? [])
           .filter(geometry => geometry.frameId === frame?.frameId)
           .map((geometry, index) => <AnnotationShape key={`${annotation.annotationId}-${index}`} geometry={geometry} height={viewHeight} />))}
-          {annotationDraft && <AnnotationShape geometry={annotationDraft.geometry} height={viewHeight} />}
         </g>
-        {drawing && <AnnotationDrawing height={viewHeight} onCreate={geometry => {
-          setAnnotationDraft({ id: crypto.randomUUID().replaceAll('-', ''), frameId: frame!.frameId, geometry });
-          setDrawing(false); setAnnotationError(''); setAnnotationMessage('');
-        }} />}
       </svg>
         : <div className="loading" role="status">{frameError || 'Loading screenshot…'}{frameError && <button onClick={() => { setFrameError(''); setRetry(value => value + 1); }}>Retry</button>}</div>}
-      <span className="stage-label">RECORDED SCREEN</span>
-      <span className="frame-age">{elapsed(Math.max(0, time - (frame?.timeMs ?? time)))} since frame</span>
     </section>
-    {drawing && <p className="touch-notice">Click for a point, or drag a rectangle on the screenshot.</p>}
-    {annotationDraft && <AnnotationEditor busy={annotationBusy} error={annotationError} onSave={saveAnnotation} onClose={() => setAnnotationDraft(null)} />}
     <div className="transport">
-      <div className="seek-track"><input aria-label="Replay timeline" type="range" min={replay.startMs} max={Math.max(replay.startMs + 1, replay.endMs)} step="1" value={Math.max(replay.startMs, time)}
-        disabled={drawing || Boolean(annotationDraft)} onChange={event => seek(Number(event.target.value))} />
-        <div className="ticks" aria-hidden="true">{replay.markers.map(marker => <i key={marker.id} style={{ left: `${100 * (marker.timeMs - replay.startMs) / Math.max(1, replay.endMs - replay.startMs)}%` }} />)}</div>
-        {showTouches && <div className="touch-ticks" aria-hidden="true">{gestures.filter(gesture => gesture.startMs >= replay.startMs).map(gesture => <i key={gesture.id} style={{ left: `${100 * (gesture.startMs - replay.startMs) / Math.max(1, replay.endMs - replay.startMs)}%` }} />)}</div>}
-      </div>
-      <div className="controls">
+      <div className="frame-controls">
         <button aria-label="Previous screenshot" disabled={position === 0} onClick={() => seek(replay.frames[position - 1].timeMs)}>‹</button>
         <button aria-label="Next screenshot" disabled={position >= replay.frames.length - 1} onClick={() => seek(replay.frames[position + 1].timeMs)}>›</button>
-        <span className="clock">{elapsed(time - replay.startMs)} <span>/ {elapsed(replay.endMs - replay.startMs)}</span></span>
-        <button className="ask" disabled={!data.connected || Boolean(annotationDraft)} onClick={ask}>{selectedAnnotation ? 'Ask ChatGPT to act' : 'Ask about this moment'} <span>↗</span></button>
       </div>
+      <input className="seek-track" aria-label="Replay timeline" aria-valuetext={`${elapsed(time - replay.startMs)} of ${elapsed(replay.endMs - replay.startMs)}`} type="range"
+        min={replay.startMs} max={Math.max(replay.startMs + 1, replay.endMs)} step="1" value={Math.max(replay.startMs, time)}
+        style={{ backgroundImage: `linear-gradient(to right, var(--accent) ${100 * (time - replay.startMs) / Math.max(1, replay.endMs - replay.startMs)}%, var(--line) 0)` }}
+        onChange={event => seek(Number(event.target.value))} />
+      <span className="clock">{elapsed(time - replay.startMs)} <span>/ {elapsed(replay.endMs - replay.startMs)}</span></span>
+      <button className="full-replay" disabled={!data.connected || openingFullReplay} onClick={openFullReplay}>{openingFullReplay ? 'Opening…' : 'Open full replay'} <span aria-hidden="true">↗</span></button>
     </div>
-    <div className="annotation-actions">
-      <button disabled={!imageUrl || Boolean(annotationDraft)} aria-pressed={drawing} onClick={() => { setDrawing(value => !value); setAnnotationMessage(''); }}>{drawing ? 'Cancel drawing' : 'Annotate screenshot'}</button>
-      <button disabled={annotationBusy || Boolean(annotationDraft)} onClick={() => {
-        setAnnotationBusy(true); setActionError('');
-        void refreshAnnotations().then(() => setAnnotationMessage('Annotations refreshed from Ansight.'))
-          .catch(error => setActionError(error.message)).finally(() => setAnnotationBusy(false));
-      }}>Refresh annotations</button>
-      {annotationMessage && <span role="status">{annotationMessage}</span>}
-    </div>
-    <div className="replay-actions">
-      <button className="touch-toggle" aria-label="Show recorded touches" aria-pressed={showTouches}
-        onClick={() => setShowTouches(value => !value)} disabled={!replay.touches.length}>
-        <span aria-hidden="true">◉</span> Touches {showTouches ? 'on' : 'off'} <small>{gestures.length}</small>
-      </button>
-      <button className="touch-step" aria-label="Previous touch" title="Previous recorded touch" disabled={!previousTouch} onClick={() => { setShowTouches(true); seek(previousTouch!.startMs); }}>‹</button>
-      <button className="touch-step" aria-label="Next touch" title="Next recorded touch" disabled={!nextTouch} onClick={() => { setShowTouches(true); seek(nextTouch!.startMs); }}>›</button>
-      <button className="full-replay" onClick={openFullReplay}>Open full replay <span aria-hidden="true">↗</span></button>
-    </div>
-    {!replay.touches.length && <p className="touch-notice">No recorded touches in this capture.</p>}
-    {replay.touchWarning && <p className="touch-notice">{replay.touchWarning}</p>}
-    {!!replay.markers.length && <section className="markers" aria-label="Replay markers"><div className="section-label">MOMENTS IN THIS CAPTURE</div>
-      {visibleMarkers.map((marker, index) => <button className={`marker${selectedMarker?.id === marker.id ? ' selected' : ''}`} key={marker.id} title={marker.notes || undefined} onClick={() => seek(marker.timeMs)}>
-        <span className="marker-number">{String(index + 1).padStart(2, '0')}</span><span>{marker.label}</span><time>{elapsed(marker.timeMs - replay.startMs)}</time><span className="marker-arrow">↗</span></button>)}
-      {replay.markers.length > 5 && <button className="more" onClick={() => setExpandedMarkers(!expandedMarkers)}>{expandedMarkers ? 'Show fewer' : `Show ${replay.markers.length - 5} more markers`}</button>}
-    </section>}
+    <section className="markers" aria-label="Replay annotations" aria-busy={refreshingAnnotations}>
+      <div className="annotations-heading"><h2>Annotations <span>{replay.markers.length}</span></h2>
+        <button className="refresh-annotations" disabled={!data.connected || refreshingAnnotations} onClick={() => void refreshAnnotations()}>{refreshingAnnotations ? 'Refreshing…' : 'Refresh annotations'}</button></div>
+      {replay.markers.length ? <ol className="annotation-list">{replay.markers.map(marker => <li key={marker.id}>
+        <button className={`marker${selectedMarker?.id === marker.id ? ' selected' : ''}`} aria-current={selectedMarker?.id === marker.id ? 'true' : undefined} onClick={() => seek(marker.timeMs)}>
+          <span className="marker-text"><span className="marker-label">{marker.label || 'Untitled annotation'}</span>{marker.notes && <span className="marker-notes">{marker.notes}</span>}</span>
+          <time dateTime={marker.capturedAtUtc}>{elapsed(marker.timeMs - replay.startMs)}</time></button>
+      </li>)}</ol> : <p className="annotations-empty">No annotations saved for this replay.</p>}
+      {annotationError && <p className="error" role="alert">{annotationError}</p>}
+    </section>
     {(actionError || (frameError && imageUrl) || data.error) && <p className="error" role="alert">{actionError || frameError || data.error}</p>}
-    <footer><span>Scrub to inspect screenshots and recorded touches</span><span>{new Date(frame!.capturedAtUtc).toISOString().replace('T', ' ').replace('Z', ' UTC')}</span></footer>
   </main>;
 }
 createRoot(document.getElementById('root')!).render(<Player />);

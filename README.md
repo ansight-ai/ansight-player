@@ -35,6 +35,24 @@ It builds with the normal player release. The CLI implements the MCP server,
 recording access, image loading, and native annotation persistence in C#.
 There is no standalone replay plugin or JavaScript server to deploy.
 
+The embedded viewer keeps just the session title, screen, compact scrubber,
+screenshot stepping, elapsed time, expand, and Open full replay. Recorded touches
+stay visible automatically. Saved annotations appear in a list below the controls,
+with their text and timestamps; selecting one seeks to that moment. Refresh
+annotations reloads notes saved in the full player without moving the playhead.
+Saved annotation geometry remains visible on the screen. Annotation editing and
+other inspection actions live in the full player.
+
+Open full replay calls the local MCP backend to open the selected session in the
+default browser, using the resident host's current address. The backend accepts
+only a session ID, verifies it exists locally, and reports browser launch errors
+back to the widget.
+
+The in-chat, local-host and cloud players share the same touch renderer: orange
+rings with white outlines and center dots, swipe trails, and a 1.6-second expanding
+fade after release. Contacts remain visible during recorded holds, and separate
+fingers and repeated taps retain their own markers when scrubbing.
+
 Run `npm run test:chat-replay` for touch coordinate, gesture, and scrubber checks.
 The CLI repository owns backend tests and the packaged MCP smoke test.
 
@@ -58,7 +76,7 @@ pink and hover is a dashed outline. For contact, normalized force or pressure
 changes marker size. Altitude or tilt changes its shape, and azimuth or
 orientation rotates it with a direction dot. Hover over a marker to inspect
 the reported values. Ordinary finger touches and recordings without pen
-details retain their existing markers.
+details use the shared orange rings and trails.
 
 The player preserves device-reported fields without inventing values when a
 pen or digitizer does not provide them. Estimated Apple Pencil corrections
@@ -93,10 +111,27 @@ Account, remote-runner, team-sharing and cloud-analysis panels are supplied by t
 
 The shared Connectivity tab works with local application-event records and cloud segmented captures. Optional `SessionViewerSource.loadConnectivity` and `SessionViewerDataServices.loadSessionConnectivity` return a `ConnectivityWindow`. Cloud providers should use `loadConnectivityWindow` from `@ansight/player/replay/connectivity`, resolving segment paths against the authenticated capture manifest. Failed downloads must reject; do not report them as unavailable connections.
 
-The view uses the common playhead, shows measurement provenance and age, distinguishes unknown gaps from disconnections, and separates quality sources, transports, and units. Quality points are not interpolated. The tab remains available for captures without connectivity observations and explains when evidence is missing. Recorded unknown states and observation gaps remain visible.
+The view uses the common playhead, shows measurement provenance and age, distinguishes unknown gaps from disconnections, and separates quality sources, transports, and units. Unchanged quality readings use a compact summary with measurement counts, the visible time window, an explicit age relative to the playhead, and a jump to the actual reading. A carried value is labelled as such. Charts appear when values vary, with labelled axes, selectable measurement markers and stepped lines that break at gaps or missing measurements. OS link quality is explicitly described as a broad category, not a signal-strength, latency or transfer-speed measurement. The tab remains available for captures without connectivity observations and explains when evidence is missing. Recorded unknown states and observation gaps remain visible.
 
 The tab shows a compact connection status, relevant flags, and plain-language history. Missing quality fields are hidden; captured signal strength, OS link quality, and upstream/downstream link estimates appear with their measurement age and charts around the playhead. Technical details retain normal/unknown flags, provenance, capabilities, raw data and collector observations. Connectivity does not add a separate lane beneath the main playback timeline. Unknown quality is never inferred from an available connection. Tooltips include values, units, measurement time, source, and age at observation.
 
 Live simulator controls include a Network panel beside Location. It uses the resident host's `api/network/{capabilities,set,get,reset}` JSON POST routes for presets, custom rates/delay, blocking/stalling, optional destination ports, traffic counters, and a bounded automatic reset. Closing the panel keeps its lease active and shows a compact countdown with Open and Reset controls. Explicit Reset, expiry, or host/target exit ends conditioning; a browser refresh can recover the lease from session storage. Host expiry still applies if the browser closes. Conditioning does not change recorded OS radio strength or link quality.
 
 The Network panel opens with profile cards and an auto-reset selector. Advanced reveals sliders, exact numeric values, transfer behavior, and TCP ports. Switching views preserves custom settings; choosing a profile only takes effect after Apply/Update. Rate sliders cover the full supported range with an unlimited stop, while numeric inputs retain exact kbps values.
+
+## Passive network measurements
+
+Connectivity shows a rolling 60-second summary of completed requests at the replay
+playhead: response latency p50/p95 by server, median upload/download transfer rates,
+measurement counts, and failures. Recent requests seek to their completion time;
+the Network tab exposes individual DNS, connection, TLS, latency and byte metrics.
+The cloud player loads archived network records on demand through its existing
+storage adapter, with six concurrent downloads at most.
+
+These measurements use the optional network-record `performance` object emitted
+by Apple native network capture. They cover the final transaction after redirects
+and retries. Rates use transferred body bytes and measured transfer intervals,
+not retained content or Content-Length. Older captures and other collectors keep
+request durations but show missing latency/rates explicitly. Per-transfer averages
+are not bandwidth capacity or an aggregate live throughput chart. Idle windows
+remain unknown. No active probes or speed tests are run.

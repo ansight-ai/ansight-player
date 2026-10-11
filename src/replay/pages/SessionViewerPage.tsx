@@ -1,7 +1,11 @@
 import { ConnectivityPanel } from '../ConnectivityPanel'
 import { connectivityFromEvents, type ConnectivityWindow } from '../connectivity'
-import { loadSessionConnectivity } from '../sessionViewerData'
+import { loadSessionConnectivity, loadSessionNetworkRequests } from '../sessionViewerData'
+import { NetworkPerformancePanel, NetworkPerformanceDetails } from '../NetworkPerformancePanel'
 import { resolveDeviceFrame } from '../deviceFrame'
+import { buildSessionTouchGestures, isPenTouch } from '../sessionTouchReplay'
+import { touchFadeMs, visibleTouches, type Gesture } from '../touchReplay'
+import { RecordedTouchOverlay } from '../components/RecordedTouchOverlay'
 import { agentReasoningModes, defaultAgentReasoning, type AgentReasoning } from '../../agentReasoning'
 import type { AnnotationSummaryOptions } from '../../local-replay/annotationSummary'
 import { AnnotationSummaryProgress } from '../components/AnnotationSummaryProgress'
@@ -347,6 +351,7 @@ type SessionImageUrlBatch = {
 }
 
 export type SessionViewerSource = {
+  loadNetworkRequests?: (payload: SessionViewerPayload) => Promise<SessionNetworkRequest[]>
   loadConnectivity?: (payload: SessionViewerPayload, fromMs: number, toMs: number) => Promise<ConnectivityWindow>
   mode: 'cloud' | 'local'
   loadPayload: (sessionId: string, superAdminMode: boolean) => Promise<SessionViewerPayload>
@@ -489,6 +494,7 @@ type DevicePropertyRow = {
 }
 
 type AnnotationView = {
+  annotationId: string | null
   durationDisplay: string
   focusMs: number | null
   geometrySummary: string
@@ -570,7 +576,6 @@ const timelineLifecycleBarHeight = 14
 const timelineChartValuePadding = 12
 const timelineAnnotationLaneBottomInset = 4
 const defaultGeometryAnnotationRenderDurationMs = 2000
-const defaultTouchRenderDurationMs = 1600
 const defaultLiveTimelineWindowMs = 2 * 60 * 1000
 const liveSessionRefreshIntervalMs = 1000
 const timelineAnnotationLaneHeight = 12
@@ -626,6 +631,7 @@ const cloudSessionViewerSource: SessionViewerSource = {
   loadPayload: (sessionId, superAdminMode) => loadSessionViewerPayload(sessionId, { superAdminMode }),
   hydratePayload: loadSessionViewerExternalPayload,
   loadConnectivity: loadSessionConnectivity,
+  loadNetworkRequests: loadSessionNetworkRequests,
 }
 
 function createDefaultSummaryAiForm(provider: AiProvider = 'openai'): SessionAiForm {
@@ -1359,7 +1365,20 @@ export function SessionViewerPage({
     [allLogs, logStreams],
   )
   const touches = useMemo(() => sortTouches(captureSession?.touches ?? []), [captureSession?.touches])
-  const networkRequests = useMemo(() => sortNetworkRequests(captureSession?.networkRequests ?? []), [captureSession?.networkRequests])
+  const touchGestures = useMemo(() => buildSessionTouchGestures(touches), [touches])
+  const [remoteNetwork, setRemoteNetwork] = useState<{ sessionId: string; requests?: SessionNetworkRequest[]; error?: string } | null>(null)
+  const remoteNetworkForSession = remoteNetwork?.sessionId === sessionId ? remoteNetwork : null
+  const shouldLoadNetwork = activeTab === 'connectivity' || activeTab === 'network'
+  useEffect(() => {
+    if (!payload || !source.loadNetworkRequests || !shouldLoadNetwork) return
+    let cancelled = false
+    source.loadNetworkRequests(payload)
+      .then(requests => { if (!cancelled) setRemoteNetwork({ sessionId, requests }) })
+      .catch((error: unknown) => { if (!cancelled) setRemoteNetwork({ sessionId, error: error instanceof Error ? error.message : 'Download failed' }) })
+    return () => { cancelled = true }
+  }, [payload, source.loadNetworkRequests, shouldLoadNetwork, sessionId])
+  const networkRequests = useMemo(() => sortNetworkRequests(remoteNetworkForSession?.requests ?? captureSession?.networkRequests ?? []), [remoteNetworkForSession?.requests, captureSession?.networkRequests])
+  const networkLoading = Boolean(source.loadNetworkRequests && !remoteNetworkForSession)
   const metrics = useMemo(() => sortMetrics(captureSession?.metrics ?? []), [captureSession?.metrics])
   const metricChannels = useMemo(() => sortMetricChannels(captureSession?.metricChannels ?? []), [captureSession?.metricChannels])
   const annotations = useMemo(() => sortAnnotations(captureSession?.annotations ?? []), [captureSession?.annotations])
@@ -2789,7 +2808,7 @@ export function SessionViewerPage({
                             onCreate={openScreenshotAnnotationEditor}
                           />
                         ) : null}
-                        {showTouchLocations ? <SessionFrameTouchOverlay frame={selectedFrame} scrubAtMs={effectiveScrubAtMs} touches={activeTouches} /> : null}
+                        {showTouchLocations ? <SessionFrameTouchOverlay frame={selectedFrame} scrubAtMs={effectiveScrubAtMs} touches={activeTouches} gestures={touchGestures} /> : null}
                       </div>
                     ) : null}
                   </>
@@ -2824,7 +2843,7 @@ export function SessionViewerPage({
         <div className="viewer-tabs" role="tablist" aria-label="Session sections">
           <TabButton activeTab={effectiveActiveTab} badge={allLogs.length} icon={<ListBullets aria-hidden="true" />} label="Logs" tab="live-log" onSelect={selectUsageTab} />
           <TabButton activeTab={effectiveActiveTab} icon={<GlobeSimple aria-hidden="true" />} label="Connectivity" tab="connectivity" onSelect={selectUsageTab} />
-          {isLocalReplay ? <TabButton activeTab={effectiveActiveTab} badge={networkRequests.length} icon={<GlobeSimple aria-hidden="true" />} label="Network" tab="network" onSelect={selectUsageTab} /> : null}
+          <TabButton activeTab={effectiveActiveTab} badge={networkRequests.length} icon={<GlobeSimple aria-hidden="true" />} label="Network" tab="network" onSelect={selectUsageTab} />
           {annotations.length > 0 ? <TabButton activeTab={effectiveActiveTab} badge={annotations.length} icon={<NotePencil aria-hidden="true" />} label="Annotations" tab="annotations" onSelect={selectUsageTab} /> : null}
           <TabButton activeTab={effectiveActiveTab} badge={visualTrees.length} icon={<TreeStructure aria-hidden="true" />} label="Visual tree" tab="visual-tree" onSelect={selectUsageTab} />
           <TabButton activeTab={effectiveActiveTab} badge={artifactSnapshots.length} icon={<Stack aria-hidden="true" />} label="Artifacts" tab="artifacts" onSelect={selectUsageTab} />
@@ -2934,9 +2953,12 @@ export function SessionViewerPage({
             timelineRange={timelineRange}
           />
         ) : null}
-        {effectiveActiveTab === 'connectivity' ? <ConnectivityPanel data={connectivityData} atMs={effectiveScrubAtMs} startMs={timelineRange.startMs} endMs={timelineRange.endMs} onSeek={seekConnectivity} loading={connectivityLoading} error={remoteConnectivityForSession?.error} /> : null}
+        {effectiveActiveTab === 'connectivity' ? <>
+          <NetworkPerformancePanel requests={networkRequests} atMs={effectiveScrubAtMs} startMs={timelineRange.startMs} onSeek={seekConnectivity} loading={networkLoading} error={remoteNetworkForSession?.error} />
+          <ConnectivityPanel data={connectivityData} atMs={effectiveScrubAtMs} startMs={timelineRange.startMs} endMs={timelineRange.endMs} onSeek={seekConnectivity} loading={connectivityLoading} error={remoteConnectivityForSession?.error} />
+        </> : null}
         {effectiveActiveTab === 'network' && (captureSession.captureSource !== 'device' || networkRequests.length > 0) ? (
-          <NetworkSection requests={networkRequests} />
+          networkLoading ? <p role="status">Loading recorded requests…</p> : remoteNetworkForSession?.error ? <p role="alert">Network requests could not be loaded: {remoteNetworkForSession.error}</p> : <NetworkSection requests={networkRequests} />
         ) : null}
         {effectiveActiveTab === 'annotations' ? (
           <AnnotationsSection
@@ -2947,6 +2969,7 @@ export function SessionViewerPage({
             onEditAnnotation={editAnnotation}
             onResolveAnnotation={resolveAnnotation}
             selectedAnnotationId={resolvedSelectedAnnotationId}
+            sessionId={sessionId}
             onSelectAnnotation={selectAnnotation}
           />
         ) : null}
@@ -4062,22 +4085,34 @@ function SessionFrameTouchOverlay({
   frame,
   scrubAtMs,
   touches,
+  gestures,
 }: {
   frame: SessionImageFrame | null
   scrubAtMs: number
   touches: SessionTouchInputRecord[]
+  gestures: Gesture[]
 }) {
   const touchViews = useMemo(
     () => buildFrameTouchViews(touches, frame, scrubAtMs),
     [frame, scrubAtMs, touches],
   )
 
-  if (touchViews.length === 0) {
+  const dimensions = {
+    width: normalizeFrameDimension(frame?.width) ?? 1000,
+    height: normalizeFrameDimension(frame?.height) ?? 1000,
+  }
+  const fingerTouches = frame ? visibleTouches(gestures, scrubAtMs, dimensions) : []
+  const viewHeight = 1000 * dimensions.height / dimensions.width
+
+  if (touchViews.length === 0 && fingerTouches.length === 0) {
     return null
   }
 
   return (
     <div aria-hidden="true" className="session-frame-touch-overlay">
+      <svg className="session-frame-touch-gestures" viewBox={`0 0 1000 ${viewHeight}`} preserveAspectRatio="none" focusable="false">
+        <RecordedTouchOverlay touches={fingerTouches} viewHeight={viewHeight} />
+      </svg>
       {touchViews.map((touch) => (
         <span
           className={`session-frame-touch session-frame-touch--${touch.action} session-frame-touch--${touch.tool}${touch.penMarker?.hasDirection ? ' session-frame-touch--oriented' : ''}`}
@@ -6328,12 +6363,15 @@ function NetworkRequestDetails({ onClose, request }: { onClose: () => void; requ
         {activeTab === 'request' ? <NetworkBodyDetails title="Request body" body={request.requestBody} reportedBytes={request.requestBodySizeBytes} /> : null}
         {activeTab === 'response' ? <NetworkBodyDetails title="Response body" body={request.responseBody} reportedBytes={request.responseBodySizeBytes} /> : null}
         {activeTab === 'timing' ? (
+          <>
           <dl className="network-general network-general--timing">
             <div><dt>Started</dt><dd>{formatDateTime(request.startedAtUtc)}</dd></div>
             <div><dt>Completed</dt><dd>{formatDateTime(request.completedAtUtc)}</dd></div>
             <div><dt>Duration</dt><dd>{formatNetworkDuration(request.durationMilliseconds)}</dd></div>
             <div><dt>Protocol</dt><dd>{request.protocol || 'Unknown'}</dd></div>
           </dl>
+          <NetworkPerformanceDetails performance={request.performance} />
+          </>
         ) : null}
       </div>
     </aside>
@@ -7742,6 +7780,7 @@ function AnnotationsSection({
   onResolveAnnotation,
   onSelectAnnotation,
   selectedAnnotationId,
+  sessionId,
 }: {
   annotations: SessionAnnotation[]
   canEdit: boolean
@@ -7751,6 +7790,7 @@ function AnnotationsSection({
   onResolveAnnotation: (annotationId: string) => void
   onSelectAnnotation: (annotationId: string, focusMs: number | null) => void
   selectedAnnotationId: string | null
+  sessionId: string
 }) {
   const annotationViews = useMemo(() => annotations.map(buildAnnotationView), [annotations])
   const selectedAnnotation = annotationViews.find((annotation) => annotation.id === selectedAnnotationId) ?? annotationViews[0] ?? null
@@ -7798,8 +7838,14 @@ function AnnotationsSection({
               {selectedAnnotation.status ? <span className="annotation-status">{selectedAnnotation.status}</span> : null}
               <span>{selectedAnnotation.timeDisplay}</span>
             </div>
-            {canEdit ? (
-              <div className="annotation-detail-actions">
+            <div className="annotation-detail-actions">
+              <CopyTextButton
+                accessibleLabel={selectedAnnotation.annotationId ? 'Copy session and annotation IDs' : 'Copy session ID'}
+                key={`${sessionId}:${selectedAnnotation.id}`}
+                label={selectedAnnotation.annotationId ? 'Copy IDs' : 'Copy session ID'}
+                text={`Session ID: ${sessionId}${selectedAnnotation.annotationId ? `\nAnnotation ID: ${selectedAnnotation.annotationId}` : ''}`}
+              />
+              {canEdit ? <>
                 {selectedAnnotation.status?.toLowerCase() !== 'resolved' ? (
                   <button className="button button--secondary button--compact" disabled={isSubmitting} onClick={() => onResolveAnnotation(selectedAnnotation.id)} type="button">
                     <Check aria-hidden="true" />
@@ -7814,8 +7860,8 @@ function AnnotationsSection({
                   <Trash aria-hidden="true" />
                   Delete
                 </button>
-              </div>
-            ) : null}
+              </> : null}
+            </div>
           </div>
 
           <div className="annotation-detail-meta">
@@ -8806,6 +8852,7 @@ function buildAnnotationView(annotation: SessionAnnotation, index: number): Anno
   const targetSummary = formatAnnotationTargetSummary(annotation.target)
 
   return {
+    annotationId: annotation.annotationId?.trim() || null,
     durationDisplay: formatAnnotationDurationDisplay(startMs, endMs),
     focusMs: resolveAnnotationFocusMs(annotation),
     geometrySummary: formatAnnotationGeometrySummary(annotation),
@@ -9105,7 +9152,7 @@ function buildFrameTouchViews(touches: SessionTouchInputRecord[], frame: Session
   }
 
   return touches.flatMap((touch, index) => {
-    if (touch.details?.sampleKind === 'estimatedUpdate') {
+    if (!isPenTouch(touch) || touch.details?.sampleKind === 'estimatedUpdate') {
       return []
     }
     const opacity = resolveTouchOpacity(touch, scrubAtMs)
@@ -9218,11 +9265,11 @@ function resolveTouchOpacity(touch: SessionTouchInputRecord, scrubAtMs: number):
   }
 
   const ageMs = scrubAtMs - capturedAtMs
-  if (ageMs < 0 || ageMs > defaultTouchRenderDurationMs) {
+  if (ageMs < 0 || ageMs > touchFadeMs) {
     return 0
   }
 
-  const progress = clamp(ageMs / defaultTouchRenderDurationMs, 0, 1)
+  const progress = clamp(ageMs / touchFadeMs, 0, 1)
   return clamp(1 - progress, 0, 1)
 }
 
@@ -10669,7 +10716,7 @@ function selectTouchesForTimestamp(touches: Array<TimestampedItem<SessionTouchIn
     return []
   }
 
-  const startIndex = lowerBoundTimestamp(touches, scrubAtMs - defaultTouchRenderDurationMs)
+  const startIndex = lowerBoundTimestamp(touches, scrubAtMs - touchFadeMs)
   const endIndex = upperBoundTimestamp(touches, scrubAtMs)
   if (endIndex <= startIndex) {
     return []

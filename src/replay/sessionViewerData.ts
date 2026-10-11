@@ -128,6 +128,19 @@ export type SessionNetworkBody = {
   truncated: boolean
 }
 
+/** Passive measurements of the final transaction, excluding earlier redirects/retries. */
+export type SessionNetworkPerformance = {
+  timeToFirstByteMilliseconds?: number | null
+  dnsMilliseconds?: number | null
+  connectMilliseconds?: number | null
+  tlsMilliseconds?: number | null
+  uploadDurationMilliseconds?: number | null
+  downloadDurationMilliseconds?: number | null
+  uploadedBytes?: number | null
+  downloadedBytes?: number | null
+  reusedConnection?: boolean | null
+}
+
 export type SessionNetworkRequest = {
   schema: 'ansight.network-request.v1' | string
   id: string
@@ -135,6 +148,7 @@ export type SessionNetworkRequest = {
   startedAtUtc: string
   completedAtUtc: string
   durationMilliseconds: number
+  performance?: SessionNetworkPerformance | null
   method: string
   url: string
   protocol?: string | null
@@ -604,6 +618,7 @@ export async function loadSessionConnectivity(payload: SessionViewerPayload, fro
 }
 
 export type SessionViewerDataServices = {
+  loadSessionNetworkRequests?: (payload: SessionViewerPayload) => Promise<SessionNetworkRequest[]>
   loadSessionConnectivity?: (payload: SessionViewerPayload, fromMs: number, toMs: number) => Promise<ConnectivityWindow>
   loadSessionViewerPayload: (sessionId: string, options?: LoadSessionViewerPayloadOptions) => Promise<SessionViewerPayload>
   createRawSessionArchiveSignedUrl: (session: TeamSession) => Promise<string>
@@ -612,4 +627,9 @@ export type SessionViewerDataServices = {
   createSessionFileSignedUrl: (session: TeamSession, file: SharedSessionStreamFile) => Promise<string>
   createSessionFileSignedUrls: (session: TeamSession, files: SharedSessionStreamFile[]) => Promise<Map<string, string>>
   readCloudSessionArtifactFile: (payload: SessionViewerPayload, snapshotId: string | null, path: string, forceText?: boolean, allowLargeFile?: boolean) => Promise<SessionLiveFileContent>
+}
+
+export async function loadSessionNetworkRequests(payload: SessionViewerPayload): Promise<SessionNetworkRequest[]> {
+  const loader = getCloudPlayerAdapter().sessions.loadSessionNetworkRequests
+  return loader ? loader(payload) : payload.capture.session?.networkRequests ?? []
 }

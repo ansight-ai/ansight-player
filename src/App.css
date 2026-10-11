@@ -8552,6 +8552,12 @@ body.session-replay-resizing {
   border-radius: inherit;
 }
 
+.session-viewer-dashboard .session-frame-touch-gestures {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .session-viewer-dashboard .session-frame-touch {
   position: absolute;
   width: 12px;
@@ -9372,7 +9378,7 @@ body.session-replay-resizing {
   overflow-wrap: anywhere;
 }
 
-.session-viewer-dashboard .annotation-detail-heading span:not(.annotation-detail-icon) {
+.session-viewer-dashboard .annotation-detail-heading > div > span {
   display: block;
   margin-top: 3px;
   color: var(--text-secondary);
@@ -15511,6 +15517,21 @@ button.token-ledger-row {
 .connectivity-events-heading { display: flex; align-items: center; font-size: 12px; margin: 22px 0 8px; }
 .connectivity-events-heading h3 { margin: 0; font-size: 13px; }
 .connectivity-note { color: var(--text-muted); }
+.network-performance { padding: 20px; border-bottom: 1px solid var(--border); }
+.network-performance-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+.network-performance-heading h3 { margin: 0; }
+.network-performance-heading > span { color: var(--text-muted, #777); font-size: 13px; }
+.network-performance-table { overflow-x: auto; margin-top: 12px; }
+.network-performance table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+.network-performance th, .network-performance td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.network-performance thead th { font-size: 12px; font-weight: 500; color: var(--text-muted, #777); white-space: nowrap; }
+.network-performance td { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.network-performance small { display: block; color: var(--text-muted, #777); margin-top: 4px; font-weight: 400; }
+.network-performance tbody th { overflow-wrap: anywhere; min-width: 140px; }
+.network-performance-request-url { max-width: 250px; overflow: hidden; text-overflow: ellipsis; }
+.network-performance-requests { margin-top: 12px; }
+.network-performance-requests summary { cursor: pointer; font-size: 13px; }
+.network-performance button { color: var(--accent); border: 0; background: none; padding: 0; cursor: pointer; text-decoration: underline; }
 .connectivity-panel { padding: 20px; min-width: 0; }
 .connectivity-status-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 20px; }
 .connectivity-status-row > strong { display: flex; align-items: center; gap: 8px; font-size: 15px; }
@@ -15519,10 +15540,6 @@ button.token-ledger-row {
 .connectivity-status-dot--unavailable { background: #cb664c; }
 .connectivity-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 .connectivity-badges > span { padding: 3px 8px; border-radius: 4px; background: var(--bg-secondary); border: 1px solid var(--border); font-size: 11px; }
-.connectivity-measurements { margin-top: 16px; }
-.connectivity-measurements dl { display: flex; flex-wrap: wrap; gap: 12px 28px; margin: 0 0 6px; }
-.connectivity-measurements dt { color: var(--text-muted); font-size: 12px; }
-.connectivity-measurements dd { margin: 3px 0 0; font-size: 14px; font-weight: 600; }
 .connectivity-details { margin-top: 18px; border-top: 1px solid var(--border); padding-top: 12px; }
 .connectivity-details > summary { cursor: pointer; color: var(--text-muted); font-size: 12px; }
 .connectivity-details h4 { font-size: 12px; margin: 16px 0 8px; }
@@ -15539,18 +15556,34 @@ button.token-ledger-row {
 .connectivity-event-list button { font: inherit; font-size: 13px; }
 .connectivity-event-list time { min-width: 60px; font-variant-numeric: tabular-nums; color: var(--text-muted); }
 .connectivity-quality figure { margin: 12px 0; border: 1px solid var(--border); padding: 12px; border-radius: 8px; }
-.connectivity-quality figcaption { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }
-.connectivity-quality svg { width: 100%; height: 100px; }
+.connectivity-quality figcaption { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 8px 12px; font-size: 13px; }
+.connectivity-quality svg { display: block; width: 100%; height: 108px; overflow: visible; }
 .connectivity-quality circle { fill: var(--accent); cursor: pointer; }
 .connectivity-quality circle:hover, .connectivity-quality circle:focus { fill: #cb664c; r: 7; }
 .connectivity-panel pre { overflow: auto; max-height: 360px; font-size: 12px; }
 
-.connectivity-quality svg text { fill: var(--text-muted); font-size: 11px; }
 
 
-.connectivity-quality figcaption strong span, .connectivity-quality-provenance, .connectivity-quality-scale { color: var(--text-muted); font-size: 11px; font-weight: normal; }
-.connectivity-quality-provenance { margin: 3px 0 6px; }
+.connectivity-quality-provenance, .connectivity-quality-summary, .connectivity-quality-explanation { color: var(--text-muted); font-size: 12px; line-height: 1.6; }
+.connectivity-quality-provenance { margin: 4px 0 12px; }
+.connectivity-quality-window { color: var(--text-muted); font-size: 11px; margin: 0 0 8px; font-variant-numeric: tabular-nums; }
+.connectivity-quality-summary { margin: 8px 0; }
+.connectivity-quality-value { padding: 3px 8px; border-radius: 5px; background: var(--bg-secondary); font-weight: 600; }
+.connectivity-quality-value--good { color: #287562; background: #368b7914; }
+.connectivity-quality-value--moderate { color: #94701d; background: #b78a2014; }
+.connectivity-quality-value--minimal { color: #ad503b; background: #cb664c14; }
+.connectivity-quality-reading { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 8px 0; font-size: 12px; }
+.connectivity-quality-reading button { margin-left: auto; }
+.connectivity-quality-reading button, .connectivity-quality-gaps button { border: 0; padding: 2px 0; color: var(--accent); background: transparent; font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.connectivity-quality-reading button:focus-visible, .connectivity-quality-gaps button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.connectivity-quality-plot { display: flex; gap: 12px; margin-top: 14px; }
+.connectivity-quality-axis { display: flex; flex-direction: column; justify-content: space-between; height: 108px; padding: 12px 0; flex-shrink: 0; text-align: right; color: var(--text-muted); font-size: 11px; }
+.connectivity-quality-graph { flex: 1; min-width: 0; }
+.connectivity-quality-times { display: flex; justify-content: space-between; margin-top: 8px; color: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.connectivity-quality-gaps { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12px; color: var(--text-muted); }
+.connectivity-quality-explanation { margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--border); }
 .connectivity-quality-grid { stroke: var(--border); stroke-width: 1; }
+.connectivity-quality-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; pointer-events: none; }
 .connectivity-quality-cursor { stroke: var(--text-primary); stroke-width: 2; pointer-events: none; }
 .connectivity-quality circle.connectivity-quality-point--good { fill: #368b79; }
 .connectivity-quality circle.connectivity-quality-point--moderate { fill: #b78a20; }

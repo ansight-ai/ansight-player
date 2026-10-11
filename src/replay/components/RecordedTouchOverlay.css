@@ -1,0 +1,31 @@
+.recorded-touch-overlay {
+  pointer-events: none;
+}
+
+.recorded-touch-trail,
+.recorded-touch-trail-outline {
+  fill: none;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.recorded-touch-trail-outline,
+.recorded-touch-ring-outline {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 6;
+}
+
+.recorded-touch-trail,
+.recorded-touch-ring {
+  stroke: #fa441f;
+  stroke-width: 3;
+}
+
+.recorded-touch-ring {
+  fill: #fa441f40;
+}
+
+.recorded-touch-center {
+  fill: #fa441f;
+}

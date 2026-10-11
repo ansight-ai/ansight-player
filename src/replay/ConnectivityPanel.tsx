@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { connectivityAt, type ConnectivityRecord, type ConnectivityWindow } from './connectivity'
-import { connectivityQualitySeries } from './connectivityQuality'
+import { connectivityQualitySeries, summarizeQualitySeries } from './connectivityQuality'
 
 type Props = { data: ConnectivityWindow; atMs: number; startMs: number; endMs: number; onSeek: (time: number) => void; error?: string; loading?: boolean; }
 const transportNames: Record<string, string> = { wifi: 'Wi-Fi', cellular: 'Cellular', ethernet: 'Ethernet', bluetooth: 'Bluetooth', other: 'Other' }
@@ -20,9 +20,17 @@ function stateLabel(record: ConnectivityRecord | null): string {
   const availability = { available: 'Available', unavailable: 'Unavailable', unknown: 'Unknown' }[record.snapshot.availability]
   return [transportLabel(record.snapshot.transports), availability].filter(Boolean).join(' · ')
 }
-function timeLabel(time: number, start: number): string {
+function timeLabel(time: number, start: number, precision = 1): string {
   const seconds = Math.max(0, (time - start) / 1000)
-  return `${Math.floor(seconds / 60)}:${(seconds % 60).toFixed(1).padStart(4, '0')}`
+  return `${Math.floor(seconds / 60)}:${(seconds % 60).toFixed(precision).padStart(3 + precision, '0')}`
+}
+function ageLabel(milliseconds: number): string {
+  const seconds = Math.max(0, milliseconds / 1000)
+  if (seconds < 60) return `${seconds.toFixed(1)} s`
+  return `${Math.floor(seconds / 60)} min ${Math.floor(seconds % 60)} s`
+}
+function qualityLabel(label: string): string {
+  return ({ minimal: 'Minimal', moderate: 'Moderate', good: 'Good' } as Record<string, string>)[label] ?? label
 }
 function historyLabel(record: ConnectivityRecord): string | null {
   if (record.kind === 'gap') return 'Observation interrupted'
@@ -83,10 +91,6 @@ export function ConnectivityPanel({ data, atMs, startMs, endMs, onSeek, loading,
         {activeFlags.map(flag => <span key={flag.key}>{flag.active}</span>)}
         {observedState?.internetValidated === false ? <span>Internet not validated</span> : null}
       </div> : null}
-      {metrics.length ? <div className="connectivity-measurements">
-        <dl>{metrics.map(metric => <div key={metric.label}><dt>{metric.label}</dt><dd>{metric.value}</dd></div>)}</dl>
-        <small className="connectivity-note" title={`${quality?.source} · ${quality?.measuredAtUtc}`}>Measured {age! < 60 ? `${age!.toFixed(1)} s` : `${Math.floor(age! / 60)} min`} ago</small>
-      </div> : null}
       {data.retentionTrimmed ? <p className="connectivity-note" role="status">Older observations were removed by capture retention.</p> : null}
       {data.malformedCount > 0 ? <p className="connectivity-note" role="status">{data.malformedCount} observations could not be read.</p> : null}
       <QualityCharts records={data.records} fromMs={Math.max(startMs, data.fromMs)} toMs={Math.min(endMs, data.toMs)} sessionStartMs={startMs} atMs={atMs} onSeek={onSeek} hasCurrentMetrics={metrics.length > 0} />
@@ -100,7 +104,7 @@ export function ConnectivityPanel({ data, atMs, startMs, endMs, onSeek, loading,
         {current ? <p className="connectivity-note">Observation: {current.source} · {current.capturedAtUtc}</p> : null}
         {quality ? <p className="connectivity-note">Quality: {quality.source} · measured {quality.measuredAtUtc} · {age?.toFixed(1)} s old</p> : null}
         <p className="connectivity-note">Reported measurements: {data.supportedMeasurements.join(', ') || 'not reported'}.</p>
-        <p className="connectivity-note">Available describes the OS connection state; internet validation is separate. Quality and bandwidth are passive OS estimates, not measured throughput. Missing values remain unknown. Charts show individual samples without interpolation. Select a sample or history entry to seek.</p>
+        <p className="connectivity-note">Available describes the OS connection state; internet validation is separate. Quality and bandwidth are passive OS estimates, not measured throughput. Missing values remain unknown. Charts appear when recorded values vary. Lines hold each reported value until the next observation and break where measurements are missing. Select a sample or history entry to seek.</p>
         {current ? <><h4>Observation at playhead</h4><pre>{JSON.stringify(current, null, 2)}</pre></> : null}
         <h4>Observation log</h4>
         <div className="connectivity-event-list">{observationLog.slice(0, visibleCount).map(record => <button type="button" key={record.id} onClick={() => onSeek(Math.max(startMs, Date.parse(record.capturedAtUtc)))}>
@@ -122,6 +126,7 @@ function QualityCharts({ records, fromMs, toMs, onSeek, sessionStartMs = fromMs,
   return <div className="connectivity-quality">
     {series.map(group => {
       const categorical = group.metric === 'OS link quality'
+      const summary = summarizeQualitySeries(group, fromMs, toMs)
       const values = group.points.map(point => point.value)
       const min = categorical ? 1 : values.reduce((a, b) => Math.min(a, b), Infinity)
       const max = categorical ? 3 : values.reduce((a, b) => Math.max(a, b), -Infinity)
@@ -129,23 +134,48 @@ function QualityCharts({ records, fromMs, toMs, onSeek, sessionStartMs = fromMs,
       const currentGroup = currentQuality && currentQuality.source === group.source
         && JSON.stringify([...current!.snapshot.transports].sort()) === JSON.stringify(group.transports)
       const sample = currentGroup ? group.points.findLast(point => point.time === Date.parse(currentQuality.measuredAtUtc)) : null
-      const age = sample && atMs != null ? Math.max(0, (atMs - sample.time) / 1000) : null
+      const xAt = (time: number) => 1000 * (time - fromMs) / Math.max(1, toMs - fromMs)
+      const yAt = (value: number) => max === min ? 36 : 60 - 48 * (value - min) / (max - min)
+      const line = group.intervals.map((interval, index) => {
+        const y = yAt(interval.value)
+        const start = index > 0 && group.intervals[index - 1].toMs === interval.fromMs
+          ? `V ${y}` : `M ${xAt(interval.fromMs)} ${y}`
+        return `${start} H ${xAt(interval.toMs)}`
+      }).join(' ')
       return <figure key={group.key}>
-        <figcaption title={`${group.source} · ${group.transports.map(value => transportNames[value] ?? value).join(", ")}`}><strong>{group.metric} {categorical ? null : <span>{group.unit}</span>}</strong><span>{atMs == null ? `${min} – ${max}` : sample ? `${sample.label} · ${age?.toFixed(1)} s old` : 'Unknown at playhead'}</span></figcaption>
-        {series.filter(candidate => candidate.metric === group.metric).length > 1 ? <div className="connectivity-quality-provenance">{group.source} · {transportLabel(group.transports)}</div> : null}
-        <svg viewBox="0 0 1000 80" preserveAspectRatio="none" role="group" aria-label={`${group.metric} (${group.unit}) · ${group.source}`}>
+        <figcaption><strong>{group.metric}</strong><span className={`connectivity-quality-value${sample && categorical ? ` connectivity-quality-value--${sample.label}` : ''}`}>{sample ? qualityLabel(sample.label) : 'Unknown at playhead'}</span></figcaption>
+        <div className="connectivity-quality-provenance">{transportLabel(group.transports) || 'Transport not reported'} · {group.source === 'apple.nwpath' ? 'Apple network status' : group.source}</div>
+        <div className="connectivity-quality-window">Window {timeLabel(fromMs, sessionStartMs)}–{timeLabel(toMs, sessionStartMs)}</div>
+        {sample && atMs != null ? <p className="connectivity-quality-reading">
+          Last measured <strong>{ageLabel(atMs - sample.time)}</strong> before the playhead
+          <button type="button" onClick={() => onSeek(Math.max(sessionStartMs, sample.time))}>Go to reading · {timeLabel(sample.time, sessionStartMs)}</button>
+        </p> : null}
+        <p className="connectivity-quality-summary">{summary.readings.length === 0
+          ? `No new readings in this window.${sample ? ' The last reported value is carried forward.' : ''}`
+          : `${summary.readings.length} ${summary.readings.length === 1 ? 'reading' : 'readings'} in this window.${summary.hasVariation ? '' : summary.readings.length === 1 ? ' One reading cannot show a trend.' : ' All reported the same value.'}`}</p>
+        {summary.hasVariation ? <>
+        <div className="connectivity-quality-plot">
+        <div className="connectivity-quality-axis" aria-hidden="true">{(categorical ? ['Good', 'Moderate', 'Minimal'] : [max, (min + max) / 2, min].map(value => `${Number(value.toFixed(1))} ${group.unit}`)).map(label => <span key={label}>{label}</span>)}</div>
+        <div className="connectivity-quality-graph">
+        <svg viewBox="0 0 1000 72" preserveAspectRatio="none" role="group" aria-label={`${group.metric} (${group.unit}) · ${group.source}`}>
           {[12, 36, 60].map(y => <line key={y} x1="0" x2="1000" y1={y} y2={y} className="connectivity-quality-grid" />)}
-          {group.points.map(point => {
-            const x = 1000 * (point.time - fromMs) / Math.max(1, toMs - fromMs)
-            const y = max === min ? 36 : 60 - 48 * (point.value - min) / (max - min)
+          <path d={line} className="connectivity-quality-line" vectorEffect="non-scaling-stroke" />
+          {group.points.filter(point => point.time >= fromMs && point.time <= toMs).map(point => {
+            const x = xAt(point.time)
+            const y = yAt(point.value)
             const title = `${point.label} · ${timeLabel(point.time, sessionStartMs)} · ${new Date(point.time).toISOString()} · ${group.source} · age at observation ${Math.max(0, (point.capturedAtMs - point.time) / 1000).toFixed(1)} s`
             return <circle key={`${point.id}-${point.time}`} cx={x} cy={y} r="4" className={categorical ? `connectivity-quality-point--${point.label}` : undefined} tabIndex={0} role="button" aria-label={title}
               onClick={() => onSeek(point.time)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSeek(point.time) } }}><title>{title}</title></circle>
           })}
-          {atMs != null && atMs >= fromMs && atMs <= toMs ? <line x1={1000 * (atMs - fromMs) / Math.max(1, toMs - fromMs)} x2={1000 * (atMs - fromMs) / Math.max(1, toMs - fromMs)} y1="0" y2="70" className="connectivity-quality-cursor" /> : null}
-          <text x="0" y="79">{timeLabel(fromMs, sessionStartMs)}</text><text x="1000" y="79" textAnchor="end">{timeLabel(toMs, sessionStartMs)}</text>
+          {atMs != null && atMs >= fromMs && atMs <= toMs ? <line x1={xAt(atMs)} x2={xAt(atMs)} y1="0" y2="70" className="connectivity-quality-cursor" /> : null}
         </svg>
-        <div className="connectivity-quality-scale">{categorical ? 'Minimal → moderate → good' : `${min} – ${max} ${group.unit}`}</div>
+        <div className="connectivity-quality-times"><span>{timeLabel(fromMs, sessionStartMs)}</span><span>{timeLabel(toMs, sessionStartMs)}</span></div>
+        </div>
+        </div>
+        <p className="connectivity-quality-summary">Dots mark readings; the line carries the last value forward between them.</p>
+        </> : null}
+        {summary.gaps.length ? <div className="connectivity-quality-gaps"><span>No reading from this source:</span> {summary.gaps.slice(0, 3).map(gap => <button key={gap.fromMs} type="button" onClick={() => onSeek(gap.fromMs)}>{timeLabel(gap.fromMs, sessionStartMs, gap.toMs - gap.fromMs < 1000 ? 3 : 1)}–{timeLabel(gap.toMs, sessionStartMs, gap.toMs - gap.fromMs < 1000 ? 3 : 1)}</button>)}{summary.gaps.length > 3 ? <span>and {summary.gaps.length - 3} more gaps</span> : null}</div> : null}
+        {categorical ? <p className="connectivity-quality-explanation">A broad OS assessment of the connection. It does not measure signal strength, request latency, or transfer speed.</p> : null}
       </figure>
     })}
   </div>
