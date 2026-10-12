@@ -1282,7 +1282,6 @@ export function LocalReplayApp() {
                 await updateGettingStarted(action)
               }}
               onClose={() => setShowGettingStarted(false)}
-              onOpenApps={() => { setShowGettingStarted(false); setActivePanel('apps') }}
               onOpenSession={openGettingStartedSession}
             />
           ) : (!bootstrap || isSessionsLoading) && !message ? (
