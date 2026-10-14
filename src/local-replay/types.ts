@@ -1128,6 +1128,7 @@ export type LocalTestHistoryInspection = {
 }
 
 export type LocalSessionSummary = {
+  customProperties?: Record<string, Record<string, unknown>> | null
   sessionId: string
   appId: string
   appName?: string | null

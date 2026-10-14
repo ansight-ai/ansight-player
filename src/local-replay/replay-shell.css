@@ -2233,6 +2233,16 @@ button.local-runner-status:hover {
   white-space: nowrap;
 }
 
+.local-session-card-app {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.local-session-card-meta:has(.session-ui-test-badge) { flex-wrap: wrap; }
+
 .local-live-badge {
   flex: none;
   gap: 4px;
@@ -2265,7 +2275,7 @@ button.local-runner-status:hover {
   gap: 10px;
 }
 
-.local-session-card-meta > span {
+.local-session-card-meta > span:not(.session-ui-test-badge) {
   gap: 3px;
   color: var(--text-muted);
   font-size: 9.5px;

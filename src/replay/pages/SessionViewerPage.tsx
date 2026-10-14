@@ -1,4 +1,6 @@
 import { ConnectivityPanel } from '../ConnectivityPanel'
+import { readSessionUiTest } from '../sessionUiTest'
+import { SessionUiTestBadge } from '../components/SessionUiTestBadge'
 import { connectivityFromEvents, type ConnectivityWindow } from '../connectivity'
 import { loadSessionConnectivity, loadSessionNetworkRequests } from '../sessionViewerData'
 import { NetworkPerformancePanel, NetworkPerformanceDetails } from '../NetworkPerformancePanel'
@@ -2286,7 +2288,8 @@ export function SessionViewerPage({
   }
 
   const session = payload.session
-  const sessionTitle = session.title || captureSession.clientName || captureSession.sessionId || 'Shared session'
+  const sessionTest = readSessionUiTest(captureSession.customProperties)
+  const sessionTitle = sessionTest?.testName || session.title || captureSession.clientName || captureSession.sessionId || 'Shared session'
   const sessionNotes = session.description || captureSession.notes || ''
   const sessionAuthor = resolveSessionAuthorText(session, captureSession)
   const isArchivedSession = !!session.archived_at
@@ -2579,7 +2582,8 @@ export function SessionViewerPage({
         <div className="session-heading-row">
           <div className="session-title-block">
             <p className="eyebrow">Session</p>
-            <h1>{sessionTitle}</h1>
+            <div className="session-ui-test-heading"><h1>{sessionTitle}</h1><SessionUiTestBadge test={sessionTest} /></div>
+            {sessionTest ? <span>{captureSession.clientName || captureSession.appId}</span> : null}
             <CopyTextButton className="session-id-copy" label={sessionId} text={sessionId} />
             <GithubRepositoryBadge />
           </div>
@@ -3438,7 +3442,8 @@ function SessionInfoModal({
     }
   }, [loadStorageBreakdown, storageSessionId])
 
-  const title = session.title || captureSession.clientName || captureSession.sessionId || 'Session Info'
+  const title = readSessionUiTest(captureSession.customProperties)?.testName
+    || session.title || captureSession.clientName || captureSession.sessionId || 'Session Info'
 
   async function optimizeSession() {
     if (!onOptimizeSession) {

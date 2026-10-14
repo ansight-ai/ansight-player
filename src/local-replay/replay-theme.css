@@ -510,7 +510,7 @@
   font-weight: 600;
 }
 
-.local-replay-root .local-session-card-meta > span {
+.local-replay-root .local-session-card-meta > span:not(.session-ui-test-badge) {
   color: var(--rp-muted);
   font-family: var(--font-mono);
   font-size: 11px;

@@ -4,6 +4,8 @@ import { createPortal } from 'react-dom'
 import { SessionFilterModal } from './SessionFilterModal'
 import { SessionIcon } from './SessionIcon'
 import { SessionDeviceBadge } from './SessionDeviceBadge'
+import { readSessionUiTest, sessionDisplayTitle } from '../replay/sessionUiTest'
+import { SessionUiTestBadge } from '../replay/components/SessionUiTestBadge'
 import { emptySessionFilters, hasSessionFilters, matchesSessionFilters, type SessionFilters } from './sessionFilters'
 import { addSessionRange } from './sessionSelection'
 import type { LocalSessionSummary } from './types'
@@ -57,6 +59,10 @@ export function SessionExplorer({
       session.appName,
       session.appId,
       session.sessionId,
+      readSessionUiTest(session.customProperties)?.testName,
+      readSessionUiTest(session.customProperties)?.testId,
+      readSessionUiTest(session.customProperties)?.runId,
+      readSessionUiTest(session.customProperties)?.batchRunId,
       ...session.tags,
     ].some((value) => value?.toLowerCase().includes(normalized))))
     return [...matchingSessions].sort((left, right) => Number(right.isPinned) - Number(left.isPinned))
@@ -226,7 +232,8 @@ export function SessionExplorer({
                 {group.sessions.map((session) => {
                   const isSelected = session.sessionId === selectedSessionId
                   const isBulkSelected = selectedSessionIds.has(session.sessionId)
-                  const sessionTitle = session.name?.trim() || session.appName?.trim() || session.clientName?.trim() || session.appId
+                  const sessionTitle = sessionDisplayTitle(session)
+                  const uiTest = readSessionUiTest(session.customProperties)
                   const isPinning = pinningSessionIds.has(session.sessionId)
                   return (
                     <article
@@ -262,7 +269,9 @@ export function SessionExplorer({
                               <span className="local-live-badge"><i />Live</span>
                             ) : null}
                           </span>
+                          {uiTest ? <span className="local-session-card-app">{session.appName || session.clientName || session.appId}</span> : null}
                           <span className="local-session-card-meta">
+                            <SessionUiTestBadge test={uiTest} />
                             <span><Clock aria-hidden="true" />{formatSessionDuration(session)}</span>
                             <SessionDeviceBadge isSimulatorOrEmulator={session.isSimulatorOrEmulator} platform={session.runtimePlatform} />
                           </span>

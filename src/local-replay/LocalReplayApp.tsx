@@ -4,6 +4,8 @@ import { ArrowClockwise, Check, Copy, DownloadSimple, Archive, CaretDown, ChartL
 import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type SetStateAction } from 'react'
 import { SessionIcon } from './SessionIcon'
 import { SessionDeviceBadge } from './SessionDeviceBadge'
+import { readSessionUiTest, sessionDisplayTitle } from '../replay/sessionUiTest'
+import { SessionUiTestBadge } from '../replay/components/SessionUiTestBadge'
 import { GithubRepositoryBadge } from '../components/GithubRepositoryBadge'
 import { SessionViewerPage, type SessionReplayPanelContext, type SessionViewerSource, type TimelineEditSelection } from '../replay/pages/SessionViewerPage'
 import { AccountCompanionPanel } from './AccountCompanionPanel'
@@ -494,8 +496,9 @@ export function LocalReplayApp() {
     [selectedSessionId, sessions],
   )
   const refreshKey = selectedSession
-    ? `${selectedSession.lastUpdatedUtc}:${selectedSession.logCount}:${selectedSession.screenshotCount}:${selectedSession.visualTreeSnapshotCount}`
+    ? `${selectedSession.lastUpdatedUtc}:${selectedSession.logCount}:${selectedSession.screenshotCount}:${selectedSession.visualTreeSnapshotCount}:${JSON.stringify(selectedSession.customProperties?.['ui-test'])}`
     : undefined
+  const selectedSessionTest = readSessionUiTest(selectedSession?.customProperties)
   const liveCount = sessions.filter((session) => session.isConnected).length
   const canSwitchLiveView = selectedSession?.isConnected === true
     && selectedSession.isSimulatorOrEmulator
@@ -1127,9 +1130,11 @@ export function LocalReplayApp() {
               </span>
               <span className="local-session-context-title">
                 <span className="local-session-context-name">
-                  <strong>{selectedSession.name || selectedSession.clientName}</strong>
+                  <strong title={sessionDisplayTitle(selectedSession)}>{sessionDisplayTitle(selectedSession)}</strong>
+                  <SessionUiTestBadge test={selectedSessionTest} />
                   <SessionDeviceBadge isSimulatorOrEmulator={selectedSession.isSimulatorOrEmulator} platform={selectedSession.runtimePlatform} />
                 </span>
+                {selectedSessionTest ? <small>{selectedSession.appName || selectedSession.clientName || selectedSession.appId}</small> : null}
                 <span className="local-session-id">
                   <span>{selectedSession.sessionId}</span>
                   <button aria-label="Copy session ID" data-tooltip="Copy session ID" type="button" onClick={() => void copySessionId(selectedSession.sessionId)}>

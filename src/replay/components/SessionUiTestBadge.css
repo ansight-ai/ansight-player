@@ -1,0 +1,23 @@
+.session-ui-test-badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-secondary, #71717a);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.session-ui-test-badge svg { width: 14px; height: 14px; }
+.session-ui-test-badge--running { color: var(--accent, #6366f1); }
+.session-ui-test-badge--passed { color: #16834a; }
+.session-ui-test-badge--failed { color: #d53443; }
+.session-ui-test-badge--cancelled { color: #a56b12; }
+
+.session-ui-test-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.session-ui-test-heading h1 { overflow-wrap: anywhere; }
