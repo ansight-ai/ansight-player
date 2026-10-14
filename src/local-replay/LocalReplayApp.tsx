@@ -1191,8 +1191,11 @@ export function LocalReplayApp() {
                   {hasActiveAppGraphRun ? <i aria-label="Exploration running" /> : null}
                 </button>
               ) : null}
+              <span className="local-session-context-spacer" />
+              {sessionActionError ? <span className="local-session-context-error" role="alert" title={sessionActionError}>{sessionActionError}</span> : null}
               {selectedLinkedTraceRun ? (
                 <button
+                  aria-label="Open linked trace"
                   className={activePanel === 'test_history' && testHistoryInitialRun?.runId === selectedLinkedTraceRun.runId
                     ? 'local-banner-button local-banner-button--active'
                     : 'local-banner-button'}
@@ -1204,8 +1207,6 @@ export function LocalReplayApp() {
                   Trace
                 </button>
               ) : null}
-              <span className="local-session-context-spacer" />
-              {sessionActionError ? <span className="local-session-context-error" role="alert" title={sessionActionError}>{sessionActionError}</span> : null}
               <button className="local-banner-button" disabled={selectedSession.isConnected || exportingSessionId !== null} onClick={() => void exportSession(selectedSession.sessionId)} data-tooltip={selectedSession.isConnected ? 'Finish recording before exporting this session' : 'Export session ZIP to Desktop'} type="button">
                 {exportingSessionId === selectedSession.sessionId ? <CircleNotch className="spin" aria-hidden="true" /> : <DownloadSimple aria-hidden="true" />}
                 {exportingSessionId === selectedSession.sessionId ? 'Exporting…' : 'Export ZIP'}

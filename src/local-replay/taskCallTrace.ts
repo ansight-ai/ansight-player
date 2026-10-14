@@ -100,8 +100,8 @@ export function readTaskCallTrace(toolCall: Partial<Pick<LocalTestToolCallAudit,
     return {
       rows: [],
       message: toolCall.result?.wasTruncated
-        ? 'The saved task result was truncated, so its API calls cannot be read. Rerun with --trace to capture individual call results.'
-        : 'The saved task result could not be read. Rerun with --trace to capture individual call results.',
+        ? 'The saved task result was truncated, so its API calls cannot be read. Rerun without --no-trace to capture individual call results.'
+        : 'The saved task result could not be read. Rerun without --no-trace to capture individual call results.',
     }
   }
 
@@ -110,7 +110,7 @@ export function readTaskCallTrace(toolCall: Partial<Pick<LocalTestToolCallAudit,
     return {
       rows: [],
       message: toolCall.result?.wasTruncated || (isRecord(envelope) && envelope.truncated === true)
-        ? 'The saved task result was truncated, so its API calls cannot be read. Rerun with --trace to capture individual call results.'
+        ? 'The saved task result was truncated, so its API calls cannot be read. Rerun without --no-trace to capture individual call results.'
         : 'No API call results were recorded for this task run.',
     }
   }

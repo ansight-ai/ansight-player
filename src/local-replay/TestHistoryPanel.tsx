@@ -722,7 +722,7 @@ function RunAuditGraph({ audit }: { audit: LocalTestRunAudit }) {
             <span>{audit.tokens.totalTokens.toLocaleString()} tokens · {formatDuration(audit.durationMilliseconds)}</span>
           </div>
         </header>
-        <p>Rerun with <code>--trace</code> to capture model context, tool payloads, App Graph details, and exportable trace data.</p>
+        <p>Rerun without <code>--no-trace</code> to capture model context, tool payloads, App Graph details, and exportable trace data.</p>
       </section>
     )
   }
@@ -954,7 +954,7 @@ function TaskCallPayload({ label, payload }: { label: string, payload?: LocalTes
       {payload ? <>
         {payload.wasTruncated ? <p className="local-task-call-truncated">Truncated · showing {payload.content.length.toLocaleString()} of {payload.originalCharacterCount.toLocaleString()} characters{payload.sha256 ? <span>SHA-256: {payload.sha256}</span> : null}</p> : null}
         <pre>{prettyAuditContent(payload.content) || '(empty payload)'}</pre>
-      </> : <p className="local-task-call-notice">Not recorded in this trace. Rerun with --trace to capture call inputs and outputs.</p>}
+      </> : <p className="local-task-call-notice">Not recorded in this trace. Rerun without --no-trace to capture call inputs and outputs.</p>}
     </section>
   )
 }
