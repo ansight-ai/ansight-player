@@ -1,5 +1,19 @@
 import { isAgentBatch, readTaskBatchReason } from './agentBatch'
 import {
+  buildTestHistoryExecutions,
+  formatStatusLabel,
+  groupTestHistoryExecutions,
+  normalizeRunStatus,
+  summarizeTestHistoryCosts,
+  testHistoryGroupings,
+  testHistoryStatusOrder,
+  workspaceName,
+  type TestHistoryCostedTrace,
+  type TestHistoryExecution,
+  type TestHistoryGrouping,
+  type TestHistoryStatus,
+} from './testHistoryGroups'
+import {
   AppWindow,
   ArrowClockwise,
   ArrowSquareOut,
@@ -46,18 +60,17 @@ type TestHistoryPanelProps = {
   onClose: () => void
 }
 
-type TestHistoryStatus = 'succeeded' | 'failed' | 'running' | 'pending' | 'cancelled' | 'skipped' | 'unknown'
 type TestHistoryStatusFilter = 'all' | TestHistoryStatus
+const groupingStorageKey = 'ansight.testHistory.grouping'
 
-const testHistoryStatusOrder: TestHistoryStatus[] = [
-  'succeeded',
-  'failed',
-  'running',
-  'pending',
-  'cancelled',
-  'skipped',
-  'unknown',
-]
+function readHistoryGrouping(): TestHistoryGrouping {
+  try {
+    const saved = window.localStorage.getItem(groupingStorageKey)
+    return testHistoryGroupings.find((option) => option.value === saved)?.value ?? 'batch'
+  } catch {
+    return 'batch'
+  }
+}
 
 export function TestHistoryPanel({ appId, appName, initialRun, onClose }: TestHistoryPanelProps) {
   const [apps, setApps] = useState<LocalRegisteredApp[]>([])
@@ -70,6 +83,14 @@ export function TestHistoryPanel({ appId, appName, initialRun, onClose }: TestHi
   const [isInspecting, setIsInspecting] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<TestHistoryStatusFilter>('all')
+  const [grouping, setGrouping] = useState<TestHistoryGrouping>(readHistoryGrouping)
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string> | null>(null)
+
+  function changeGrouping(value: TestHistoryGrouping) {
+    setGrouping(value)
+    setCollapsedGroups(null)
+    try { window.localStorage.setItem(groupingStorageKey, value) } catch { /* Grouping also works without storage. */ }
+  }
 
   const loadHistory = useCallback(async () => {
     setIsLoading(true)
@@ -166,7 +187,7 @@ export function TestHistoryPanel({ appId, appName, initialRun, onClose }: TestHi
   const selectedApp = apps.find((candidate) => candidate.appId === selectedAppId)
   const selectedAppName = selectedApp?.name
     ?? (selectedAppId === appId ? appName ?? selectedAppId : null)
-  const historyItems = useMemo(() => buildTestHistoryItems(history, selectedAppId), [history, selectedAppId])
+  const historyItems = useMemo(() => buildTestHistoryExecutions(history, selectedAppId), [history, selectedAppId])
   const statusCounts = useMemo(() => {
     const counts: Record<TestHistoryStatus, number> = {
       succeeded: 0,
@@ -178,24 +199,40 @@ export function TestHistoryPanel({ appId, appName, initialRun, onClose }: TestHi
       unknown: 0,
     }
     historyItems.forEach((item) => {
-      counts[normalizeRunStatus(item.status)] += 1
+      counts[normalizeRunStatus(item.run.status)] += 1
     })
     return counts
   }, [historyItems])
   const filteredHistoryItems = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLocaleLowerCase()
     return historyItems.filter((item) => (
-      (statusFilter === 'all' || normalizeRunStatus(item.status) === statusFilter)
+      (statusFilter === 'all' || normalizeRunStatus(item.run.status) === statusFilter)
       && (!normalizedQuery || item.searchText.toLocaleLowerCase().includes(normalizedQuery))
     ))
   }, [historyItems, searchQuery, statusFilter])
+  const historyGroups = useMemo(() => {
+    const matchingItems = new Set(filteredHistoryItems)
+    return groupTestHistoryExecutions(historyItems, grouping)
+      .map((group) => ({ ...group, totalCount: group.items.length, items: group.items.filter((item) => matchingItems.has(item)) }))
+      .filter((group) => group.items.length > 0)
+  }, [historyItems, filteredHistoryItems, grouping])
   const selectedRun = useMemo(
     () => history?.runs.find((run) => run.runId === selectedRunId)
       ?? (initialRun?.runId === selectedRunId ? initialRun : undefined),
     [history?.runs, initialRun, selectedRunId],
   )
-  const selectedHistoryItem = historyItems.find((item) => item.id === selectedRunId)
-    ?? (selectedRun ? createTestRunHistoryItem(selectedRun) : undefined)
+  const selectedBatch = history?.batches.find((entry) => entry.audit.batchRunId === selectedRunId)?.audit
+  const selectedHistoryItem = selectedBatch ? { title: workspaceName(selectedBatch.workspacePath) }
+    : selectedRun ? { title: selectedRun.displayName } : undefined
+
+  function toggleGroup(id: string) {
+    setCollapsedGroups((current) => {
+      const next = new Set(current ?? (grouping === 'batch' ? historyGroups.slice(1).map((group) => group.id) : []))
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   function showAppsRoot() {
     setSelectedAppId(null)
@@ -204,6 +241,7 @@ export function TestHistoryPanel({ appId, appName, initialRun, onClose }: TestHi
     setMessage(null)
     setSearchQuery('')
     setStatusFilter('all')
+    setCollapsedGroups(null)
   }
 
   function openApp(nextAppId: string) {
@@ -213,6 +251,7 @@ export function TestHistoryPanel({ appId, appName, initialRun, onClose }: TestHi
     setMessage(null)
     setSearchQuery('')
     setStatusFilter('all')
+    setCollapsedGroups(null)
   }
 
   function openRun(runId: string) {
@@ -287,9 +326,16 @@ export function TestHistoryPanel({ appId, appName, initialRun, onClose }: TestHi
                   </button>
                 ))}
               </div>
+              <label className="local-test-history-grouping">
+                <span>Group by</span>
+                <select aria-label="Group test runs by" onChange={(event) => changeGrouping(event.target.value as TestHistoryGrouping)} value={grouping}>
+                  {testHistoryGroupings.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </label>
               <span aria-live="polite" className="local-test-history-result-count">
-                {filteredHistoryItems.length} of {historyItems.length} shown
+                {filteredHistoryItems.length} of {historyItems.length} executions
               </span>
+              <HistoryTraceCostSummary traces={filteredHistoryItems.map((item) => item.run)} />
             </div>
           ) : null}
 
@@ -302,7 +348,7 @@ export function TestHistoryPanel({ appId, appName, initialRun, onClose }: TestHi
           ) : apps.length > 0 ? (
             <div className="local-trends-app-grid" aria-label="Apps with test history">
               {apps.map((candidate) => {
-                const runCount = buildTestHistoryItems(history, candidate.appId).length
+                const runCount = buildTestHistoryExecutions(history, candidate.appId).length
                 return (
                   <button className="local-trends-app" key={candidate.appId} onClick={() => openApp(candidate.appId)} type="button">
                     <span className="local-trends-app-icon" aria-hidden="true">
@@ -344,27 +390,38 @@ export function TestHistoryPanel({ appId, appName, initialRun, onClose }: TestHi
               ) : null}
             </main>
           ) : historyItems.length > 0 && filteredHistoryItems.length > 0 ? (
-            <div className="local-test-history-run-grid" aria-label={`${selectedAppName} test runs`}>
-              {filteredHistoryItems.map((item) => {
-                const status = normalizeRunStatus(item.status)
+            <div className="local-test-history-groups" aria-label={`${selectedAppName} test runs`}>
+              {grouping !== 'none' ? <div className="local-test-history-group-actions">
+                <span>{historyGroups.length} group{historyGroups.length === 1 ? '' : 's'}</span>
+                <button onClick={() => setCollapsedGroups(new Set())} type="button">Expand all</button>
+                <button onClick={() => setCollapsedGroups(new Set(historyGroups.map((group) => group.id)))} type="button">Collapse all</button>
+              </div> : null}
+              {historyGroups.map((group, index) => {
+                const expanded = !(collapsedGroups?.has(group.id) ?? (grouping === 'batch' && index > 0))
+                const contentId = `test-history-group-${encodeURIComponent(group.id)}`
                 return (
-                  <button
-                    className={`local-test-history-run-card local-test-history-run-card--${status}`}
-                    key={item.id}
-                    onClick={() => openRun(item.id)}
-                    type="button"
-                  >
-                    <span className="local-test-history-run-outcome">
-                      <StatusIcon status={status} />
-                      <strong>{formatStatusLabel(status)}</strong>
-                    </span>
-                    <span className="local-test-history-run-copy">
-                      <small>{item.kind === 'batch' ? 'Run All batch' : 'Test execution'}</small>
-                      <strong>{item.title}</strong>
-                      <span>{formatDate(item.startedUtc)} · {item.detail}</span>
-                    </span>
-                    <CaretRight aria-hidden="true" />
-                  </button>
+                  <section aria-label={group.title} className={grouping === 'none' ? 'local-test-history-group--flat' : 'local-test-history-group'} key={`${grouping}:${group.id}`}>
+                    {grouping !== 'none' ? <header className="local-test-history-group-heading">
+                      <button aria-controls={contentId} aria-expanded={expanded} className="local-test-history-group-toggle" onClick={() => toggleGroup(group.id)} type="button">
+                        <CaretRight aria-hidden="true" />
+                        <span className="local-test-history-group-copy">
+                          <strong>{group.title}</strong>
+                          {group.batch ? <span>{formatDate(group.batch.startedUtc)}</span> : null}
+                          {group.subtitle ? <small title={group.subtitle}>{group.subtitle}</small> : null}
+                        </span>
+                        <span className="local-test-history-group-count">{group.items.length === group.totalCount ? group.totalCount : `${group.items.length} of ${group.totalCount}`} execution{group.totalCount === 1 ? '' : 's'}</span>
+                      </button>
+                      <div className="local-test-history-group-meta">
+                        {group.batch ? <StatusBadge status={group.batch.status} /> : null}
+                        <HistoryOutcomeSummary items={group.items} />
+                        <HistoryTraceCostSummary traces={group.items.map((item) => item.run)} />
+                        {group.batch ? <button className="local-test-history-view-batch" onClick={() => openRun(group.batch!.batchRunId)} type="button">View batch <CaretRight aria-hidden="true" /></button> : null}
+                      </div>
+                    </header> : null}
+                    <div className="local-test-history-run-grid" hidden={grouping !== 'none' && !expanded} id={contentId}>
+                      {group.items.map((item) => <HistoryRunCard item={item} key={item.id} onOpen={() => openRun(item.inspectionRunId)} showBatch={grouping !== 'batch'} />)}
+                    </div>
+                  </section>
                 )
               })}
             </div>
@@ -391,14 +448,43 @@ export function TestHistoryPanel({ appId, appName, initialRun, onClose }: TestHi
   )
 }
 
-type TestHistoryItem = {
-  id: string
-  kind: 'batch' | 'run'
-  title: string
-  status: string
-  startedUtc: string
-  detail: string
-  searchText: string
+function HistoryTraceCostSummary({ traces }: { traces: TestHistoryCostedTrace[] }) {
+  const summary = summarizeTestHistoryCosts(traces)
+  if (summary.pricedCount === 0) return null
+  return <div aria-label="Recorded trace cost" className="local-test-history-cost-summary">
+    <span>Trace cost</span>
+    <strong>{summary.totals.map((cost) => formatCalculatedRunCost(cost, 'code')).join(' + ')}</strong>
+    <small>{summary.pricedCount} of {summary.totalCount} execution{summary.totalCount === 1 ? '' : 's'} costed</small>
+  </div>
+}
+
+function HistoryOutcomeSummary({ items }: { items: TestHistoryExecution[] }) {
+  return <span className="local-test-history-group-outcomes">
+    {testHistoryStatusOrder.map((status) => {
+      const count = items.filter((item) => normalizeRunStatus(item.run.status) === status).length
+      return count > 0 ? <span key={status} title={`${count} ${formatStatusLabel(status).toLowerCase()}`}><StatusIcon status={status} /><span>{count} {formatStatusLabel(status)}</span></span> : null
+    })}
+  </span>
+}
+
+function HistoryRunCard({ item, onOpen, showBatch }: { item: TestHistoryExecution, onOpen: () => void, showBatch: boolean }) {
+  const { run } = item
+  const status = normalizeRunStatus(run.status)
+  const cost = run.calculatedCost ? ` · ${formatCalculatedRunCost(run.calculatedCost)}` : ''
+  return <button className={`local-test-history-run-card local-test-history-run-card--${status}`} onClick={onOpen} type="button">
+    <span className="local-test-history-run-outcome">
+      <StatusIcon status={status} />
+      <strong>{formatStatusLabel(status)}</strong>
+    </span>
+    <span className="local-test-history-run-copy">
+      <small>{run.batchRunId ? 'Batch test' : 'Test execution'}{item.batchIndex != null ? ` · ${item.batchIndex}` : ''}</small>
+      <strong title={run.displayName}>{run.displayName}</strong>
+      <span>{formatDate(run.startedUtc)} · {run.executionKind === 'task' ? 'Deterministic task' : `${run.totalTokens.toLocaleString()} tokens`} · {formatDuration(run.durationMilliseconds)}{cost}</span>
+      {showBatch && run.batchRunId ? <span title={run.batchRunId}>Batch · {run.batchRunId}</span> : null}
+      {item.batch && item.inspectionRunId === item.batch.batchRunId ? <span>View details in batch</span> : null}
+    </span>
+    <CaretRight aria-hidden="true" />
+  </button>
 }
 
 function resolveTestHistoryAppIds(history: LocalTestHistory) {
@@ -406,77 +492,6 @@ function resolveTestHistoryAppIds(history: LocalTestHistory) {
     ...history.batches.flatMap((entry) => entry.audit.tests.map((test) => test.appId.toLowerCase())),
     ...history.runs.flatMap((run) => run.appId ? [run.appId.toLowerCase()] : []),
   ])
-}
-
-function buildTestHistoryItems(history: LocalTestHistory | null, appId?: string | null): TestHistoryItem[] {
-  if (!history) {
-    return []
-  }
-  const normalizedAppId = appId?.toLowerCase()
-  const batches = history.batches.flatMap((entry): TestHistoryItem[] => {
-    const matchingTests = normalizedAppId
-      ? entry.audit.tests.filter((test) => test.appId.toLowerCase() === normalizedAppId)
-      : entry.audit.tests
-    if (matchingTests.length === 0) {
-      return []
-    }
-    return [{
-      id: entry.audit.batchRunId,
-      kind: 'batch',
-      title: workspaceName(entry.audit.workspacePath),
-      status: entry.audit.status,
-      startedUtc: entry.audit.startedUtc,
-      detail: `${matchingTests.length} test${matchingTests.length === 1 ? '' : 's'} · ${matchingTests.reduce((total, test) => total + test.totalTokens, 0).toLocaleString()} tokens`,
-      searchText: [
-        entry.audit.batchRunId,
-        entry.audit.workspacePath,
-        entry.audit.status,
-        entry.audit.message,
-        ...matchingTests.flatMap((test) => [
-          test.testId,
-          test.testName,
-          test.appId,
-          test.status,
-          test.message,
-          test.agentRunId,
-          test.taskRunId,
-          test.sessionId,
-        ]),
-      ].filter(Boolean).join(' '),
-    }]
-  })
-  const runs = history.runs.flatMap((run): TestHistoryItem[] => {
-    if (run.batchRunId || (normalizedAppId && run.appId?.toLowerCase() !== normalizedAppId)) {
-      return []
-    }
-    return [createTestRunHistoryItem(run)]
-  })
-  return [...batches, ...runs].sort((left, right) => Date.parse(right.startedUtc) - Date.parse(left.startedUtc))
-}
-
-function createTestRunHistoryItem(run: LocalTestRunSummary): TestHistoryItem {
-  const cost = run.calculatedCost ? ` · ${formatCalculatedRunCost(run.calculatedCost)}` : ''
-  return {
-    id: run.runId,
-    kind: 'run',
-    title: run.displayName,
-    status: run.status,
-    startedUtc: run.startedUtc,
-    detail: `${run.executionKind === 'task' ? 'Deterministic task' : `${run.totalTokens.toLocaleString()} tokens`} · ${formatDuration(run.durationMilliseconds)}${cost}`,
-    searchText: [
-      run.runId,
-      run.workspacePath,
-      run.testId,
-      run.testName,
-      run.displayName,
-      run.appId,
-      run.sessionId,
-      run.reasoning,
-      run.status,
-      run.message,
-      run.filePath,
-    ].filter(Boolean).join(' '),
-  }
 }
 
 function InspectionDetail({
@@ -511,6 +526,10 @@ function InspectionDetail({
           <Metric label="Skipped" value={batch.skippedCount} />
           <Metric label="Tokens" value={batch.totalTokens.toLocaleString()} />
         </div>
+        <HistoryTraceCostSummary traces={batch.tests.map((test) => {
+          const runId = test.taskRunId || test.agentRunId || `${batch.batchRunId}:${test.index}:${test.testId}`
+          return { runId, calculatedCost: runsById.get(runId)?.calculatedCost }
+        })} />
         <dl className="local-test-history-metadata">
           <div><dt>Workspace</dt><dd>{batch.workspacePath}</dd></div>
           <div><dt>Window</dt><dd>{formatDate(batch.startedUtc)} → {batch.completedUtc ? formatDate(batch.completedUtc) : 'Running'}</dd></div>
@@ -1843,52 +1862,6 @@ function StatusIcon({ status }: { status: string }) {
   }
 }
 
-function normalizeRunStatus(status: string | number): TestHistoryStatus {
-  if (typeof status === 'string') {
-    switch (status.trim().toLocaleLowerCase().replace(/[\s_-]+/g, '')) {
-      case 'succeeded':
-      case 'success':
-      case 'passed':
-      case 'complete':
-      case 'completed':
-        return 'succeeded'
-      case 'failed':
-      case 'failure':
-      case 'error':
-        return 'failed'
-      case 'running':
-      case 'inprogress':
-      case 'starting':
-        return 'running'
-      case 'pending':
-      case 'queued':
-        return 'pending'
-      case 'cancelled':
-      case 'canceled':
-        return 'cancelled'
-      case 'skipped':
-        return 'skipped'
-      default:
-        return 'unknown'
-    }
-  }
-  switch (status) {
-    case 0: return 'succeeded'
-    case 1: return 'failed'
-    case 2: return 'cancelled'
-    default: return 'unknown'
-  }
-}
-
-function formatStatusLabel(status: TestHistoryStatus): string {
-  return status === 'unknown' ? 'Indeterminate' : `${status[0].toLocaleUpperCase()}${status.slice(1)}`
-}
-
-function workspaceName(path: string): string {
-  const segments = path.replace(/[\\/]+$/, '').split(/[\\/]/)
-  return segments.at(-1) || path
-}
-
 function instructionTitle(instruction?: string): string {
   const normalized = (instruction ?? '')
     .trim()
@@ -1918,7 +1891,7 @@ function formatDuration(milliseconds: number): string {
   return seconds >= 60 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${seconds}s`
 }
 
-function formatCalculatedRunCost(cost: { costMicros?: number | null, customerCostMicros?: number | null, currency: string }): string {
+function formatCalculatedRunCost(cost: { costMicros?: number | null, customerCostMicros?: number | null, currency: string }, currencyDisplay: 'symbol' | 'code' = 'symbol'): string {
   const micros = cost.costMicros ?? cost.customerCostMicros
   if (micros == null) return 'Unavailable'
   const amount = micros / 1_000_000
@@ -1927,6 +1900,7 @@ function formatCalculatedRunCost(cost: { costMicros?: number | null, customerCos
     return new Intl.NumberFormat(undefined, {
       style: 'currency',
       currency,
+      currencyDisplay,
       minimumFractionDigits: amount < 0.01 ? 6 : 2,
       maximumFractionDigits: 6,
     }).format(amount)
