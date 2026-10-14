@@ -1,3 +1,4 @@
+import { isAgentBatch, readTaskBatchReason } from './agentBatch'
 import {
   AppWindow,
   ArrowClockwise,
@@ -645,7 +646,7 @@ type AuditGraphNode = {
   elapsedMilliseconds: number
   tokenDelta: number
   cumulativeTokens: number
-  isError: boolean
+  status?: TestHistoryStatus
   details: AuditGraphDetail[]
   helpText?: string
   batch?: { number: number, stepIndex?: number | null, stepCount?: number | null, parentNodeId?: string }
@@ -772,12 +773,15 @@ function TraceNodeGraph({ nodes, selectedNodeId, onSelectNode }: {
               <button
                 aria-pressed={selectedNodeId === node.id}
                 aria-description={node.helpText}
-                className={`local-test-trace-node local-test-trace-node--${node.kind}${node.isError ? ' local-test-trace-node--error' : ''}`}
+                className={`local-test-trace-node local-test-trace-node--${node.kind}${node.status === 'failed' ? ' local-test-trace-node--error' : ''}`}
                 onClick={() => onSelectNode(node.id)}
                 title={node.helpText}
                 type="button"
               >
-                <span className="local-test-trace-node-badges"><span className="local-test-trace-node-kind">{graphKindLabel(node.kind)}</span><TraceBatchBadge batch={node.batch} /></span>
+                <span className="local-test-trace-node-heading">
+                  <span className="local-test-trace-node-badges"><span className="local-test-trace-node-kind">{graphKindLabel(node.kind)}</span><TraceBatchBadge batch={node.batch} /></span>
+                  <TraceNodeOutcome status={node.status} />
+                </span>
                 <span className="local-test-trace-title"><strong>{node.title}</strong>{node.helpText ? <Info aria-hidden="true" size={13} /> : null}</span>
                 <small>{node.subtitle}</small>
                 <span className="local-test-trace-node-stats">
@@ -794,6 +798,13 @@ function TraceNodeGraph({ nodes, selectedNodeId, onSelectNode }: {
       </div>
     </>
   )
+}
+
+function TraceNodeOutcome({ status }: { status: AuditGraphNode['status'] }) {
+  if (status !== 'succeeded' && status !== 'failed') return null
+  const label = status === 'succeeded' ? 'Passed' : 'Failed'
+  const Icon = status === 'succeeded' ? CheckCircle : XCircle
+  return <span aria-label={label} className={`local-test-trace-node-outcome local-test-trace-node-outcome--${status}`} role="img" title={label}><Icon aria-hidden="true" size={16} weight="fill" /></span>
 }
 
 function TraceBatchBadge({ batch }: { batch: AuditGraphNode['batch'] }) {
@@ -1491,7 +1502,6 @@ function buildAuditGraphNodes(audit: LocalTestRunAudit): AuditGraphNode[] {
     elapsedMilliseconds: 0,
     tokenDelta: 0,
     cumulativeTokens: 0,
-    isError: false,
     details: [
       { label: 'Requested instructions', value: JSON.stringify(requestedInstructions, null, 2), code: true },
       { label: 'Session and environment', value: JSON.stringify({ sessionId: audit.sessionId, appId: audit.appId, environment: audit.environment }, null, 2), code: true },
@@ -1526,7 +1536,6 @@ function buildAuditGraphNodes(audit: LocalTestRunAudit): AuditGraphNode[] {
     elapsedMilliseconds: 0,
     tokenDelta: 0,
     cumulativeTokens: 0,
-    isError: false,
     details: appGraphPlans.length > 0
       ? appGraphPlans.map(appGraphDetail)
       : [{
@@ -1547,7 +1556,7 @@ function buildAuditGraphNodes(audit: LocalTestRunAudit): AuditGraphNode[] {
     || left.sequence - right.sequence)
 
   const batchNumbers = new Map<string, number>()
-  const batchParents = new Map(audit.toolCalls.filter((call) => call.toolName === 'ansight_run_ui_batch').map((call) => [call.callId, call]))
+  const batchParents = new Map(audit.toolCalls.filter((call) => isAgentBatch(call.toolName)).map((call) => [call.callId, call]))
   let cumulativeTokens = 0
   for (const event of events) {
     if (event.type === 'model') {
@@ -1560,7 +1569,7 @@ function buildAuditGraphNodes(audit: LocalTestRunAudit): AuditGraphNode[] {
 
     const call = event.call
     const node = toolCallNode(call, startedMilliseconds, cumulativeTokens)
-    const batchId = call.batchCallId || (call.toolName === 'ansight_run_ui_batch' ? call.callId : null)
+    const batchId = call.batchCallId || (isAgentBatch(call.toolName) ? call.callId : null)
     if (batchId) {
       if (!batchNumbers.has(batchId)) batchNumbers.set(batchId, batchNumbers.size + 1)
       const parent = batchParents.get(batchId)
@@ -1583,7 +1592,7 @@ function buildAuditGraphNodes(audit: LocalTestRunAudit): AuditGraphNode[] {
     elapsedMilliseconds: audit.durationMilliseconds,
     tokenDelta: 0,
     cumulativeTokens: audit.tokens.totalTokens,
-    isError: normalizeRunStatus(audit.status) !== 'succeeded',
+    status: normalizeRunStatus(audit.status),
     details: [
       { label: 'Instruction outcomes', value: JSON.stringify(audit.instructions, null, 2), code: true },
       { label: 'Run token usage', value: JSON.stringify(audit.tokens, null, 2), code: true },
@@ -1632,7 +1641,7 @@ function modelPassNode(
     elapsedMilliseconds,
     tokenDelta: pass.tokens.totalTokens,
     cumulativeTokens,
-    isError: !pass.succeeded,
+    status: pass.succeeded ? 'succeeded' : 'failed',
     details,
   }
 }
@@ -1656,6 +1665,8 @@ function toolCallNode(
     payloadDetail('Arguments', call.arguments),
     payloadDetail('Result', call.result),
   ]
+  const batchReason = readTaskBatchReason(call.toolName, call.arguments?.content)
+  if (batchReason) details.unshift({ label: 'Why these tasks were batched', value: batchReason })
   if (taskChoice?.evidence) details.unshift({ label: 'Why this choice', value: taskChoice.evidence })
   if (taskChoice?.nextStep) details.unshift({ label: taskChoice.canUseAppControls ? 'Next step' : 'Proposed next step', value: taskChoice.nextStep })
   if (call.ocrEvidence) {
@@ -1707,7 +1718,7 @@ function toolCallNode(
     elapsedMilliseconds: elapsedAtEnd(runStartedMilliseconds, call.startedUtc, call.durationMilliseconds),
     tokenDelta: 0,
     cumulativeTokens,
-    isError: call.isError,
+    status: call.isError ? 'failed' : 'succeeded',
     details,
     helpText: taskChoice ? taskChoiceHelp : undefined,
     ocrEvidence: call.ocrEvidence,
@@ -1749,7 +1760,7 @@ function toolCallKind(toolName: string): AuditGraphNodeKind {
   if (toolName === taskChoiceToolName) return 'decision'
   if (toolName === 'ansight_list_tasks') return 'discovery'
   if (toolName === 'ansight_run_task') return 'task'
-  if (toolName === 'ansight_run_ui_batch') return 'batch'
+  if (isAgentBatch(toolName)) return 'batch'
   if (/(_ui|screenshot|visual_tree|simulator|tap|swipe|type_text)/i.test(toolName)) return 'ui'
   return 'tool'
 }
@@ -1773,6 +1784,7 @@ function readableToolName(toolName: string): string {
   if (toolName === taskChoiceToolName) return taskChoiceTitle
   if (toolName === 'ansight_list_tasks') return 'Find saved automation scripts'
   if (toolName === 'ansight_run_ui_batch') return 'UI batch result'
+  if (toolName === 'ansight_run_task_batch') return 'Task batch result'
   return toolName.replace(/^ansight_/, '').replaceAll('_', ' ')
 }
 

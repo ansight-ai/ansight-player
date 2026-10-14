@@ -6000,6 +6000,17 @@ button.local-runner-status:hover {
 
 .local-test-trace-node--error { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 72%, transparent); }
 
+.local-test-trace-node-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+}
+.local-test-trace-node-heading > .local-test-trace-node-badges { min-width: 0; }
+.local-test-trace-node-outcome { display: inline-flex; flex: none; }
+.local-test-trace-node-outcome--succeeded { color: var(--success); }
+.local-test-trace-node-outcome--failed { color: var(--danger); }
+
 .local-test-trace-node-badges { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .local-test-trace-batch-badge {
   display: inline-flex;

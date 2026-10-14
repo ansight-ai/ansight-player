@@ -1,3 +1,4 @@
+import { isAgentBatch } from './agentBatch'
 import { ChartBar, CircleNotch, Stop, X } from '@phosphor-icons/react'
 import { useCallback, useLayoutEffect, useRef } from 'react'
 import type { LocalTestExecution, LocalTestExecutionProgress } from './types'
@@ -83,14 +84,14 @@ function draftRunProgressKind(step: LocalTestExecutionProgress): DraftRunProgres
   const stage = step.stage.toLowerCase()
   if (stage === 'thinking' || stage === 'modelcompleted') return 'model'
   if (stage === 'callingtool' || stage === 'toolcompleted') {
-    if (/^(Completed all \d+ batch steps|Batch stopped after)/.test(step.message)) return 'batch'
+    if (/^(Completed all \d+ batch steps|Batch stopped after|Task batch cooldown:)/.test(step.message)) return 'batch'
     if (/^(Choosing how to continue|Task choice|Decision):/.test(step.message)) return 'decision'
     const toolName = /^Calling ([\w]+) with\b/.exec(step.message)?.[1]
       ?? /^([\w]+) (?:completed in|failed after)\b/.exec(step.message)?.[1]
     if (toolName === 'ansight_declare_uncovered_step') return 'decision'
     if (toolName === 'ansight_list_tasks') return 'discovery'
     if (toolName === 'ansight_run_task') return 'task'
-    if (toolName === 'ansight_run_ui_batch') return 'batch'
+    if (toolName && isAgentBatch(toolName)) return 'batch'
     if (toolName && /(_ui|screenshot|visual_tree|simulator|tap|swipe|type_text)/i.test(toolName)) return 'ui'
     return 'tool'
   }
