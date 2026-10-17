@@ -63,7 +63,7 @@ import {
 } from '@phosphor-icons/react'
 import { SdkCapabilityNotice, SdkTouchCaptureNotice, type SdkCapabilityFeature } from '../components/SdkCapabilityNotice'
 import type { CSSProperties, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent, ReactNode, RefObject } from 'react'
-import { memo, startTransition, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { memo, startTransition, useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useState } from 'react'
 import { VirtualizedLogList } from '../components/VirtualizedLogList'
 import type { SessionOperationProgress } from '../../local-replay/sessionOperationStream'
 import ReactMarkdown from 'react-markdown'
@@ -771,6 +771,7 @@ export function SessionViewerPage({
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null)
   const [selectedVisualTreeSnapshotKey, setSelectedVisualTreeSnapshotKey] = useState<string | null>(null)
   const [selectedArtifactSnapshotKey, setSelectedArtifactSnapshotKey] = useState<string | null>(null)
+  const [artifactOpenRequest, setArtifactOpenRequest] = useState<{ snapshotKey: string } | null>(null)
   const [internalSessionInfoOpen, setInternalSessionInfoOpen] = useState(false)
   const [internalSessionInfoAiKind, setInternalSessionInfoAiKind] = useState<SessionAiExtractionKind | null>(null)
   const sessionInfoAiKind = aiViewKind === undefined ? internalSessionInfoAiKind : aiViewKind
@@ -2496,7 +2497,9 @@ export function SessionViewerPage({
 
   function handleSelectArtifactSnapshot(snapshot: SessionArtifactSnapshot) {
     const snapshotIndex = artifactSnapshots.indexOf(snapshot)
-    setSelectedArtifactSnapshotKey(resolveArtifactSnapshotKey(snapshot, snapshotIndex))
+    const snapshotKey = resolveArtifactSnapshotKey(snapshot, snapshotIndex)
+    setSelectedArtifactSnapshotKey(snapshotKey)
+    setArtifactOpenRequest({ snapshotKey })
     setSelectedVisualTreeSnapshotKey(null)
     setVisualTreeOverlay(null)
     const timestampMs = toTimestamp(snapshot.capturedAtUtc)
@@ -2888,6 +2891,7 @@ export function SessionViewerPage({
             artifactComparison={source.artifactComparison}
             artifactDownloadCommand={artifactDownloadCommand}
             onSelectSnapshot={handleSelectArtifactSnapshot}
+            openRequest={artifactOpenRequest}
             queryArtifactDatabase={source.queryArtifactDatabase}
             readArtifactFile={artifactFileReader}
             selectedArtifactSnapshot={selectedArtifactSnapshot}
@@ -2901,6 +2905,7 @@ export function SessionViewerPage({
             artifactComparison={source.artifactComparison}
             artifactDownloadCommand={artifactDownloadCommand}
             onSelectSnapshot={handleSelectArtifactSnapshot}
+            openRequest={artifactOpenRequest}
             queryArtifactDatabase={source.queryArtifactDatabase}
             readArtifactFile={artifactFileReader}
             selectedArtifactSnapshot={selectedArtifactSnapshot}
@@ -8200,6 +8205,7 @@ function ArtifactsSection({
   artifactFileOperations,
   artifactSnapshots,
   onSelectSnapshot,
+  openRequest,
   queryArtifactDatabase,
   readArtifactFile,
   selectedArtifactSnapshot,
@@ -8210,6 +8216,7 @@ function ArtifactsSection({
   artifactDownloadCommand?: string
   artifactSnapshots: SessionArtifactSnapshot[]
   onSelectSnapshot: (snapshot: SessionArtifactSnapshot) => void
+  openRequest: { snapshotKey: string } | null
   queryArtifactDatabase?: SessionViewerSource['queryArtifactDatabase']
   readArtifactFile?: SessionViewerSource['readArtifactFile']
   selectedArtifactSnapshot: SessionArtifactSnapshot | null
@@ -8223,6 +8230,18 @@ function ArtifactsSection({
   const [isLargeFileAwaitingConfirmation, setIsLargeFileAwaitingConfirmation] = useState(false)
   const artifactModalRef = useRef<HTMLElement>(null)
   const artifactReadId = useRef(0)
+  const snapshot = selectedArtifactSnapshot ?? artifactSnapshots[0] ?? null
+  const openRequestedSnapshot = useEffectEvent(() => {
+    if (!snapshot || !openRequest
+      || resolveArtifactSnapshotKey(snapshot, artifactSnapshots.indexOf(snapshot)) !== openRequest.snapshotKey) return
+    const files = (snapshot.entries ?? []).filter((entry) => !isArtifactDirectory(entry))
+    if (files.length === 1) void openArtifactEntry(files[0])
+  })
+  useEffect(() => {
+    openRequestedSnapshot()
+  }, [openRequest])
+  useEffect(() => () => { artifactReadId.current += 1 }, [])
+
   function closeArtifactEntry() {
     artifactReadId.current += 1
     setIsArtifactFullscreen(false)
@@ -8277,19 +8296,11 @@ function ArtifactsSection({
     )
   }
 
-  const snapshot = selectedArtifactSnapshot ?? artifactSnapshots[0] ?? null
   const entries = sortArtifactEntries(snapshot?.entries ?? [])
   const isSingleFileSnapshot = entries.length === 1 && !isArtifactDirectory(entries[0])
   const selectedArtifactPath = selectedArtifactEntry ? formatArtifactEntryPath(selectedArtifactEntry) : ''
   const selectedArtifactName = selectedArtifactEntry?.name || selectedArtifactPath
   const showSelectedArtifactPath = !!selectedArtifactPath && selectedArtifactPath !== selectedArtifactName
-
-  function selectSnapshot(candidate: SessionArtifactSnapshot) {
-    closeArtifactEntry()
-    onSelectSnapshot(candidate)
-    const files = (candidate.entries ?? []).filter((entry) => !isArtifactDirectory(entry))
-    if (files.length === 1) void openArtifactEntry(files[0], false, false, candidate)
-  }
 
   async function openArtifactEntry(
     entry: SessionArtifactEntry,
@@ -8355,7 +8366,7 @@ function ArtifactsSection({
               aria-pressed={isSelected}
               className={isSelected ? 'artifact-snapshot-card artifact-snapshot-card--selected' : 'artifact-snapshot-card'}
               key={resolveArtifactSnapshotKey(candidate, index)}
-              onClick={() => selectSnapshot(candidate)}
+              onClick={() => onSelectSnapshot(candidate)}
               type="button"
             >
               <strong>{formatArtifactSnapshotTitle(candidate)}</strong>
