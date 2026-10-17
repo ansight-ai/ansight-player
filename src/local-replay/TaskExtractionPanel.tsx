@@ -77,7 +77,9 @@ export function TaskExtractionPanel({
   const [reasoning, setReasoning] = useState<AgentReasoning>(defaultAgentReasoning)
   const [testReasoning, setTestReasoning] = useState<AgentReasoning>(defaultAgentReasoning)
   const [draftRunReasoning, setDraftRunReasoning] = useState<AgentReasoning>(defaultAgentReasoning)
-  const [maestroReasoning, setMaestroReasoning] = useState<AgentReasoning>(defaultAgentReasoning)
+  const [isScriptGenerating, setIsScriptGenerating] = useState(false)
+  const [scriptReasoning, setScriptReasoning] = useState<AgentReasoning>(defaultAgentReasoning)
+  const [scriptGenerationNotes, setScriptGenerationNotes] = useState('')
   const [validateSelectors, setValidateSelectors] = useState(true)
   const [trimToTechnology, setTrimToTechnology] = useState(true)
   const [includeOnlyNecessaryFeatures, setIncludeOnlyNecessaryFeatures] = useState(true)
@@ -127,9 +129,9 @@ export function TaskExtractionPanel({
   const [isLoadingTaskSections, setIsLoadingTaskSections] = useState(true)
   const [isLoadingTaskDrafts, setIsLoadingTaskDrafts] = useState(true)
   const [isTestDraftBusy, setIsTestDraftBusy] = useState(false)
-  const [testGenerationProgress, setTestGenerationProgress] = useState('')
-  const [testGenerationStages, setTestGenerationStages] = useState<string[]>([])
-  const [testGenerationElapsedSeconds, setTestGenerationElapsedSeconds] = useState(0)
+  const [generationProgress, setGenerationProgress] = useState('')
+  const [generationStages, setGenerationStages] = useState<string[]>([])
+  const [generationElapsedSeconds, setGenerationElapsedSeconds] = useState(0)
   const [isTestDraftStale, setIsTestDraftStale] = useState(false)
   const [draftRunInventory, setDraftRunInventory] = useState<LocalDeviceInventory | null>(null)
   const [draftInstalledDeviceKeys, setDraftInstalledDeviceKeys] = useState<string[] | null>(null)
@@ -649,11 +651,11 @@ export function TaskExtractionPanel({
   }, [extraction, isAgentRunning, isTestRunning, isTraceFinalizing, refreshExtraction])
 
   useEffect(() => {
-    if (!isTestDraftBusy) return undefined
+    if (!isTestDraftBusy && !isScriptGenerating) return undefined
     const startedAt = Date.now()
-    const interval = window.setInterval(() => setTestGenerationElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000)), 1000)
+    const interval = window.setInterval(() => setGenerationElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000)), 1000)
     return () => window.clearInterval(interval)
-  }, [isTestDraftBusy])
+  }, [isTestDraftBusy, isScriptGenerating])
 
   useEffect(() => {
     function handleEscape(event: globalThis.KeyboardEvent) {
@@ -734,7 +736,7 @@ export function TaskExtractionPanel({
   async function startAnnotatedTask(annotation: SessionAnnotation, replaceExtractionId?: string) {
     const annotationId = annotation.annotationId!
     setStartingTaskSectionIds((current) => [...current, annotationId])
-    setTestGenerationProgress(`Starting task extraction: ${annotation.label}…`)
+    setGenerationProgress(`Starting task extraction: ${annotation.label}…`)
     try {
       const response = await fetch('api/task-extractions/start', {
         body: JSON.stringify({
@@ -827,33 +829,53 @@ export function TaskExtractionPanel({
     }
   }
 
-  async function previewMaestro() {
-    if (isMaestroBusy) return
-    setIsMaestroBusy(true)
+  async function previewExternalScript(scriptFormat: 'maestro' | 'appium') {
+    if (isExternalGenerating || !capabilities?.canUseModel) return
+    const setBusy = scriptFormat === 'maestro' ? setIsMaestroBusy : setIsAppiumBusy
+    setBusy(true)
+    setIsScriptGenerating(true)
+    setGenerationProgress('Reading the selected replay…')
+    setGenerationStages(['Reading the selected replay…'])
+    setGenerationElapsedSeconds(0)
     setMessage(null)
     clearExternalChecks()
-    setMaestroSavedPath('')
+    if (scriptFormat === 'maestro') setMaestroSavedPath('')
+    else setAppiumSavedPath('')
     try {
       const title = taskName.trim() || session.name || `Recorded ${session.appId} workflow`
-      const response = await fetch('api/task-extractions/maestro-preview', {
+      const response = await fetch(`api/task-extractions/${scriptFormat}-preview`, {
         body: JSON.stringify({
           sessionId: session.sessionId,
           startUtc: new Date(period.startMs).toISOString(),
           endUtc: new Date(period.endMs).toISOString(),
           title,
+          reasoning: scriptReasoning,
+          generationNotes: scriptGenerationNotes.trim(),
         }),
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson' },
         method: 'POST',
       })
-      const body = await response.json() as MaestroFlowExtraction | LocalOperationResult
+      const body = response.headers.get('Content-Type')?.includes('application/x-ndjson')
+        ? await readSessionOperationStream<MaestroFlowExtraction | AppiumScriptExtraction>(response, (progress) => {
+          setGenerationProgress(progress.message)
+          setGenerationStages((current) => current.at(-1) === progress.message ? current : [...current, progress.message])
+        })
+        : await response.json() as MaestroFlowExtraction | AppiumScriptExtraction | LocalOperationResult
       if (!response.ok || !('source' in body)) throw new Error('message' in body ? body.message : `HTTP ${response.status}`)
-      setMaestroDraft(body)
-      setMaestroTitle(title)
-      setMaestroSource(body.source)
+      if (scriptFormat === 'maestro') {
+        setMaestroDraft(body)
+        setMaestroTitle(title)
+        setMaestroSource(body.source)
+      } else {
+        setAppiumDraft(body)
+        setAppiumTitle(title)
+        setAppiumSource(body.source)
+      }
     } catch (error) {
-      setMessage(resolveError(error, 'Unable to generate Maestro flow.'))
+      setMessage(resolveError(error, `Unable to generate ${scriptFormat} test.`))
     } finally {
-      setIsMaestroBusy(false)
+      setBusy(false)
+      setIsScriptGenerating(false)
     }
   }
 
@@ -885,36 +907,6 @@ export function TaskExtractionPanel({
     }
   }
 
-  async function refineMaestro() {
-    if (!maestroDraft || !maestroSource.trim() || isMaestroBusy) return
-    setIsMaestroBusy(true)
-    setMessage(null)
-    clearExternalChecks()
-    try {
-      const response = await fetch('api/task-extractions/maestro-refine', {
-        body: JSON.stringify({
-          sessionId: session.sessionId,
-          startUtc: new Date(period.startMs).toISOString(),
-          endUtc: new Date(period.endMs).toISOString(),
-          title: maestroTitle,
-          source: maestroSource,
-          reasoning: maestroReasoning,
-        }),
-        headers: { 'Content-Type': 'application/json' },
-        method: 'POST',
-      })
-      const body = await response.json() as { source: string; model: string } | LocalOperationResult
-      if (!response.ok || !('source' in body)) throw new Error('message' in body ? body.message : `HTTP ${response.status}`)
-      setMaestroSource(body.source)
-      setMaestroSavedPath('')
-      setMessage(`Maestro draft refined with ${body.model}. Review it before saving.`)
-    } catch (error) {
-      setMessage(resolveError(error, 'Unable to refine Maestro flow.'))
-    } finally {
-      setIsMaestroBusy(false)
-    }
-  }
-
   function downloadMaestro() {
     if (!maestroDraft || !maestroSource.trim()) return
     const url = URL.createObjectURL(new Blob([maestroSource], { type: 'application/yaml;charset=utf-8' }))
@@ -923,36 +915,6 @@ export function TaskExtractionPanel({
     link.download = `${maestroDraft.suggestedName}.yaml`
     link.click()
     window.setTimeout(() => URL.revokeObjectURL(url), 0)
-  }
-
-  async function previewAppium() {
-    if (isAppiumBusy) return
-    setIsAppiumBusy(true)
-    setMessage(null)
-    clearExternalChecks()
-    setAppiumSavedPath('')
-    try {
-      const title = taskName.trim() || session.name || `Recorded ${session.appId} workflow`
-      const response = await fetch('api/task-extractions/appium-preview', {
-        body: JSON.stringify({
-          sessionId: session.sessionId,
-          startUtc: new Date(period.startMs).toISOString(),
-          endUtc: new Date(period.endMs).toISOString(),
-          title,
-        }),
-        headers: { 'Content-Type': 'application/json' },
-        method: 'POST',
-      })
-      const body = await response.json() as AppiumScriptExtraction | LocalOperationResult
-      if (!response.ok || !('source' in body)) throw new Error('message' in body ? body.message : `HTTP ${response.status}`)
-      setAppiumDraft(body)
-      setAppiumTitle(title)
-      setAppiumSource(body.source)
-    } catch (error) {
-      setMessage(resolveError(error, 'Unable to generate Appium script.'))
-    } finally {
-      setIsAppiumBusy(false)
-    }
   }
 
   async function saveAppium() {
@@ -996,9 +958,9 @@ export function TaskExtractionPanel({
   async function previewTest() {
     if (isTestDraftBusy || isLoadingTaskSections || isLoadingTaskDrafts || isStartingDraftRun || isDraftRunActive || (!skipTaskSections && selectedTaskSectionIds.length === 0)) return
     setIsTestDraftBusy(true)
-    setTestGenerationProgress('Reading the selected replay…')
-    setTestGenerationStages(['Reading the selected replay…'])
-    setTestGenerationElapsedSeconds(0)
+    setGenerationProgress('Reading the selected replay…')
+    setGenerationStages(['Reading the selected replay…'])
+    setGenerationElapsedSeconds(0)
     setMessage(null)
     clearExternalChecks()
     setTestSavedPath('')
@@ -1024,8 +986,8 @@ export function TaskExtractionPanel({
       })
       const body = response.headers.get('Content-Type')?.includes('application/x-ndjson')
         ? await readSessionOperationStream<WorkspaceTestExtraction>(response, (progress) => {
-          setTestGenerationProgress(progress.message)
-          setTestGenerationStages((current) => current.at(-1) === progress.message ? current : [...current, progress.message])
+          setGenerationProgress(progress.message)
+          setGenerationStages((current) => current.at(-1) === progress.message ? current : [...current, progress.message])
         })
         : await response.json() as WorkspaceTestExtraction | LocalOperationResult
       if (!response.ok || !('source' in body)) throw new Error('message' in body ? body.message : `HTTP ${response.status}`)
@@ -1527,7 +1489,7 @@ export function TaskExtractionPanel({
                   selectedIds={selectedTaskSectionIds}
                   taskExtractions={taskSectionExtractions}
                 /> : null}
-                <div className="local-admin-section-heading"><div><Code /><span><strong>{format === 'test' ? '' : '1. '}Generate {format === 'test' ? 'Ansight test' : format === 'maestro' ? 'Maestro flow' : 'Appium test'}</strong><small>{format === 'test' ? 'Use the selected annotations and replay' : 'Use the interactions in this timeline period'}</small></span></div></div>
+                <div className="local-admin-section-heading"><div><Code /><span><strong>{format === 'test' ? '' : '1. '}Generate {format === 'test' ? 'Ansight test' : format === 'maestro' ? 'Maestro flow' : 'Appium test'}</strong><small>{format === 'test' ? 'Use the selected annotations and replay' : 'Analyze the recorded journey, UI evidence, and screenshots with AI'}</small></span></div></div>
                 <label htmlFor="local-external-task-name">Name
                   <input id="local-external-task-name" maxLength={200} onChange={(event) => { setTaskName(event.target.value); if (format === 'test') markTestDraftStale() }} placeholder={format === 'test' ? 'AI will name the test from the selected journey' : session.name || `Recorded ${session.appId} workflow`} type="text" value={taskName} />
                 </label>
@@ -1535,27 +1497,27 @@ export function TaskExtractionPanel({
                   <textarea id="local-test-assertions" onChange={(event) => setTestAssertions(event.target.value)} placeholder="The confirmation screen is visible" rows={3} value={testAssertions} />
                   <small>Leave blank for AI to suggest an observable result from the selected replay.</small>
                 </label> : null}
-                {format === 'test' ? <label htmlFor="local-test-generation-notes">Generation notes
-                  <textarea id="local-test-generation-notes" maxLength={maximumGenerationNotesCharacters} onChange={(event) => setGenerationNotes(event.target.value)} placeholder="For example: Start from the Explore tab, use the location name shown in the recording, and verify the clipboard confirmation." rows={3} value={generationNotes} />
+                <label htmlFor="local-test-generation-notes">Generation notes
+                  <textarea id="local-test-generation-notes" maxLength={maximumGenerationNotesCharacters} onChange={(event) => format === 'test' ? setGenerationNotes(event.target.value) : setScriptGenerationNotes(event.target.value)} placeholder="For example: Start from the Explore tab, use the location name shown in the recording, and verify the clipboard confirmation." rows={3} value={format === 'test' ? generationNotes : scriptGenerationNotes} />
                   <small>Optional. Describe the starting state, test values, important steps, or expected outcome.</small>
-                </label> : null}
-                {format === 'test' ? <label>Generation reasoning
-                  <select disabled={isTestDraftBusy} onChange={(event) => setTestReasoning(event.target.value as AgentReasoning)} value={testReasoning}>
+                </label>
+                <label>Generation reasoning
+                  <select disabled={isExternalGenerating} onChange={(event) => format === 'test' ? setTestReasoning(event.target.value as AgentReasoning) : setScriptReasoning(event.target.value as AgentReasoning)} value={format === 'test' ? testReasoning : scriptReasoning}>
                     {agentReasoningModes.map((mode) => <option key={mode.value} value={mode.value}>{mode.label}</option>)}
                   </select>
-                </label> : null}
-                {format === 'test' && capabilities && !capabilities.canUseModel ? <p className="local-task-extraction-hint"><WarningCircle />AI test generation needs a configured model provider.</p> : null}
+                </label>
+                {capabilities && !capabilities.canUseModel ? <p className="local-task-extraction-hint"><WarningCircle />AI test generation needs a configured model provider.</p> : null}
                 {format === 'test' && selectedTaskAnnotations.length > 0 ? <p className="local-task-extraction-hint">Generation saves the YAML draft for later review and creates {selectedTaskAnnotations.length} automation task draft{selectedTaskAnnotations.length === 1 ? '' : 's'}.</p> : null}
                 <div className="local-admin-actions">
-                  <button className="button button--primary" disabled={isExternalGenerating || isExternalBusy || (format === 'test' && (!capabilities?.canUseModel || isLoadingTaskSections || isLoadingTaskDrafts || isStartingDraftRun || isDraftRunActive || (!skipTaskSections && selectedTaskSectionIds.length === 0)))} onClick={() => void (format === 'test' ? previewTest() : format === 'maestro' ? previewMaestro() : previewAppium())} type="button">
-                    {isExternalGenerating ? <CircleNotch className="spin" /> : format === 'test' ? <Robot /> : <Code />}{externalDraft ? 'Regenerate draft' : format === 'test' ? 'Generate with AI' : 'Generate draft'}
+                  <button className="button button--primary" disabled={isExternalGenerating || isExternalBusy || !capabilities?.canUseModel || (format === 'test' && (isLoadingTaskSections || isLoadingTaskDrafts || isStartingDraftRun || isDraftRunActive || (!skipTaskSections && selectedTaskSectionIds.length === 0)))} onClick={() => void (format === 'test' ? previewTest() : previewExternalScript(format))} type="button">
+                    {isExternalGenerating ? <CircleNotch className="spin" /> : <Robot />}{externalDraft ? 'Regenerate with AI' : 'Generate with AI'}
                   </button>
                 </div>
-                {format === 'test' && isTestDraftBusy ? (
+                {(format === 'test' && isTestDraftBusy) || isScriptGenerating ? (
                   <div className="local-test-generation-progress" role="status" aria-live="polite">
-                    <div><CircleNotch className="spin" aria-hidden="true" /><strong>{testGenerationProgress}</strong><span>{testGenerationElapsedSeconds}s elapsed</span></div>
-                    <progress aria-label="Ansight test generation in progress" />
-                    <ol className="local-test-generation-stages">{testGenerationStages.slice(-6).map((stage, index) => <li key={`${index}:${stage}`}>{stage}</li>)}</ol>
+                    <div><CircleNotch className="spin" aria-hidden="true" /><strong>{generationProgress}</strong><span>{generationElapsedSeconds}s elapsed</span></div>
+                    <progress aria-label="AI test generation in progress" />
+                    <ol className="local-test-generation-stages">{generationStages.slice(-6).map((stage, index) => <li key={`${index}:${stage}`}>{stage}</li>)}</ol>
                   </div>
                 ) : null}
                 {format === 'test' && workspaceTestDraft && !isTestDraftBusy ? (
@@ -1591,14 +1553,7 @@ export function TaskExtractionPanel({
                     <p>Task drafts are held for review. Save each task after checking its code and testing it against a connected app.</p>
                   </div>
                 ) : null}
-                {format === 'maestro' && externalDraft ? <>
-                  <label className="local-maestro-reasoning">AI reasoning mode
-                    <select disabled={isMaestroBusy} onChange={(event) => setMaestroReasoning(event.target.value as AgentReasoning)} value={maestroReasoning}>
-                      {agentReasoningModes.map((mode) => <option key={mode.value} value={mode.value}>{mode.label}</option>)}
-                    </select>
-                  </label>
-                  <button className="button button--secondary" disabled={isMaestroBusy || !maestroSource.trim() || !capabilities?.canUseModel} onClick={() => void refineMaestro()} type="button"><Robot />Refine with AI</button>
-                </> : null}
+
               </section>
             )}
 
