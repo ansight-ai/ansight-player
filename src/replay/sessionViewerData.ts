@@ -334,6 +334,7 @@ export type SessionAnnotationTargetBounds = {
 }
 
 export type SessionVisualTreeSnapshot = {
+  actionId?: string | null
   snapshotId?: string
   capturedAtUtc?: string
   visualTreeKind?: string

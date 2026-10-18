@@ -1,0 +1,25 @@
+.session-activity { color: var(--rp-text, var(--text)); font-size: 12px; min-width: 0; }
+.session-activity-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.session-activity-toolbar input { flex: 1; min-width: 180px; }
+.session-activity input, .session-activity select, .session-activity button { font: inherit; color: inherit; background: var(--rp-bg, var(--surface)); border: 1px solid var(--rp-line, var(--border)); padding: 7px 9px; border-radius: 6px; }
+.session-activity button { cursor: pointer; }
+.session-activity button:disabled { opacity: .5; cursor: default; }
+.session-activity-caption, .session-activity-empty { color: var(--rp-muted, var(--text-muted)); line-height: 1.6; }
+.session-activity-warning { padding: 10px; border: 1px solid #b38428; border-radius: 6px; line-height: 1.5; }
+.session-activity-list { max-height: 490px; overflow: auto; border: 1px solid var(--rp-line, var(--border)); border-radius: 8px; }
+.session-activity-empty { padding: 16px; text-align: center; }
+.session-activity-row + .session-activity-row { border-top: 1px solid var(--rp-line, var(--border)); }
+.session-activity-row summary { cursor: pointer; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 12px; }
+.session-activity-row summary::before { content: '›'; font-size: 16px; }
+.session-activity-row[open] summary::before { content: '⌄'; }
+.session-activity-row summary strong { overflow-wrap: anywhere; flex: 1; min-width: 150px; }
+.session-activity-row time { color: var(--rp-muted, var(--text-muted)); font-variant-numeric: tabular-nums; }
+.session-activity-row dl { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 8px 12px; padding: 0 18px 14px; }
+.session-activity-row dt { color: var(--rp-muted, var(--text-muted)); }
+.session-activity-row dd { margin: 0; overflow-wrap: anywhere; }
+.session-activity-row dd button, .session-activity-row dd a { margin-left: 10px; }
+.session-activity-outcome { padding: 3px 7px; border-radius: 5px; background: var(--rp-hover, var(--surface-raised)); }
+.session-activity-outcome--failed, .session-activity-outcome--rejected { color: #d85b56; }
+.session-activity-outcome--succeeded { color: #368a68; }
+.session-activity-outcome--incomplete, .session-activity-outcome--unknown { color: #b38428; }
+@media (max-width: 600px) { .session-activity-row dl { grid-template-columns: 1fr; } .session-activity-row summary { align-items: start; } }

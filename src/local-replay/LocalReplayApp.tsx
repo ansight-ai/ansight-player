@@ -192,7 +192,7 @@ export function LocalReplayApp() {
   const [appGraphRuns, setAppGraphRuns] = useState<LocalAppGraphLiveRun[]>([])
   const [appGraphPanelMode, setAppGraphPanelMode] = useState<'recording' | 'runs'>('recording')
   const [isAppGraphRefreshing, setIsAppGraphRefreshing] = useState(false)
-  const [testHistoryInitialRun, setTestHistoryInitialRun] = useState<LocalTestRunSummary | null>(null)
+  const [testHistoryInitialRun, setTestHistoryInitialRun] = useState<Pick<LocalTestRunSummary, 'runId' | 'appId' | 'displayName'> | null>(null)
   const [testExecutionTarget, setTestExecutionTarget] = useState<{ appId: string; testId: string } | null>(null)
   const [taskExtractionRequest, setTaskExtractionRequest] = useState<TaskExtractionRequest | null>(null)
   const [replayRange, setReplayRange] = useState<{ sessionId: string; period: TimelineEditSelection | null } | null>(null)
@@ -727,7 +727,7 @@ export function LocalReplayApp() {
     setShowGettingStarted(false)
   }
 
-  function openLinkedTrace(run: LocalTestRunSummary) {
+  function openLinkedTrace(run: Pick<LocalTestRunSummary, 'runId' | 'appId' | 'displayName'>) {
     setTestHistoryInitialRun(run)
     setActivePanel('test_history')
     trackLocalWebEvent({ kind: 'panel_opened', panel: 'test_history' })
@@ -1333,6 +1333,14 @@ export function LocalReplayApp() {
               initialArtifactId={sessionLink?.sessionId === selectedSessionId ? sessionLink.artifactId : undefined}
               isEmbedded
               isLiveSession={hostReachable && selectedSession?.isConnected === true}
+              onActivityRunRequested={async (runId, appId) => {
+                const response = await fetch(`api/test-history/${encodeURIComponent(runId)}${appId ? `?appId=${encodeURIComponent(appId)}` : ''}`, { cache: 'no-store' })
+                if (!response.ok) throw new Error('The linked trace is no longer retained on this host.')
+                const inspection = await response.json() as import('./types').LocalTestHistoryInspection
+                const run = inspection.runs.find(entry => entry.audit.runId === runId)
+                if (!run) throw new Error('No retained trace is available for this run.')
+                openLinkedTrace({ runId, appId, displayName: run.audit.workspaceTestName ?? `Run ${runId}` })
+              }}
               onReplayPanelWidthChange={setReplayPanelWidth}
               onReplayRangeChange={handleReplayRangeChange}
               isSignedIn={false}

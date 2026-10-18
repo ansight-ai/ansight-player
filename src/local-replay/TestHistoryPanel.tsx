@@ -58,7 +58,7 @@ import type {
 type TestHistoryPanelProps = {
   appId?: string | null
   appName?: string | null
-  initialRun?: LocalTestRunSummary | null
+  initialRun?: Pick<LocalTestRunSummary, 'runId' | 'appId' | 'displayName'> | null
   onClose: () => void
 }
 

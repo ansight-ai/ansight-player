@@ -45,6 +45,17 @@ const artifactComparison: ArtifactComparisonSource = {
 
 export const localReplaySource: SessionViewerSource = {
   mode: 'local',
+  activity: {
+    load: async (sessionId, cursor) => {
+      const query = new URLSearchParams({ limit: '200' })
+      if (cursor) query.set('cursor', cursor)
+      const response = await fetch(`api/sessions/${encodeURIComponent(sessionId)}/activity?${query}`, { cache: 'no-store' })
+      if (!response.ok) throw new Error(`Unable to load activity: HTTP ${response.status}`)
+      return response.json()
+    },
+    jsonlUrl: sessionId => `api/sessions/${encodeURIComponent(sessionId)}/activity?format=jsonl&limit=500`,
+    traceUrl: (runId, appId) => `api/test-history/${encodeURIComponent(runId)}${appId ? `?appId=${encodeURIComponent(appId)}` : ''}`,
+  },
   runLocalSummary: runLocalSummary,
   summariseAnnotation: summariseLocalAnnotation,
   deleteLocalSummary: deleteLocalSummary,
