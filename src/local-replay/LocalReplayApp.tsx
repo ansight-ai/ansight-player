@@ -38,7 +38,7 @@ const linkedTraceRefreshIntervalMs = 8000
 const appGraphRefreshIntervalMs = 750
 const isAppGraphToolVisible = false
 const sessionEventRefreshDebounceMs = 250
-const sessionRecoveryRefreshIntervalMs = 60_000
+const sessionRecoveryRefreshIntervalMs = 10_000
 const sessionFailedRefreshIntervalMs = 3_000
 const TaskExtractionPanel = lazy(async () => {
   const module = await import('./TaskExtractionPanel')
@@ -70,6 +70,8 @@ export function LocalReplayApp() {
     : localReplaySource, [cloudAnalysisSource])
   const [bootstrap, setBootstrap] = useState<LocalReplayBootstrap | null>(null)
   const [sessions, setSessions] = useState<LocalSessionSummary[]>([])
+  const [hostReachable, setHostReachable] = useState(false)
+  const [refreshingTools, setRefreshingTools] = useState(false)
   const [gettingStarted, setGettingStarted] = useState<LocalGettingStartedState | null>(null)
   const [showGettingStarted, setShowGettingStarted] = useState(false)
   const initialGettingStartedDecision = useRef(false)
@@ -368,7 +370,7 @@ export function LocalReplayApp() {
         do {
           isRefreshPending = false
           try {
-            const response = await fetch('api/sessions', { cache: 'no-store' })
+            const response = await fetch('api/sessions', { cache: 'no-store', signal: AbortSignal.timeout(5000) })
             if (!response.ok) {
               throw new Error(`The local host returned HTTP ${response.status}.`)
             }
@@ -379,6 +381,7 @@ export function LocalReplayApp() {
             }
 
             lastRefreshSucceeded = true
+            setHostReachable(true)
             setSessions((current) => reconcileSessionSummaries(current, next))
             setSelectedSessionId((current) => {
               const bulkDeletingIds = bulkDeletingSessionIdsRef.current
@@ -398,6 +401,7 @@ export function LocalReplayApp() {
           } catch (error) {
             if (isMounted) {
               lastRefreshSucceeded = false
+              setHostReachable(false)
               setMessage(resolveErrorMessage(error, 'Unable to refresh local sessions.'))
             }
           } finally {
@@ -454,6 +458,7 @@ export function LocalReplayApp() {
       eventSource = new EventSource('api/session-events')
       eventSource.addEventListener('ready', scheduleEventRefresh)
       eventSource.addEventListener('sessions-changed', scheduleEventRefresh)
+      eventSource.addEventListener('error', scheduleEventRefresh)
     }
 
     function closeSessionEventStream() {
@@ -499,8 +504,8 @@ export function LocalReplayApp() {
     ? `${selectedSession.lastUpdatedUtc}:${selectedSession.logCount}:${selectedSession.screenshotCount}:${selectedSession.visualTreeSnapshotCount}:${JSON.stringify(selectedSession.customProperties?.['ui-test'])}`
     : undefined
   const selectedSessionTest = readSessionUiTest(selectedSession?.customProperties)
-  const liveCount = sessions.filter((session) => session.isConnected).length
-  const canSwitchLiveView = selectedSession?.isConnected === true
+  const liveCount = hostReachable ? sessions.filter((session) => session.isConnected).length : 0
+  const canSwitchLiveView = hostReachable && selectedSession?.isConnected === true
     && selectedSession.isSimulatorOrEmulator
     && !!selectedSession.runtimeDeviceIdentifier
   const liveViewMode = liveViewPreference.sessionId === selectedSessionId
@@ -523,7 +528,7 @@ export function LocalReplayApp() {
     }
   }, [selectedSessionId])
   const replayPanelOverride = useMemo(() => {
-    if (liveViewMode !== 'simulator'
+    if (!hostReachable || liveViewMode !== 'simulator'
       || selectedSession?.isConnected !== true
       || !selectedSession.isSimulatorOrEmulator
       || !selectedSession.runtimeDeviceIdentifier) {
@@ -553,6 +558,7 @@ export function LocalReplayApp() {
   }, [
     bootstrap?.supportsDeviceLocation,
     liveViewMode,
+    hostReachable,
     openDeviceLocation,
     selectedSession?.isConnected,
     selectedSession?.isSimulatorOrEmulator,
@@ -949,9 +955,9 @@ export function LocalReplayApp() {
             tabIndex={0}
           >
             <WifiHigh aria-hidden="true" />
-            {liveCount > 0 ? `${liveCount} live` : 'Host ready'}
+            {!hostReachable ? 'Host unavailable' : liveCount > 0 ? `${liveCount} live` : 'Host ready'}
             <span className="local-host-status-tooltip" id="local-host-status-tooltip" role="tooltip">
-              {liveCount > 0
+              {!hostReachable ? 'Unable to reach the host. Session connection state is unknown; retrying automatically.' : liveCount > 0
                 ? `The host is available and connected to ${liveCount} ${liveCount === 1 ? 'app' : 'apps'}.`
                 : 'The host is available and ready for apps to connect.'}
             </span>
@@ -1104,6 +1110,7 @@ export function LocalReplayApp() {
           />
         ) : (
           <SessionExplorer
+            hostReachable={hostReachable}
             canPinSession={(sessionId) => bootstrap !== null && (bootstrap.mode === 'explorer' || sessionId === bootstrap.initialSessionId)}
             headingAction={explorerToggle}
             isLoading={isSessionsLoading}
@@ -1278,7 +1285,30 @@ export function LocalReplayApp() {
             </div>
           ) : null}
           {exportMessage ? <p className="inline-message local-replay-message" role="status">{exportMessage}</p> : null}
-          {message && sessions.length === 0 ? <p className="inline-message local-replay-message">{message}</p> : null}
+          {selectedSession?.connectionDiagnostics?.map((diagnostic) => <div className="inline-message local-replay-message" key={diagnostic.code} role="status">
+            <strong>Device connection: </strong>{diagnostic.message} <span>{diagnostic.recovery}</span>
+          </div>)}
+          {selectedSession && selectedSession.captureSource === 'sdk' ? <div className="local-replay-message" role="status">
+            {!selectedSession.isConnected && /connecting|awaiting|paired|websocket open|^connected$/i.test(selectedSession.status)
+              ? 'Waiting for the app stream. Keep the app open and check that it can reach this host. '
+              : null}
+            {selectedSession.toolCatalogStatus === 'loading' ? 'Discovering app tools…'
+              : selectedSession.toolCatalogStatus === 'failed' ? `Tool discovery failed: ${selectedSession.toolCatalogMessage ?? 'No response from the app.'}`
+                : selectedSession.toolCatalogStatus === 'ready' ? (selectedSession.toolCount ? `${selectedSession.toolCount} app tools${selectedSession.isConnected ? ' available' : ' recorded'}.` : 'No app tools registered. Enable the SDK tools integration, reconnect, then refresh tools.')
+                  : 'No app tool catalog recorded.'}
+            {hostReachable && selectedSession.isConnected ? <button className="local-text-button" disabled={refreshingTools} type="button" onClick={async () => {
+              setRefreshingTools(true)
+              try {
+                const response = await fetch(`api/sessions/${encodeURIComponent(selectedSession.sessionId)}/refresh-tools`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+                const result = await response.json() as LocalOperationResult
+                if (!response.ok || !result.isSuccess) throw new Error(result.message)
+                setSessionActionError(null)
+                setSessionRefreshNonce((value) => value + 1)
+              } catch (error) { setSessionActionError(resolveErrorMessage(error, 'Unable to refresh app tools.')) }
+              finally { setRefreshingTools(false) }
+            }}>{refreshingTools ? 'Refreshing…' : 'Refresh tools'}</button> : null}
+          </div> : null}
+          {message ? <p className="inline-message local-replay-message" role="status">{message}</p> : null}
           {showGettingStarted && gettingStarted ? (
             <GettingStartedPanel
               state={gettingStarted}
@@ -1300,7 +1330,7 @@ export function LocalReplayApp() {
               aiViewKind={aiViewKind}
               initialArtifactId={sessionLink?.sessionId === selectedSessionId ? sessionLink.artifactId : undefined}
               isEmbedded
-              isLiveSession={selectedSession?.isConnected === true}
+              isLiveSession={hostReachable && selectedSession?.isConnected === true}
               onReplayPanelWidthChange={setReplayPanelWidth}
               onReplayRangeChange={handleReplayRangeChange}
               isSignedIn={false}
@@ -1588,6 +1618,10 @@ function sessionSummariesEqual(left: LocalSessionSummary, right: LocalSessionSum
     && left.name === right.name
     && left.clientName === right.clientName
     && left.status === right.status
+    && left.toolCatalogStatus === right.toolCatalogStatus
+    && left.toolCatalogMessage === right.toolCatalogMessage
+    && left.toolCount === right.toolCount
+    && JSON.stringify(left.connectionDiagnostics) === JSON.stringify(right.connectionDiagnostics)
     && left.isConnected === right.isConnected
     && left.isSimulatorOrEmulator === right.isSimulatorOrEmulator
     && left.runtimeDeviceIdentifier === right.runtimeDeviceIdentifier

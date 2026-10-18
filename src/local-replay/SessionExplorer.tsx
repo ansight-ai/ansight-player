@@ -24,6 +24,7 @@ export function SessionExplorer({
   selectedSessionId,
   sessions,
   supportsCloudSessions,
+  hostReachable = true,
 }: {
   canPinSession: (sessionId: string) => boolean
   headingAction?: ReactNode
@@ -36,6 +37,7 @@ export function SessionExplorer({
   selectedSessionId: string | null
   sessions: LocalSessionSummary[]
   supportsCloudSessions: boolean
+  hostReachable?: boolean
 }) {
   const [query, setQuery] = useState('')
   const [filters, setFilters] = useState<SessionFilters>(emptySessionFilters)
@@ -265,9 +267,10 @@ export function SessionExplorer({
                         <span className="local-session-card-content">
                           <span className="local-session-card-title">
                             <strong title={sessionTitle}>{sessionTitle}</strong>
-                            {session.isConnected ? (
+                            {session.isConnected && hostReachable ? (
                               <span className="local-live-badge"><i />Live</span>
-                            ) : null}
+                            ) : session.isConnected ? <span>Connection unknown</span>
+                              : /connecting|awaiting|paired|websocket open|^connected$/i.test(session.status) ? <span>Connecting…</span> : null}
                           </span>
                           {uiTest ? <span className="local-session-card-app">{session.appName || session.clientName || session.appId}</span> : null}
                           <span className="local-session-card-meta">

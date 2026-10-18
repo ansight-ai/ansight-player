@@ -1128,6 +1128,10 @@ export type LocalTestHistoryInspection = {
 }
 
 export type LocalSessionSummary = {
+  toolCatalogStatus?: 'loading' | 'ready' | 'failed' | null
+  toolCatalogMessage?: string | null
+  toolCount?: number
+  connectionDiagnostics?: { code: string; message: string; recovery: string; candidates?: string | null }[]
   customProperties?: Record<string, Record<string, unknown>> | null
   sessionId: string
   appId: string
