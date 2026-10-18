@@ -1,3 +1,5 @@
+import { ScreenshotInspectionResults } from './ScreenshotInspectionResults'
+import { readScreenshotInspection } from './screenshotInspection'
 import { isAgentBatch, readTaskBatchReason } from './agentBatch'
 import {
   buildTestHistoryExecutions,
@@ -904,6 +906,7 @@ function TaskCallResults({ trace }: { trace: TaskCallTrace }) {
             <tbody>
               {trace.rows.map(({ id, sequenceLabel, depth, call }) => {
                 const selected = selectedCallId === id
+                const imageInspection = readScreenshotInspection(call.result?.content)
                 const detailsId = `task-call-details-${id.replaceAll('/', '-')}`
                 return (
                   <Fragment key={id}>
@@ -929,6 +932,7 @@ function TaskCallResults({ trace }: { trace: TaskCallTrace }) {
                             <span>Started (UTC): {formatTaskCallTime(call.startedAtUtc)} · Completed (UTC): {formatTaskCallTime(call.completedAtUtc)} · {call.durationMilliseconds.toLocaleString()} ms</span>
                             {call.correlationId ? <span>Correlation ID: {call.correlationId}</span> : null}
                           </div>
+                          {imageInspection ? <ScreenshotInspectionResults key={id} result={imageInspection} /> : null}
                           <div className="local-task-call-payloads">
                             <TaskCallPayload label="Inputs" payload={call.arguments} />
                             <TaskCallPayload label="Outputs" payload={call.result} />
