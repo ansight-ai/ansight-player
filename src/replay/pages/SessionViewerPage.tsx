@@ -1,4 +1,3 @@
-import { SessionActivityPanel } from '../components/SessionActivityPanel'
 import type { SessionActivitySource } from '../sessionActivity'
 import { TelemetryPanel } from '../components/TelemetryPanel'
 import { ConnectivityPanel } from '../ConnectivityPanel'
@@ -66,8 +65,8 @@ import {
   X,
 } from '@phosphor-icons/react'
 import { SdkCapabilityNotice, SdkTouchCaptureNotice, type SdkCapabilityFeature } from '../components/SdkCapabilityNotice'
-import type { CSSProperties, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent, ReactNode, RefObject } from 'react'
-import { memo, startTransition, useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useState } from 'react'
+import type { CSSProperties, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent, ReactNode, Ref, RefObject } from 'react'
+import { memo, startTransition, useCallback, useEffect, useEffectEvent, useId, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { VirtualizedLogList } from '../components/VirtualizedLogList'
 import type { SessionOperationProgress } from '../../local-replay/sessionOperationStream'
 import ReactMarkdown from 'react-markdown'
@@ -176,7 +175,7 @@ import type {
   TeamSession,
 } from '../../types'
 
-type ViewerTab = 'activity' | 'connectivity' | 'live-log' | 'telemetry' | 'network' | 'annotations' | 'visual-tree' | 'artifacts' | 'files' | 'attachments'
+type ViewerTab = 'connectivity' | 'live-log' | 'telemetry' | 'network' | 'annotations' | 'visual-tree' | 'artifacts' | 'files' | 'attachments'
 
 type SessionAiForm = {
   kind: SessionAiExtractionKind
@@ -704,7 +703,12 @@ function normalizeAiFormForCapabilities(current: SessionAiForm, capabilities: Se
   }
 }
 
+export type SessionViewerHandle = {
+  openEvidence: (sessionId: string, evidenceIds: string[]) => boolean
+}
+
 export function SessionViewerPage({
+  ref,
   initialArtifactId,
   isEmbedded = false,
   isLiveSession = false,
@@ -720,7 +724,6 @@ export function SessionViewerPage({
   onReplayInteracted,
   annotationWorkflowRequest,
   onAnnotationSaved,
-  onActivityRunRequested,
   replayPanelOverride,
   refreshKey,
   sessionId,
@@ -728,6 +731,7 @@ export function SessionViewerPage({
   source = cloudSessionViewerSource,
   superAdminMode = false,
 }: {
+  ref?: Ref<SessionViewerHandle>
   initialArtifactId?: string
   isEmbedded?: boolean
   isLiveSession?: boolean
@@ -745,7 +749,6 @@ export function SessionViewerPage({
   onReplayInteracted?: () => void
   annotationWorkflowRequest?: { id: number; annotationId: string | null } | null
   onAnnotationSaved?: (annotation: SessionAnnotation) => void
-  onActivityRunRequested?: (runId: string, appId?: string | null) => Promise<void>
   replayPanelOverride?: ReactNode | ((context: SessionReplayPanelContext) => ReactNode)
   refreshKey?: string | number
   sessionId: string
@@ -1457,6 +1460,25 @@ export function SessionViewerPage({
     setSelectedArtifactSnapshotKey(null)
     setScrubAtMs(clamp(time, timelineRange.startMs, timelineRange.endMs))
   }
+  useImperativeHandle(ref, () => ({
+    openEvidence(requestedSessionId, evidenceIds) {
+      if (requestedSessionId !== sessionId || (payload?.session.session_id || payload?.session.id) !== sessionId) return false
+      for (const id of [...evidenceIds].reverse()) {
+        const frame = frames.find(item => item.frameId === id)
+        const tree = visualTrees.find(item => item.snapshotId === id || item.actionId === id)
+        const timestamp = toTimestamp(frame?.capturedAtUtc ?? tree?.capturedAtUtc)
+        if (timestamp === null) continue
+        if (!isLiveSession) onReplayInteracted?.()
+        setVisualTreeOverlay(null)
+        setSelectedArtifactSnapshotKey(null)
+        setSelectedVisualTreeSnapshotKey(frame || !tree ? null : resolveVisualTreeSnapshotKey(tree))
+        setScrubAtMs(clamp(timestamp, timelineRange.startMs, timelineRange.endMs))
+        if (!frame && tree) setActiveTab('visual-tree')
+        return true
+      }
+      return false
+    },
+  }), [sessionId, payload, frames, visualTrees, isLiveSession, onReplayInteracted, timelineRange.startMs, timelineRange.endMs])
   const isFollowingLive = isLiveSession && scrubAtMs === null
   const isAppBackgroundedAtScrub = useMemo(() => isTimestampInBackgroundState(lifecycleTransitions, effectiveScrubAtMs), [effectiveScrubAtMs, lifecycleTransitions])
   const explicitlySelectedVisualTree = useMemo(
@@ -2855,7 +2877,6 @@ export function SessionViewerPage({
 
       <section className="panel">
         <div className="viewer-tabs" role="tablist" aria-label="Session sections">
-          {source.activity ? <TabButton activeTab={effectiveActiveTab} icon={<ListBullets aria-hidden="true" />} label="Activity" tab="activity" onSelect={selectUsageTab} /> : null}
           <TabButton activeTab={effectiveActiveTab} badge={allLogs.length} icon={<ListBullets aria-hidden="true" />} label="Logs" tab="live-log" onSelect={selectUsageTab} />
           <TabButton activeTab={effectiveActiveTab} icon={<ChartLine aria-hidden="true" />} label="Telemetry" tab="telemetry" onSelect={selectUsageTab} />
           <TabButton activeTab={effectiveActiveTab} icon={<GlobeSimple aria-hidden="true" />} label="Connectivity" tab="connectivity" onSelect={selectUsageTab} />
@@ -2871,15 +2892,6 @@ export function SessionViewerPage({
           <SdkCapabilityNotice feature={sdkNoticeForTab(effectiveActiveTab)!} />
         ) : null}
 
-        {effectiveActiveTab === 'activity' && source.activity ? <SessionActivityPanel key={sessionId} sessionId={sessionId} source={source.activity} onOpenRun={onActivityRunRequested} onOpenEvidence={ids => {
-          for (const id of [...ids].reverse()) {
-            const frame = frames.find(item => item.frameId === id)
-            if (frame?.capturedAtUtc) { seekConnectivity(Date.parse(frame.capturedAtUtc)); return true }
-            const tree = visualTrees.find(item => item.snapshotId === id || item.actionId === id)
-            if (tree) { selectVisualTreeSnapshot(tree); setActiveTab('visual-tree'); return true }
-          }
-          return false
-        }} /> : null}
         {effectiveActiveTab === 'telemetry' ? <TelemetryPanel
           key={sessionId}
           events={captureSession.applicationEvents ?? []}

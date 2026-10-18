@@ -1,4 +1,5 @@
 import { ScreenshotInspectionResults } from './ScreenshotInspectionResults'
+import { SessionTracePanel, type SessionTraceTarget } from './SessionTracePanel'
 import { readScreenshotInspection } from './screenshotInspection'
 import { isAgentBatch, readTaskBatchReason } from './agentBatch'
 import {
@@ -59,6 +60,8 @@ type TestHistoryPanelProps = {
   appId?: string | null
   appName?: string | null
   initialRun?: Pick<LocalTestRunSummary, 'runId' | 'appId' | 'displayName'> | null
+  sessionTrace?: SessionTraceTarget | null
+  onOpenEvidence?: (ids: string[]) => boolean
   onClose: () => void
 }
 
@@ -74,7 +77,14 @@ function readHistoryGrouping(): TestHistoryGrouping {
   }
 }
 
-export function TestHistoryPanel({ appId, appName, initialRun, onClose }: TestHistoryPanelProps) {
+export function TestHistoryPanel(props: TestHistoryPanelProps) {
+  return props.sessionTrace ? <SessionTracePanel key={props.sessionTrace.sessionId}
+    session={props.sessionTrace} initialRun={props.initialRun} onClose={props.onClose}
+    onOpenEvidence={props.onOpenEvidence} renderInspection={inspection => <InspectionDetail inspection={inspection} />} />
+    : <TestRunHistoryPanel {...props} />
+}
+
+function TestRunHistoryPanel({ appId, appName, initialRun, onClose }: TestHistoryPanelProps) {
   const [apps, setApps] = useState<LocalRegisteredApp[]>([])
   const [selectedAppId, setSelectedAppId] = useState<string | null>(null)
   const [history, setHistory] = useState<LocalTestHistory | null>(null)

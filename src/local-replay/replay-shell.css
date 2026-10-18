@@ -5254,6 +5254,11 @@ button.local-runner-status:hover {
   overflow-y: auto;
 }
 
+.local-session-trace-tabs { margin: 20px 0; }
+.local-session-trace-run { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.local-session-trace-run select { min-width: 0; max-width: 100%; font: inherit; color: inherit; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 6px; padding: 8px; }
+.local-session-trace-panel .session-activity-list { max-height: none; }
+
 .local-test-history-breadcrumb {
   display: flex;
   align-items: center;
