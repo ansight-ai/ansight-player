@@ -1,3 +1,4 @@
+import { TelemetryPanel } from '../components/TelemetryPanel'
 import { ConnectivityPanel } from '../ConnectivityPanel'
 import { readSessionUiTest } from '../sessionUiTest'
 import { SessionUiTestBadge } from '../components/SessionUiTestBadge'
@@ -26,6 +27,7 @@ import {
   ArrowsIn,
   ArrowsOut,
   Archive,
+  ChartLine,
   CheckCircle,
   Coins,
   CaretDown,
@@ -172,7 +174,7 @@ import type {
   TeamSession,
 } from '../../types'
 
-type ViewerTab = 'connectivity' | 'live-log' | 'network' | 'annotations' | 'visual-tree' | 'artifacts' | 'files' | 'attachments'
+type ViewerTab = 'connectivity' | 'live-log' | 'telemetry' | 'network' | 'annotations' | 'visual-tree' | 'artifacts' | 'files' | 'attachments'
 
 type SessionAiForm = {
   kind: SessionAiExtractionKind
@@ -2849,6 +2851,7 @@ export function SessionViewerPage({
       <section className="panel">
         <div className="viewer-tabs" role="tablist" aria-label="Session sections">
           <TabButton activeTab={effectiveActiveTab} badge={allLogs.length} icon={<ListBullets aria-hidden="true" />} label="Logs" tab="live-log" onSelect={selectUsageTab} />
+          <TabButton activeTab={effectiveActiveTab} icon={<ChartLine aria-hidden="true" />} label="Telemetry" tab="telemetry" onSelect={selectUsageTab} />
           <TabButton activeTab={effectiveActiveTab} icon={<GlobeSimple aria-hidden="true" />} label="Connectivity" tab="connectivity" onSelect={selectUsageTab} />
           <TabButton activeTab={effectiveActiveTab} badge={networkRequests.length} icon={<GlobeSimple aria-hidden="true" />} label="Network" tab="network" onSelect={selectUsageTab} />
           {annotations.length > 0 ? <TabButton activeTab={effectiveActiveTab} badge={annotations.length} icon={<NotePencil aria-hidden="true" />} label="Annotations" tab="annotations" onSelect={selectUsageTab} /> : null}
@@ -2861,6 +2864,17 @@ export function SessionViewerPage({
         {captureSession.captureSource === 'device' && sdkNoticeForTab(effectiveActiveTab) ? (
           <SdkCapabilityNotice feature={sdkNoticeForTab(effectiveActiveTab)!} />
         ) : null}
+
+        {effectiveActiveTab === 'telemetry' ? <TelemetryPanel
+          key={sessionId}
+          events={captureSession.applicationEvents ?? []}
+          channels={timelineMetricIndex.channelMap}
+          samples={timelineMetricIndex.channelSamplesById}
+          startMs={timelineRange.startMs}
+          endMs={timelineRange.endMs}
+          scrubAtMs={effectiveScrubAtMs}
+          onScrub={seekConnectivity}
+        /> : null}
 
         {effectiveActiveTab === 'visual-tree' ? (
           <VisualTreeSection

@@ -46,8 +46,8 @@ export function isFlutterDiagnosticChannel(channel: SessionMetricChannel | undef
 
 export function formatMetricValue(value: number, presentation: MetricPresentation): string {
   const displayValue = value * presentation.scale
-  if (presentation.kind === 'fps') return `${Math.max(0, Math.round(displayValue))} FPS`
-  const number = (n: number) => new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(n)
+  if (presentation.kind === 'fps') return `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 }).format(Math.max(0, displayValue))} FPS`
+  const number = (n: number) => new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 }).format(n)
   if (presentation.kind === 'cpu') return `${number(displayValue)}%`
   if (presentation.kind !== 'memory') return `${number(displayValue)}${presentation.unit ? ` ${presentation.unit}` : ''}`
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
