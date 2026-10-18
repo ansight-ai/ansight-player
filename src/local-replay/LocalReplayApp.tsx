@@ -9,6 +9,7 @@ import { SessionUiTestBadge } from '../replay/components/SessionUiTestBadge'
 import { GithubRepositoryBadge } from '../components/GithubRepositoryBadge'
 import { SessionViewerPage, type SessionReplayPanelContext, type SessionViewerSource, type TimelineEditSelection } from '../replay/pages/SessionViewerPage'
 import { AccountCompanionPanel } from './AccountCompanionPanel'
+import { AnalyticsNotice } from './AnalyticsNotice'
 import { RemoteRunnerPanel } from './RemoteRunnerPanel'
 import { AboutInstallationPanel } from './AboutInstallationPanel'
 import { AppGraphProgressPanel } from './AppGraphProgressPanel'
@@ -926,6 +927,7 @@ export function LocalReplayApp() {
           <GithubRepositoryBadge />
         </div>
         <div className="local-replay-actions">
+          <AnalyticsNotice />
           {cacheFeedback ? <button
             aria-label={cacheFeedback}
             className={isCacheApproachingLimit ? 'local-host-status local-cache-status local-cache-status--warning' : 'local-host-status local-cache-status'}
