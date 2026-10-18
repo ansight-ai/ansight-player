@@ -57,6 +57,11 @@ export function ThreeModelViewer({
   const hostRef = useRef<HTMLDivElement | null>(null)
   const frameModelRef = useRef<() => void>(() => undefined)
   const gridRef = useRef<THREE.GridHelper | null>(null)
+  const applyUpAxisRef = useRef<(axis: 'y' | 'z') => void>(() => undefined)
+  const modelKey = sourceUrl ?? fileName
+  const [axisSelection, setAxisSelection] = useState<{ modelKey: string; axis: 'y' | 'z' } | null>(null)
+  const upAxis = axisSelection?.modelKey === modelKey ? axisSelection.axis : 'z'
+  const upAxisRef = useRef<'y' | 'z'>('z')
   const lightingSettingsRef = useRef<ModelLightingSettings>({ ...defaultLightingSettings })
   const applyLightingRef = useRef<(settings: ModelLightingSettings) => void>(() => undefined)
   const [message, setMessage] = useState<string | null>(null)
@@ -74,6 +79,8 @@ export function ThreeModelViewer({
   }
 
   const resetLighting = () => updateLighting({ ...defaultLightingSettings })
+
+  useEffect(() => { upAxisRef.current = upAxis }, [upAxis])
 
   useEffect(() => {
     const host = hostRef.current
@@ -296,6 +303,7 @@ export function ThreeModelViewer({
             geometry,
             new THREE.MeshStandardMaterial({ color: 0x8fb7ff, metalness: 0.08, roughness: 0.58 }),
           )
+          object.rotation.x = upAxisRef.current === 'z' ? -Math.PI / 2 : 0
         } else {
           throw new Error(`The ${normalizedExtension || 'selected'} 3D format is not supported.`)
         }
@@ -305,6 +313,12 @@ export function ThreeModelViewer({
           return
         }
         modelRoot = object
+        applyUpAxisRef.current = (axis) => {
+          if (normalizedExtension !== '.stl' || !modelRoot) return
+          modelRoot.rotation.x = axis === 'z' ? -Math.PI / 2 : 0
+          modelRoot.updateMatrixWorld(true)
+          frameModel()
+        }
         scene.add(modelRoot)
         applyLighting(lightingSettingsRef.current)
         let meshCount = 0
@@ -356,6 +370,7 @@ export function ThreeModelViewer({
       resizeObserver.disconnect()
       controls.dispose()
       frameModelRef.current = () => undefined
+      applyUpAxisRef.current = () => undefined
       applyLightingRef.current = () => undefined
       gridRef.current = null
       scene.traverse((object) => disposeObject(object))
@@ -368,6 +383,16 @@ export function ThreeModelViewer({
     <div className="file-model-viewer-shell">
       <div className="file-model-viewer-toolbar">
         <button onClick={() => frameModelRef.current()} type="button">Reset view</button>
+        {extension.toLowerCase() === '.stl' ? <label>Up axis <select
+          aria-label="Model up axis"
+          value={upAxis}
+          onChange={(event) => {
+            const axis = event.target.value as 'y' | 'z'
+            upAxisRef.current = axis
+            setAxisSelection({ modelKey, axis })
+            applyUpAxisRef.current(axis)
+          }}
+        ><option value="z">Z-up</option><option value="y">Y-up</option></select></label> : null}
         <button
           onClick={() => {
             const grid = gridRef.current
