@@ -84,7 +84,7 @@ export function SessionTracePanel({ session, initialRun, onClose, onOpenEvidence
     <section aria-label="Session trace" className="local-test-history-panel local-session-trace-panel">
       <header>
         <div>
-          <p className="eyebrow"><FlowArrow aria-hidden="true" /> Session trace</p>
+          <p className="eyebrow">Session trace</p>
           <h3>{session.title}</h3>
           <span className="local-test-history-muted">{session.sessionId}</span>
         </div>
