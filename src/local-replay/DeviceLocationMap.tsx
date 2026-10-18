@@ -1,6 +1,7 @@
 import { MapPin } from '@phosphor-icons/react'
 import { useEffect, useRef, useState } from 'react'
 import type { DeviceLocationPoint } from './types'
+import { geoCoordinates, type ArtifactGeoData } from '../replay/components/artifactGeography'
 
 const mapboxScriptUrl = 'https://api.mapbox.com/mapbox-gl-js/v3.28.0/mapbox-gl.js'
 const mapboxStylesheetUrl = 'https://api.mapbox.com/mapbox-gl-js/v3.28.0/mapbox-gl.css'
@@ -67,6 +68,7 @@ type MapInstance = {
   route: DeviceLocationPoint[]
   resizeObserver: ResizeObserver
   searchBox: MapboxSearchBox | null
+  geography?: ArtifactGeoData
 }
 
 let mapboxLoadPromise: Promise<void> | null = null
@@ -76,11 +78,13 @@ export function DeviceLocationMap({
   location,
   onSelect,
   route,
+  geography,
 }: {
   accessToken: string
   location: DeviceLocationPoint | null
-  onSelect: (location: DeviceLocationPoint) => void
+  onSelect?: (location: DeviceLocationPoint) => void
   route: DeviceLocationPoint[]
+  geography?: ArtifactGeoData
 }) {
   const mapElementRef = useRef<HTMLDivElement | null>(null)
   const searchElementRef = useRef<HTMLDivElement | null>(null)
@@ -88,6 +92,8 @@ export function DeviceLocationMap({
   const onSelectRef = useRef(onSelect)
   const locationRef = useRef(location)
   const routeRef = useRef(route)
+  const geographyRef = useRef(geography)
+  useEffect(() => { geographyRef.current = geography }, [geography])
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -140,13 +146,13 @@ export function DeviceLocationMap({
         map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'bottom-right')
         const resizeObserver = new ResizeObserver(() => map.resize())
         resizeObserver.observe(mapContainer)
-        const instance: MapInstance = { map, marker: null, route: [], resizeObserver, searchBox: null }
+        const instance: MapInstance = { map, marker: null, route: [], resizeObserver, searchBox: null, geography: geographyRef.current }
         instanceRef.current = instance
-        map.on('style.load', () => applyRoute(instance, mapboxgl))
-        map.on('click', (event) => onSelectRef.current({ latitude: event.lngLat.lat, longitude: event.lngLat.lng }))
+        map.on('style.load', () => { applyRoute(instance, mapboxgl, true); applyGeography(instance, mapboxgl, true) })
+        map.on('click', (event) => onSelectRef.current?.({ latitude: event.lngLat.lat, longitude: event.lngLat.lng }))
         map.on('dragend', () => {
           const center = map.getCenter()
-          onSelectRef.current({ latitude: center.lat, longitude: center.lng })
+          onSelectRef.current?.({ latitude: center.lat, longitude: center.lng })
         })
 
         const mapboxsearch = getMapboxSearch()
@@ -160,7 +166,7 @@ export function DeviceLocationMap({
           searchBox.addEventListener('retrieve', (event) => {
             const result = extractSearchResult(event)
             if (result) {
-              onSelectRef.current(result)
+              onSelectRef.current?.(result)
             }
           })
           searchContainer.replaceChildren(searchBox)
@@ -207,6 +213,11 @@ export function DeviceLocationMap({
     }
   }, [route])
 
+  useEffect(() => {
+    const instance = instanceRef.current
+    if (instance) { instance.geography = geography; applyGeography(instance, getMapboxGl()) }
+  }, [geography])
+
   if (!accessToken.startsWith('pk.')) {
     return (
       <div className="local-location-map-placeholder">
@@ -245,8 +256,8 @@ function applyLocation(instance: MapInstance, mapboxgl: MapboxGl, location: Devi
   }
 }
 
-function applyRoute(instance: MapInstance, mapboxgl: MapboxGl) {
-  if (!instance.map.isStyleLoaded()) {
+function applyRoute(instance: MapInstance, mapboxgl: MapboxGl, styleLoaded = false) {
+  if (!styleLoaded && !instance.map.getSource('ansight-device-route') && !instance.map.isStyleLoaded()) {
     return
   }
 
@@ -278,6 +289,26 @@ function applyRoute(instance: MapInstance, mapboxgl: MapboxGl) {
   if (instance.route.length > 1) {
     const bounds = new mapboxgl.LngLatBounds()
     instance.route.forEach((point) => bounds.extend([point.longitude, point.latitude]))
+    instance.map.fitBounds(bounds, { padding: 48, maxZoom: 15, duration: 0 })
+  }
+}
+
+function applyGeography(instance: MapInstance, mapboxgl: MapboxGl, styleLoaded = false) {
+  // Adding the route source makes isStyleLoaded false until that source is processed.
+  if (!instance.geography || (!styleLoaded && !instance.map.getSource('ansight-artifact-geography') && !instance.map.isStyleLoaded())) return
+  const data = instance.geography
+  const source = instance.map.getSource('ansight-artifact-geography')
+  if (source) source.setData(data)
+  else {
+    instance.map.addSource('ansight-artifact-geography', { type: 'geojson', data })
+    instance.map.addLayer({ id: 'ansight-artifact-polygons', type: 'fill', source: 'ansight-artifact-geography', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': '#ff725e', 'fill-opacity': 0.25 } })
+    instance.map.addLayer({ id: 'ansight-artifact-lines', type: 'line', source: 'ansight-artifact-geography', filter: ['!=', ['geometry-type'], 'Point'], paint: { 'line-color': '#ff725e', 'line-width': 3 } })
+    instance.map.addLayer({ id: 'ansight-artifact-points', type: 'circle', source: 'ansight-artifact-geography', filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-color': '#ff725e', 'circle-radius': 6, 'circle-stroke-color': '#fff', 'circle-stroke-width': 1 } })
+  }
+  const points = geoCoordinates(data)
+  if (points.length) {
+    const bounds = new mapboxgl.LngLatBounds()
+    points.forEach(point => bounds.extend([point.longitude, point.latitude]))
     instance.map.fitBounds(bounds, { padding: 48, maxZoom: 15, duration: 0 })
   }
 }

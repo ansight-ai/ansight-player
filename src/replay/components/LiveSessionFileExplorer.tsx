@@ -37,6 +37,9 @@ import { isLargeFilePreview, largeFilePreviewWarningBytes } from './liveFilePrev
 import { MediaFilePreview } from './MediaFilePreview'
 import { resolveMediaFileFormat } from './mediaFileFormat'
 import { decodeBase64, downloadModel, type ModelTransferProgress } from './modelFileData'
+import { resolveArtifactFormat, isArtifactTextFormat, specializedArtifactFormats } from './artifactFormats'
+import { ArtifactDataPreview } from './ArtifactDataPreview'
+import type { ArchiveMember } from './artifactArchives'
 
 export type FileDatabaseQuery = (sql: string, maxRows: number) => Promise<SessionFileDatabaseQueryResult>
 
@@ -481,6 +484,7 @@ export function LiveSessionFileExplorer({
 }
 
 export function FileContentPreview({
+  archiveDepth = 0,
   allowFullscreen = true,
   content,
   entry,
@@ -491,6 +495,7 @@ export function FileContentPreview({
   onViewAsText,
   queryDatabase,
 }: {
+  archiveDepth?: number
   allowFullscreen?: boolean
   content: SessionLiveFileContent
   entry: SessionLiveFileEntry | null
@@ -504,16 +509,23 @@ export function FileContentPreview({
   const fileName = content.fileName || entry?.name || 'Live file'
   const mediaFormat = resolveMediaFileFormat(fileName, content.mimeType || content.contentType || entry?.mimeType, content.fileExtension || entry?.fileExtension)
   const mimeType = mediaFormat?.mimeType || content.mimeType || content.contentType || entry?.mimeType || 'application/octet-stream'
-  const viewerKind = !content.viewerKind || content.viewerKind === 'binary'
-    ? mediaFormat?.kind || inferViewerKind(content, entry)
-    : content.viewerKind
+  const inferredFormat = resolveArtifactFormat(fileName, mimeType, content.rawText ?? content.text)
+  const viewerKind = content.viewerKind === 'text' || content.viewerKind === 'profile'
+    ? content.viewerKind
+    : specializedArtifactFormats.has(inferredFormat) || inferredFormat === 'model3d'
+      ? inferredFormat
+      : !content.viewerKind || content.viewerKind === 'binary'
+        ? mediaFormat?.kind || inferredFormat
+        : content.viewerKind
+  const isSpecialized = specializedArtifactFormats.has(viewerKind)
+  const [showSource, setShowSource] = useState(false)
   const extension = content.fileExtension || entry?.fileExtension || getExtension(fileName)
   const isGlbViewer = viewerKind === 'model3d' && extension.toLowerCase() === '.glb'
   const isTruncated = content.isTruncated ?? content.truncated ?? false
   const displaySizeBytes = content.sizeBytes && content.sizeBytes > 0
     ? content.sizeBytes
     : entry?.sizeBytes ?? 0
-  const isTextViewer = isTextViewerKind(viewerKind) && content.text !== undefined
+  const isTextViewer = !isSpecialized && isTextViewerKind(viewerKind) && content.text !== undefined
   const [textViewMode, setTextViewMode] = useState<TextViewMode>('formatted')
   const [isFullscreen, setIsFullscreen] = useState(false)
   const showIdentity = !hideIdentity || isFullscreen
@@ -617,7 +629,17 @@ export function FileContentPreview({
   let viewerContent: ReactNode
   let truncatedMessage: ReactNode = null
 
-  if (viewerKind === 'sqlite' && content.databaseSchema) {
+  if (content.isSuccess === false) {
+    viewerContent = <p className="artifact-rich" role="alert">{content.message || 'Unable to preview this artifact.'}</p>
+  } else if (isSpecialized) {
+    viewerContent = <>
+      {content.text !== undefined ? <div className="artifact-rich-toolbar artifact-rich"><button type="button" aria-pressed={!showSource} onClick={() => setShowSource(false)}>Preview</button><button type="button" aria-pressed={showSource} onClick={() => setShowSource(true)}>Source</button></div> : null}
+      {isTruncated ? <p className="artifact-rich" role="status">This is an incomplete preview.{onOpenFullFile ? <button type="button" onClick={onOpenFullFile}>Open full file</button> : null}</p> : null}
+      {showSource ? <pre className="artifact-rich">{content.rawText ?? content.text}</pre>
+        : viewerKind === 'archive' && archiveDepth >= 2 ? <p className="artifact-rich">Nested archive preview is limited to two levels.</p>
+          : <ArtifactDataPreview content={content} fileName={fileName} format={viewerKind} renderMember={member => <ArchiveMemberPreview member={member} archiveDepth={archiveDepth + 1} key={member.path} />} />}
+    </>
+  } else if (viewerKind === 'sqlite' && content.databaseSchema) {
     viewerContent = <DatabasePreview content={content} key={fileName} queryDatabase={queryDatabase} />
   } else if (isTextViewer) {
     viewerContent = <TextContentPreview content={content} mode={textViewMode} viewerKind={viewerKind} />
@@ -1310,21 +1332,6 @@ function collectTextSearchMatches(root: HTMLElement, query: string): { ranges: R
   return { ranges, isTruncated: false }
 }
 
-function inferViewerKind(content: SessionLiveFileContent, entry: SessionLiveFileEntry | null): string {
-  const extension = (content.fileExtension || entry?.fileExtension || getExtension(content.fileName || entry?.name || '')).toLowerCase()
-  const mimeType = (content.mimeType || content.contentType || entry?.mimeType || '').toLowerCase()
-  if (['.json', '.geojson', '.har'].includes(extension) || mimeType.includes('json')) return 'json'
-  if (['.xml', '.xaml', '.plist', '.csproj', '.props', '.targets'].includes(extension) || mimeType.includes('xml')) return 'xml'
-  if (['.md', '.markdown', '.mdx'].includes(extension)) return 'markdown'
-  if (extension === '.csv' || mimeType === 'text/csv') return 'csv'
-  if (['.db', '.db3', '.sqlite', '.sqlite3'].includes(extension) || mimeType.includes('sqlite')) return 'sqlite'
-  if (['.glb', '.gltf', '.obj', '.stl'].includes(extension)) return 'model3d'
-  if (mimeType.startsWith('image/')) return 'image'
-  if (mimeType === 'application/pdf') return 'pdf'
-  if (mimeType.startsWith('audio/')) return 'audio'
-  if (mimeType.startsWith('video/')) return 'video'
-  return content.text !== undefined ? 'code' : 'binary'
-}
 
 function getExtension(fileName: string): string {
   const index = fileName.lastIndexOf('.')
@@ -1378,4 +1385,28 @@ function formatBytes(value: number): string {
 
 function resolveErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback
+}
+
+function ArchiveMemberPreview({ member, archiveDepth }: { member: ArchiveMember; archiveDepth: number }) {
+  const bytes = member.bytes
+  const fileName = member.path.split('/').pop() || member.path
+  const extension = getExtension(fileName)
+  const mimeType = ({ '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.gif': 'image/gif', '.webp': 'image/webp', '.pdf': 'application/pdf', '.glb': 'model/gltf-binary', '.gltf': 'model/gltf+json' } as Record<string, string>)[extension] || resolveMediaFileFormat(fileName)?.mimeType || 'application/octet-stream'
+  const textCandidate = useMemo(() => {
+    const initialFormat = resolveArtifactFormat(fileName, mimeType)
+    return bytes && (isArtifactTextFormat(initialFormat) || (initialFormat === 'binary' && !bytes.subarray(0, 8192).includes(0)))
+      ? new TextDecoder().decode(bytes) : ''
+  }, [bytes, fileName, mimeType])
+  const format = resolveArtifactFormat(fileName, mimeType, textCandidate.includes('\0') ? undefined : textCandidate)
+  const text = isArtifactTextFormat(format) ? textCandidate : undefined
+  const [url, setUrl] = useState<string>()
+  useEffect(() => {
+    if (!bytes) return
+    const nextUrl = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: mimeType }))
+    queueMicrotask(() => setUrl(nextUrl))
+    return () => URL.revokeObjectURL(nextUrl)
+  }, [bytes, mimeType])
+  if (!bytes) return <p>{member.note || 'No member content.'}</p>
+  return <><a download={fileName} href={url}>Download file</a><FileContentPreview archiveDepth={archiveDepth} allowFullscreen={false} entry={null}
+    content={{ viewerKind: format, fileName, fileExtension: extension, mimeType, text, rawText: text, contentUrl: url, sizeBytes: bytes.byteLength }} /></>
 }

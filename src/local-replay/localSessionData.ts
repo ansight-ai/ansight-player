@@ -373,7 +373,7 @@ async function readLocalLiveFile(
     `api/sessions/${encodeURIComponent(sessionId)}/files/preview`,
     { root, path, forceText, allowLargeFile },
   )
-  if (!['model3d', 'audio', 'video'].includes(content.viewerKind ?? '')) {
+  if (!['model3d', 'audio', 'video', 'archive', 'perfetto'].includes(content.viewerKind ?? '')) {
     return content
   }
 
@@ -463,7 +463,7 @@ async function readLocalArtifactFile(
     `api/sessions/${encodeURIComponent(sessionId)}/artifacts/preview`,
     { snapshotId, path, forceText, allowLargeFile },
   )
-  if (!['model3d', 'audio', 'video'].includes(content.viewerKind ?? '')) {
+  if (!['model3d', 'audio', 'video', 'archive', 'perfetto'].includes(content.viewerKind ?? '')) {
     return content
   }
 

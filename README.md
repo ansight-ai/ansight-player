@@ -140,3 +140,40 @@ not retained content or Content-Length. Older captures and other collectors keep
 request durations but show missing latency/rates explicitly. Per-transfer averages
 are not bandwidth capacity or an aggregate live throughput chart. Idle windows
 remain unknown. No active probes or speed tests are run.
+
+## Diagnostic artifact previews
+
+The shared file preview recognizes formats by filename and MIME type, including
+MIME parameters. Well-known JSON shapes also select HAR, profile, or map views.
+The local host and cloud adapters preserve the source for these previews.
+
+| Formats | Preview |
+| --- | --- |
+| JSONL / NDJSON, CSV, TSV | Filterable, paged records with row inspection and malformed-line diagnostics. |
+| ZIP, TAR, GZIP, TGZ | Member browser with nested previews and downloads; links are never followed or extracted to disk. |
+| HAR | Request list, waterfall, headers, timings, query parameters, and captured bodies. |
+| Chrome CPU profiles, Speedscope, Chrome/Perfetto JSON traces | Flamechart with track selection, zoom, function highlighting, and inclusive timing totals. |
+| Native Perfetto traces | Explicit **Open trace in Perfetto** action sends the trace to the Perfetto web app in a new tab for browser-side processing. |
+| .nettrace | The local host converts with an installed `dotnet-trace` executable; cloud playback explains how to convert to Speedscope. |
+| HTML / HTM | Sandboxed static report with scripts, navigation, forms, and external resources disabled. Self-contained HTML and inline images/styles work. |
+| GeoJSON, GPX, KML | The existing `DeviceLocationMap` Mapbox implementation, with feature selection, properties, and bounds fitted to the geometry. |
+| YAML, TOML | Syntax validation and expandable structured navigation, with source available. |
+
+Map previews reuse the local host's public Mapbox token. Cloud consumers can set
+`VITE_MAPBOX_ACCESS_TOKEN` to their public Mapbox token at build time. Geographic
+coordinates must use WGS84 longitude/latitude. The parser supports points, lines,
+polygons, geometry collections, GPX routes/tracks, and KML placemarks.
+
+Record, configuration, profile, and archive parsing runs in a worker with a
+30-second timeout. Archive limits are 64 MiB compressed, 128 MiB expanded,
+32 MiB per previewable member, and 2,000 entries; nested browsing stops after two
+archive levels. Encrypted and multi-volume ZIP files are unsupported. Native
+trace handoff is bounded to 64 MiB; local .nettrace conversion allows 256 MiB
+input, 32 MiB output, and 60 seconds. The inline trace view covers synchronous
+spans and reports omitted async/counter events. Use Perfetto for full trace
+analysis. HTML previews do not execute JavaScript-dependent report applications.
+
+Run `node --test tests/artifactPreviews.test.mjs` for the parser checks. With the
+development server running, open `/tests/fixtures/artifact-previews.html` for
+interactive fixtures. Packaged consumers receive these features when their
+pinned player archive is updated through the normal release workflow.

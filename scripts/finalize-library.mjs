@@ -17,7 +17,7 @@ visit(join(root, 'src'), (file) => {
 })
 visit(join(root, 'dist/library'), (file) => {
   if (extname(file) !== '.js') return
-  let source = readFileSync(file, 'utf8')
+  let source = readFileSync(file, 'utf8').replaceAll('./artifactPreview.worker.ts', './artifactPreview.worker.js')
   const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS)
   const edits = []
   function visitNode(node) {
