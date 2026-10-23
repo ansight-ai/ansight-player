@@ -10,8 +10,8 @@ export function isPenTouch(touch: SessionTouchInputRecord): boolean {
 export function buildSessionTouchGestures(touches: SessionTouchInputRecord[]) {
   const samples: Touch[] = touches.flatMap((touch) => {
     const timeMs = Date.parse(touch.capturedAtUtc ?? '')
-    if (isPenTouch(touch) || !Number.isFinite(timeMs)) return []
-    return [{ ...touch, timeMs, sampleKind: touch.details?.sampleKind ?? undefined }]
+    if (!Number.isFinite(timeMs)) return []
+    return [{ ...touch, timeMs, ...touch.details, sampleKind: touch.details?.sampleKind ?? undefined }]
   })
   return buildGestures(samples)
 }

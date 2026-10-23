@@ -29,3 +29,12 @@
 .recorded-touch-center {
   fill: #fa441f;
 }
+
+.recorded-pencil-body { fill: #fff8ec; stroke: #273341; stroke-width: 1.3; }
+.recorded-pencil-wood { fill: #ddb382; }
+.recorded-pencil-nib { fill: #fa441f; }
+.recorded-pencil-roll { stroke: #f36b42; stroke-linecap: round; }
+.recorded-pencil-eraser { fill: #ef98ad; }
+.recorded-pencil-shadow { fill: #fa441f; }
+.recorded-pencil-tether { stroke: #fa441f; stroke-width: 1; stroke-dasharray: 2 3; }
+.recorded-pencil-tap { fill: none; stroke: #fa441f; stroke-width: 2; }

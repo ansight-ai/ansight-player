@@ -242,6 +242,7 @@ export type SessionTouchInputRecord = {
 }
 
 export type SessionTouchSampleDetails = {
+  inputSource?: string | null
   tool?: string | null
   sampleKind?: string | null
   force?: number | null

@@ -7,7 +7,7 @@ import { connectivityFromEvents, type ConnectivityWindow } from '../connectivity
 import { loadSessionConnectivity, loadSessionNetworkRequests } from '../sessionViewerData'
 import { NetworkPerformancePanel, NetworkPerformanceDetails } from '../NetworkPerformancePanel'
 import { resolveDeviceFrame } from '../deviceFrame'
-import { buildSessionTouchGestures, isPenTouch } from '../sessionTouchReplay'
+import { buildSessionTouchGestures } from '../sessionTouchReplay'
 import { touchFadeMs, visibleTouches, type Gesture } from '../touchReplay'
 import { RecordedTouchOverlay } from '../components/RecordedTouchOverlay'
 import { agentReasoningModes, defaultAgentReasoning, type AgentReasoning } from '../../agentReasoning'
@@ -156,7 +156,6 @@ import {
   type SessionStorageBreakdown,
   type SessionStorageBreakdownItem,
   type SessionTouchInputRecord,
-  type SessionTouchSampleDetails,
   type SessionViewerPayload,
   type SessionVisualTreeSnapshot,
   loadSessionViewerExternalPayload,
@@ -550,24 +549,6 @@ type SessionFrameImageContentBounds = {
   left: number
   top: number
   width: number
-}
-
-type FrameTouchView = {
-  action: string
-  tool: string
-  detailsTitle?: string
-  penMarker?: PenMarkerPresentation
-  opacity: number
-  key: string
-  x: number
-  y: number
-}
-
-type PenMarkerPresentation = {
-  widthPx: number
-  heightPx: number
-  rotationRadians: number
-  hasDirection: boolean
 }
 
 type SessionFrameViewportKind = 'phone' | 'tablet' | 'desktop'
@@ -4135,7 +4116,6 @@ function SessionFrameAnnotationAuthoringOverlay({
 function SessionFrameTouchOverlay({
   frame,
   scrubAtMs,
-  touches,
   gestures,
 }: {
   frame: SessionImageFrame | null
@@ -4143,43 +4123,23 @@ function SessionFrameTouchOverlay({
   touches: SessionTouchInputRecord[]
   gestures: Gesture[]
 }) {
-  const touchViews = useMemo(
-    () => buildFrameTouchViews(touches, frame, scrubAtMs),
-    [frame, scrubAtMs, touches],
-  )
-
   const dimensions = {
     width: normalizeFrameDimension(frame?.width) ?? 1000,
     height: normalizeFrameDimension(frame?.height) ?? 1000,
   }
-  const fingerTouches = frame ? visibleTouches(gestures, scrubAtMs, dimensions) : []
+  const replayTouches = frame ? visibleTouches(gestures, scrubAtMs, dimensions) : []
   const viewHeight = 1000 * dimensions.height / dimensions.width
 
-  if (touchViews.length === 0 && fingerTouches.length === 0) {
+  if (replayTouches.length === 0) {
     return null
   }
 
   return (
     <div aria-hidden="true" className="session-frame-touch-overlay">
       <svg className="session-frame-touch-gestures" viewBox={`0 0 1000 ${viewHeight}`} preserveAspectRatio="none" focusable="false">
-        <RecordedTouchOverlay touches={fingerTouches} viewHeight={viewHeight} />
+        <RecordedTouchOverlay touches={replayTouches} viewHeight={viewHeight} />
       </svg>
-      {touchViews.map((touch) => (
-        <span
-          className={`session-frame-touch session-frame-touch--${touch.action} session-frame-touch--${touch.tool}${touch.penMarker?.hasDirection ? ' session-frame-touch--oriented' : ''}`}
-          key={touch.key}
-          title={touch.detailsTitle}
-          style={{
-            '--session-frame-touch-opacity': touch.opacity,
-            '--session-frame-touch-width': touch.penMarker ? `${touch.penMarker.widthPx}px` : undefined,
-            '--session-frame-touch-height': touch.penMarker ? `${touch.penMarker.heightPx}px` : undefined,
-            '--session-frame-touch-rotation': touch.penMarker ? `${touch.penMarker.rotationRadians}rad` : undefined,
-            left: `${touch.x * 100}%`,
-            top: `${touch.y * 100}%`,
-            pointerEvents: touch.detailsTitle ? 'auto' : 'none',
-          } as CSSProperties}
-        />
-      ))}
+
     </div>
   )
 }
@@ -9203,114 +9163,6 @@ function normalizeFrameDimension(value: number | null | undefined): number | nul
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null
 }
 
-function buildFrameTouchViews(touches: SessionTouchInputRecord[], frame: SessionImageFrame | null, scrubAtMs: number): FrameTouchView[] {
-  if (!frame) {
-    return []
-  }
-
-  return touches.flatMap((touch, index) => {
-    if (!isPenTouch(touch) || touch.details?.sampleKind === 'estimatedUpdate') {
-      return []
-    }
-    const opacity = resolveTouchOpacity(touch, scrubAtMs)
-    if (opacity <= 0) {
-      return []
-    }
-
-    const point = resolveTouchPoint(touch, frame)
-    if (!point) {
-      return []
-    }
-
-    const action = normalizeTouchAction(touch.action)
-    const tool = touch.details?.tool === 'stylus' || touch.details?.tool === 'eraser'
-        ? touch.details.tool
-        : 'finger'
-    return [{
-      action,
-      tool,
-      penMarker: tool === 'stylus' || tool === 'eraser'
-        ? resolvePenMarkerPresentation(touch.details, tool, action)
-        : undefined,
-      detailsTitle: touch.details
-        ? Object.entries(touch.details)
-          .filter(([, value]) => value !== null && value !== undefined)
-          .map(([name, value]) => `${name}: ${value}`)
-          .join('\n')
-        : undefined,
-      key: touch.id || `${touch.capturedAtUtc ?? 'touch'}-${index}`,
-      opacity,
-      x: point.x,
-      y: point.y,
-    }]
-  })
-}
-
-function resolvePenMarkerPresentation(
-  details: SessionTouchSampleDetails | null | undefined,
-  tool: 'stylus' | 'eraser',
-  action: string,
-): PenMarkerPresentation {
-  const force = finiteNumber(details?.force)
-  const maximumForce = finiteNumber(details?.maximumPossibleForce)
-  const pressure = finiteNumber(details?.pressure)
-    ?? (force !== null && maximumForce !== null && maximumForce > 0 ? force / maximumForce : force)
-  const pressureFraction = action === 'hover' ? 0 : clamp(pressure ?? 0, 0, 1)
-  const altitude = finiteNumber(details?.altitudeRadians)
-  const tilt = altitude !== null
-    ? 1 - altitude / (Math.PI / 2)
-    : (finiteNumber(details?.tiltRadians) ?? 0) / (Math.PI / 2)
-  const tiltFraction = clamp(tilt, 0, 1)
-  const azimuth = finiteNumber(details?.azimuthRadians)
-  const orientation = finiteNumber(details?.orientationRadians)
-  const diameter = (tool === 'eraser' ? 14 : 8) + pressureFraction * 12
-
-  return {
-    widthPx: diameter * (1 + tiltFraction * 0.7),
-    heightPx: diameter * (1 - tiltFraction * 0.3),
-    rotationRadians: azimuth ?? (orientation !== null ? orientation - Math.PI / 2 : 0),
-    hasDirection: azimuth !== null || orientation !== null,
-  }
-}
-
-function finiteNumber(value: number | null | undefined): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null
-}
-
-function resolveTouchPoint(touch: SessionTouchInputRecord, frame: SessionImageFrame): { x: number; y: number } | null {
-  const x = resolveTouchNormalizedCoordinate(touch.normalizedX, touch.x, touch.surfaceWidth, frame.width, touch.coordinateUnit)
-  const y = resolveTouchNormalizedCoordinate(touch.normalizedY, touch.y, touch.surfaceHeight, frame.height, touch.coordinateUnit)
-  return x === null || y === null ? null : { x, y }
-}
-
-function resolveTouchNormalizedCoordinate(
-  normalizedValue: number | null | undefined,
-  rawValue: number,
-  surfaceLength: number | null | undefined,
-  imagePixelLength: number | null | undefined,
-  coordinateUnit: string,
-): number | null {
-  if (isUnitValue(normalizedValue)) {
-    return normalizedValue
-  }
-
-  if (isNormalizedTouchCoordinateUnit(coordinateUnit) && isUnitValue(rawValue)) {
-    return rawValue
-  }
-
-  const fallbackLength = typeof imagePixelLength === 'number' && Number.isFinite(imagePixelLength) && imagePixelLength > 0
-    ? imagePixelLength
-    : null
-  const length = typeof surfaceLength === 'number' && Number.isFinite(surfaceLength) && surfaceLength > 0
-    ? surfaceLength
-    : fallbackLength
-  if (!length || !Number.isFinite(rawValue)) {
-    return null
-  }
-
-  return clamp(rawValue / length, 0, 1)
-}
-
 function touchIsActiveAt(touch: SessionTouchInputRecord, scrubAtMs: number): boolean {
   return resolveTouchOpacity(touch, scrubAtMs) > 0
 }
@@ -9356,14 +9208,7 @@ function normalizeTouchAction(action: string | null | undefined): string {
   }
 }
 
-function isNormalizedTouchCoordinateUnit(coordinateUnit: string | null | undefined): boolean {
-  const normalized = coordinateUnit?.trim().toLowerCase()
-  return normalized === 'normalized' || normalized === 'unit' || normalized === 'ratio'
-}
 
-function isUnitValue(value: number | null | undefined): value is number {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1
-}
 
 function renderFrameAnnotationGeometry(view: FrameAnnotationGeometryView): ReactNode {
   const className = view.isSelected
