@@ -4488,18 +4488,13 @@
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   width: min(1120px, 100%);
-  height: min(860px, calc(100vh - 48px));
   overflow: hidden;
 }
 
 .session-info-ai-heading > div {
-  display: grid;
-  justify-items: start;
-  gap: 8px;
-}
-
-.session-info-ai-heading .eyebrow {
-  margin: 4px 0 -4px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .session-info-ai-content {
@@ -7003,6 +6998,18 @@ body.network-details-resizing {
   gap: 14px;
 }
 
+.local-summary-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.local-summary-toolbar > span {
+  font-size: 12px;
+}
+
 .cloud-ai-summary-progress {
   display: flex;
   align-items: center;
@@ -7514,8 +7521,9 @@ body.network-details-resizing {
 
 .analysis-entry-heading {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
 }
 
@@ -7536,20 +7544,21 @@ body.network-details-resizing {
   min-height: 26px;
 }
 
-.analysis-entry-heading > div:first-child > h3,
-.analysis-entry-heading > div:first-child > p {
-  margin: 0;
-}
-
-.analysis-entry-heading > div:first-child > h3 {
-  color: var(--text-primary);
-}
-
-.analysis-entry-heading > div:first-child > span {
-  display: block;
-  margin-top: 2px;
-  color: var(--text-muted);
+.analysis-entry-meta {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
   font-size: 12px;
+}
+
+.analysis-entry-meta > strong {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.analysis-entry-meta > span {
+  color: var(--text-muted);
 }
 
 .copyable-analysis {
