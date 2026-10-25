@@ -1,3 +1,4 @@
+import { recordingFile } from '../replay/sessionRecordings'
 import { artifactTimelineHref } from './artifactLinks'
 import { summariseLocalAnnotation } from './annotationSummary'
 import { readSessionOperationStream, type SessionOperationProgress } from './sessionOperationStream'
@@ -264,7 +265,7 @@ async function refreshLocalPayload(
   }
 
   const update = await response.json() as LocalSessionLiveUpdate
-  if (update.requiresReset) {
+  if (update.requiresReset || JSON.stringify(update.videoRecordings ?? []) !== JSON.stringify(capture.videoRecordings ?? [])) {
     return loadLocalPayload(sessionId)
   }
 
@@ -570,7 +571,7 @@ async function loadLocalPayload(sessionId: string): Promise<SessionViewerPayload
   const sourceSessionId = captureSession.sessionId || sessionId
   const createdUtc = captureSession.createdUtc || new Date().toISOString()
   const lastUpdatedUtc = captureSession.lastUpdatedUtc || createdUtc
-  const files = (captureSession.images ?? []).map(createFrameFile)
+  const files = [...(captureSession.images ?? []).map(createFrameFile), ...(captureSession.videoRecordings ?? []).map(recordingFile)]
   const session = createLocalTeamSession(captureSession, sourceSessionId, createdUtc, lastUpdatedUtc, files)
   return {
     session,

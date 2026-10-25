@@ -1,4 +1,5 @@
 import { ScreenshotInspectionResults } from './ScreenshotInspectionResults'
+import { TestVideoRecording } from './TestVideoRecording'
 import { SessionTracePanel, type SessionTraceTarget } from './SessionTracePanel'
 import { readScreenshotInspection } from './screenshotInspection'
 import { isAgentBatch, readTaskBatchReason } from './agentBatch'
@@ -599,6 +600,7 @@ function RunAuditDetail({ audit, displayName }: { audit: LocalTestRunAudit, disp
         <span>{audit.ansightToolCallCount} tool calls</span>
         {audit.calculatedCost ? <span>{formatCalculatedRunCost(audit.calculatedCost)}</span> : null}
       </div>
+      {audit.video ? <TestVideoRecording key={audit.video.runId} video={audit.video} /> : null}
       <RunAuditExecutions audit={audit} />
     </>
   )

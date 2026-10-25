@@ -1,3 +1,5 @@
+import { SessionRecordingSurface } from '../components/SessionRecordingSurface'
+import { completedTestRecordingEndMs, selectRecording } from '../sessionRecordings'
 import type { SessionActivitySource } from '../sessionActivity'
 import { TelemetryPanel } from '../components/TelemetryPanel'
 import { ConnectivityPanel } from '../ConnectivityPanel'
@@ -741,6 +743,10 @@ export function SessionViewerPage({
   const defaultTab: ViewerTab = initialArtifactId ? 'artifacts' : 'live-log'
   const [payload, setPayload] = useState<SessionViewerPayload | null>(null)
   const [scrubAtMs, setScrubAtMs] = useState<number | null>(null)
+  const [isPlaybackRunning, setIsPlaybackRunning] = useState(false)
+  const [failedRecordingId, setFailedRecordingId] = useState<string | null>(null)
+  const playbackAtRef = useRef(0)
+  useEffect(() => { setIsPlaybackRunning(false); setFailedRecordingId(null) }, [sessionId])
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({})
   const [sessionVideoLoadState, setSessionVideoLoadState] = useState<{
     storagePath: string
@@ -1419,6 +1425,45 @@ export function SessionViewerPage({
   }, [isLoading, onReplayRangeChange, payload?.session.id, payload?.session.session_id, sessionId, timelineRange.endMs, timelineRange.initialMs, timelineRange.startMs])
   const effectiveSessionDurationMs = resolveEffectiveSessionDurationMs(payload?.session.duration_ms ?? null, timelineRange)
   const effectiveScrubAtMs = resolveEffectiveScrubAt(scrubAtMs, timelineRange, isLiveSession)
+  playbackAtRef.current = effectiveScrubAtMs
+  const activeRecording = useMemo(() => {
+    if (selectedVisualTreeSnapshotKey) return null
+    // At the exclusive media end, keep displaying its final frame instead of
+    // switching back to a screenshot when playback stops.
+    const atMs = effectiveScrubAtMs === timelineRange.endMs ? effectiveScrubAtMs - 0.001 : effectiveScrubAtMs
+    const video = selectRecording(captureSession?.videoRecordings ?? [], atMs)
+    return video?.recordingId === failedRecordingId ? null : video
+  }, [captureSession?.videoRecordings, effectiveScrubAtMs, failedRecordingId, selectedVisualTreeSnapshotKey, timelineRange.endMs])
+  useEffect(() => {
+    if (!isPlaybackRunning) return
+    let frame = 0
+    let previous = performance.now()
+    const tick = (now: number) => {
+      const elapsed = now - previous
+      if (elapsed >= 40) {
+        const next = Math.min(timelineRange.endMs, playbackAtRef.current + elapsed)
+        previous = now
+        playbackAtRef.current = next
+        setScrubAtMs(next)
+        if (next >= timelineRange.endMs) { setIsPlaybackRunning(false); return }
+      }
+      frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [isPlaybackRunning, timelineRange.endMs])
+  function togglePlayback() {
+    if (!isPlaybackRunning) {
+      setSelectedVisualTreeSnapshotKey(null)
+      setSelectedArtifactSnapshotKey(null)
+      const start = effectiveScrubAtMs >= timelineRange.endMs - 1 ? timelineRange.startMs : effectiveScrubAtMs
+      playbackAtRef.current = start
+      setScrubAtMs(start)
+      onReplayInteracted?.()
+    }
+    setIsPlaybackRunning(value => !value)
+  }
+
   const connectivityBucket = Math.floor(effectiveScrubAtMs / 60_000)
   const [connectivityRemote, setConnectivityRemote] = useState<{ sessionId: string; bucket: number; data?: ConnectivityWindow; error?: string } | null>(null)
   const localConnectivity = useMemo(() => connectivityFromEvents(captureSession?.applicationEvents ?? [], Math.max(timelineRange.startMs, connectivityBucket * 60_000 - 60_000), Math.min(timelineRange.endMs, (connectivityBucket + 2) * 60_000)), [captureSession?.applicationEvents, connectivityBucket, timelineRange.startMs, timelineRange.endMs])
@@ -1470,8 +1515,9 @@ export function SessionViewerPage({
   )
   const selectedFrame = useMemo(
     () => (explicitlySelectedVisualTree ? selectFrameForVisualTree(frames, explicitlySelectedVisualTree) : null)
-      ?? selectFrameForTimestamp(timelineReplayIndex.frames, effectiveScrubAtMs, 'previous'),
-    [effectiveScrubAtMs, explicitlySelectedVisualTree, frames, timelineReplayIndex],
+      ?? selectFrameForTimestamp(timelineReplayIndex.frames, effectiveScrubAtMs, 'previous')
+      ?? (activeRecording ? { frameId: `video-${activeRecording.recordingId}`, capturedAtUtc: activeRecording.startedUtc, width: activeRecording.width, height: activeRecording.height } : null),
+    [activeRecording, effectiveScrubAtMs, explicitlySelectedVisualTree, frames, timelineReplayIndex],
   )
   const sessionVideoFramesById = useMemo(
     () => new Map((payload?.video?.index.frames ?? []).map((frame) => [frame.frameId, frame])),
@@ -1599,7 +1645,7 @@ export function SessionViewerPage({
     return explicitlySelectedSnapshot
       ?? selectArtifactSnapshot(timelineReplayIndex.artifactSnapshots, effectiveScrubAtMs)
   }, [artifactSnapshots, effectiveScrubAtMs, selectedArtifactSnapshotKey, timelineReplayIndex])
-  const selectedImageUrl = selectedFrame && !canUseSelectedSessionVideo
+  const selectedImageUrl = selectedFrame && !activeRecording && !canUseSelectedSessionVideo
     ? imageUrls[selectedFrame.frameId]
     : undefined
   const loadedTimelineFrames = useMemo(
@@ -1607,12 +1653,12 @@ export function SessionViewerPage({
     [imageUrls, timelineReplayIndex.frames],
   )
   const presentedFrame = useMemo(
-    () => canUseSelectedSessionVideo
+    () => activeRecording ? selectedFrame : canUseSelectedSessionVideo
       ? (selectedFrame?.frameId === presentedVideoFrameId ? selectedFrame : null)
       : selectedFrame && selectedImageUrl
         ? selectedFrame
         : selectFrameForTimestamp(loadedTimelineFrames, effectiveScrubAtMs, 'previous'),
-    [canUseSelectedSessionVideo, effectiveScrubAtMs, loadedTimelineFrames, presentedVideoFrameId, selectedFrame, selectedImageUrl],
+    [activeRecording, canUseSelectedSessionVideo, effectiveScrubAtMs, loadedTimelineFrames, presentedVideoFrameId, selectedFrame, selectedImageUrl],
   )
   useEffect(() => {
     displayedImageFrameIdRef.current = presentedFrame?.frameId ?? null
@@ -1644,14 +1690,14 @@ export function SessionViewerPage({
   const hasSelectedMediaPending = !!selectedFrame
     && !isSelectedFramePresented
     && (canUseSelectedSessionVideo || loadingImageFrameIds.has(selectedFrame.frameId))
-  const hasPresentedMedia = isSelectedVideoFramePresented || !!presentedImageUrl
+  const hasPresentedMedia = !!activeRecording || isSelectedVideoFramePresented || !!presentedImageUrl
   const frameImageLayers = useMemo(() => {
     const layers: Array<{ frame: SessionImageFrame; url: string }> = []
-    if (!canUseSelectedSessionVideo && presentedFrame && presentedImageUrl) {
+    if (!activeRecording && !canUseSelectedSessionVideo && presentedFrame && presentedImageUrl) {
       layers.push({ frame: presentedFrame, url: presentedImageUrl })
     }
     return layers
-  }, [canUseSelectedSessionVideo, presentedFrame, presentedImageUrl])
+  }, [activeRecording, canUseSelectedSessionVideo, presentedFrame, presentedImageUrl])
   const syncSelectedFrameImageContentBounds = useCallback(() => {
     const viewport = selectedFrameViewportRef.current
     const media = selectedFrameMediaRef.current
@@ -2674,6 +2720,12 @@ export function SessionViewerPage({
           </div>
 
           <SessionTimelineChart
+            playbackControls={(captureSession?.videoRecordings?.length ?? 0) > 0 ? <>
+              <span className="muted" role={failedRecordingId ? 'status' : undefined}>{failedRecordingId ? 'Video unavailable' : activeRecording ? 'Video' : 'Screenshot'}</span>
+              <button type="button" className="timeline-edit-button" aria-label={isPlaybackRunning ? 'Pause replay' : 'Play replay'} onClick={togglePlayback}>
+                {isPlaybackRunning ? 'Pause' : 'Play'}
+              </button>
+            </> : null}
             annotations={annotations}
             artifactSnapshots={artifactSnapshots}
             isFollowingLive={isFollowingLive}
@@ -2692,6 +2744,7 @@ export function SessionViewerPage({
             onCreateAnnotation={source.upsertAnnotation ? openTimelineAnnotationEditor : undefined}
             isRangeSelectionActive={isTimelineRangeSelecting}
             onGoLive={() => {
+              setIsPlaybackRunning(false)
               if (isLocalReplay) trackInspection('playback')
               setSelectedVisualTreeSnapshotKey(null)
               setSelectedArtifactSnapshotKey(null)
@@ -2724,7 +2777,7 @@ export function SessionViewerPage({
           className={canCaptureLiveVisualTree && !hasInlineCaptureToolbar
             ? 'panel session-screenshot-panel session-screenshot-panel--has-capture-action'
             : 'panel session-screenshot-panel'}
-          aria-label="Session screenshots"
+          aria-label="Session replay"
         >
           <button
             aria-label="Resize replay panel"
@@ -2747,7 +2800,13 @@ export function SessionViewerPage({
             {selectedFrame ? (
               <div className="session-frame-viewport" ref={selectedFrameViewportRef} style={selectedFrameViewportStyle}>
                 {isLocalReplay ? <span aria-hidden="true" className="device-screen-cutout" /> : null}
-                {canUseSelectedSessionVideo && sessionVideoUrl ? (
+                {activeRecording && payload ? <SessionRecordingSurface key={activeRecording.recordingId}
+                  recording={activeRecording} payload={payload} local={isLocalReplay} atMs={effectiveScrubAtMs}
+                  playing={isPlaybackRunning} frameId={selectedFrame.frameId}
+                  onMedia={element => { selectedFrameMediaRef.current = element }}
+                  onError={() => setFailedRecordingId(activeRecording.recordingId)}
+                  onLoaded={syncSelectedFrameImageContentBounds} /> : null}
+                {!activeRecording && canUseSelectedSessionVideo && sessionVideoUrl ? (
                   <video
                     aria-label="Selected session frame"
                     className="session-frame-video session-frame-image-layer session-frame-image-layer--presented"
@@ -4291,6 +4350,7 @@ function selectSessionImagePrefetchFrames(
 }
 
 function SessionTimelineChart({
+  playbackControls,
   annotations,
   artifactSnapshots,
   isFollowingLive,
@@ -4314,6 +4374,7 @@ function SessionTimelineChart({
   touches,
   visualTrees,
 }: {
+  playbackControls?: ReactNode
   annotations: SessionAnnotation[]
   artifactSnapshots: SessionArtifactSnapshot[]
   isFollowingLive: boolean
@@ -5204,6 +5265,7 @@ function SessionTimelineChart({
           ) : null}
         </div>
         <div className="timeline-chart-actions" aria-label="Timeline playback controls">
+          {playbackControls}
           <button type="button" className="timeline-edit-button" aria-label="Zoom timeline in" title="Zoom in (or pinch / Ctrl+scroll)" disabled={visibleDuration <= minVisibleDuration} onClick={() => zoomTimeline(0.5)}><MagnifyingGlassPlus aria-hidden="true" /></button>
           <button type="button" className="timeline-edit-button" aria-label="Zoom timeline out" title="Zoom out" disabled={!canZoomOut} onClick={() => zoomTimeline(2)}><MagnifyingGlassMinus aria-hidden="true" /></button>
           <button type="button" className="timeline-edit-button" aria-label="Fit full timeline" title="Fit full timeline" disabled={!canZoomOut} onClick={() => zoomTimeline(fullDuration / visibleDuration)}><ArrowsOut aria-hidden="true" /></button>
@@ -10345,6 +10407,13 @@ function resolveTimelineRange(
   includeTimestampedRange(replayIndex.touches)
   includeTimestampedRange(replayIndex.visualTrees)
   includeTimestampedRange(replayIndex.artifactSnapshots)
+  for (const video of captureSession?.videoRecordings ?? []) {
+    const start = toTimestamp(video.startedUtc)
+    if (start !== null && Number.isFinite(video.durationUs) && video.durationUs > 0) {
+      includeTimestamp(start)
+      includeTimestamp(start + video.durationUs / 1000)
+    }
+  }
   includeTimestamp(metricIndex.firstTimestampMs)
   includeTimestamp(metricIndex.lastTimestampMs)
   for (const annotation of annotations) {
@@ -10364,6 +10433,9 @@ function resolveTimelineRange(
     const now = Date.now()
     return { startMs: now, endMs: now + 60_000, initialMs: now }
   }
+
+  const recordedRunEndMs = completedTestRecordingEndMs(captureSession)
+  if (recordedRunEndMs !== null && recordedRunEndMs > contentStartMs) contentEndMs = recordedRunEndMs
 
   if (contentEndMs - contentStartMs < 1_000) {
     return { startMs: contentStartMs - 30_000, endMs: contentEndMs + 30_000, initialMs: contentStartMs }

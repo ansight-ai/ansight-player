@@ -90,6 +90,7 @@ export type SessionSnapshot = {
   logStreams?: SessionLogStream[]
   totalLogCount?: number
   retainedLogStartIndex?: number
+  videoRecordings?: SessionVideoRecording[]
   images?: SessionImageFrame[]
   analyses?: SessionAnalysisRecord[]
   annotations?: SessionAnnotation[]
@@ -198,6 +199,20 @@ export type SessionImageFrame = {
   height?: number
   quality?: number
   byteCount?: number
+}
+
+export type SessionVideoRecording = {
+  recordingId: string
+  runId: string
+  startedUtc: string
+  durationUs: number
+  width: number
+  height: number
+  byteSize: number
+  source: string
+  status: string
+  entryPath: string
+  timingSource: string
 }
 
 export type SessionVideoFrameIndexEntry = {

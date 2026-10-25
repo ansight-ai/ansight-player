@@ -5,6 +5,7 @@ import type {
   SessionAnnotation,
   SessionArtifactSnapshot,
   SessionImageFrame,
+  SessionVideoRecording,
   SessionLogEntry,
   SessionLogStream,
   SessionMetricChannel,
@@ -1080,6 +1081,7 @@ export type LocalTaskTestResult = {
 }
 
 export type LocalTestRunAudit = {
+  video?: LocalTestVideoResult | null
   executionKind?: string
   taskResult?: LocalTaskTestResult | null
   startupSteps?: LocalTestStartupStep[]
@@ -1114,6 +1116,22 @@ export type LocalTestRunAudit = {
   instructions: LocalTestInstructionAudit[]
   modelPasses?: LocalTestModelPassAudit[]
   toolCalls: LocalTestToolCallAudit[]
+}
+
+export type LocalTestVideoResult = {
+  runId: string
+  sessionId: string
+  status: 'completed' | 'partial' | 'failed' | 'unsupported' | 'discarded'
+  message: string
+  source: string
+  deviceIdentifier?: string | null
+  startedUtc: string
+  completedUtc: string
+  timingSource: string
+  recordingId?: string | null
+  byteSize?: number | null
+  durationUs?: number | null
+  path?: string | null
 }
 
 export type LocalTestRunHistoryEntry = {
@@ -1482,6 +1500,7 @@ export type LiveVisualTreeCaptureResponse = OperationResponse & {
 }
 
 export type LocalSessionLiveUpdate = {
+  videoRecordings?: SessionVideoRecording[]
   sessionId: string
   requiresReset: boolean
   lastUpdatedUtc: string
