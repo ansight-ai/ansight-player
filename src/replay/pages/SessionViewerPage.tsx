@@ -1,5 +1,5 @@
 import { SessionRecordingSurface } from '../components/SessionRecordingSurface'
-import { completedTestRecordingEndMs, selectRecording } from '../sessionRecordings'
+import { completedTestRecordingEndMs, selectRecordingForVisualTree } from '../sessionRecordings'
 import type { SessionActivitySource } from '../sessionActivity'
 import { TelemetryPanel } from '../components/TelemetryPanel'
 import { ConnectivityPanel } from '../ConnectivityPanel'
@@ -1426,14 +1426,19 @@ export function SessionViewerPage({
   const effectiveSessionDurationMs = resolveEffectiveSessionDurationMs(payload?.session.duration_ms ?? null, timelineRange)
   const effectiveScrubAtMs = resolveEffectiveScrubAt(scrubAtMs, timelineRange, isLiveSession)
   playbackAtRef.current = effectiveScrubAtMs
+  const explicitlySelectedVisualTree = useMemo(
+    () => selectedVisualTreeSnapshotKey
+      ? visualTrees.find((snapshot) => resolveVisualTreeSnapshotKey(snapshot) === selectedVisualTreeSnapshotKey) ?? null
+      : null,
+    [selectedVisualTreeSnapshotKey, visualTrees],
+  )
   const activeRecording = useMemo(() => {
-    if (selectedVisualTreeSnapshotKey) return null
     // At the exclusive media end, keep displaying its final frame instead of
     // switching back to a screenshot when playback stops.
     const atMs = effectiveScrubAtMs === timelineRange.endMs ? effectiveScrubAtMs - 0.001 : effectiveScrubAtMs
-    const video = selectRecording(captureSession?.videoRecordings ?? [], atMs)
+    const video = selectRecordingForVisualTree(captureSession?.videoRecordings ?? [], atMs, explicitlySelectedVisualTree, frames)
     return video?.recordingId === failedRecordingId ? null : video
-  }, [captureSession?.videoRecordings, effectiveScrubAtMs, failedRecordingId, selectedVisualTreeSnapshotKey, timelineRange.endMs])
+  }, [captureSession?.videoRecordings, effectiveScrubAtMs, failedRecordingId, explicitlySelectedVisualTree, frames, timelineRange.endMs])
   useEffect(() => {
     if (!isPlaybackRunning) return
     let frame = 0
@@ -1507,16 +1512,11 @@ export function SessionViewerPage({
   }), [sessionId, payload, frames, visualTrees, isLiveSession, onReplayInteracted, timelineRange.startMs, timelineRange.endMs])
   const isFollowingLive = isLiveSession && scrubAtMs === null
   const isAppBackgroundedAtScrub = useMemo(() => isTimestampInBackgroundState(lifecycleTransitions, effectiveScrubAtMs), [effectiveScrubAtMs, lifecycleTransitions])
-  const explicitlySelectedVisualTree = useMemo(
-    () => selectedVisualTreeSnapshotKey
-      ? visualTrees.find((snapshot) => resolveVisualTreeSnapshotKey(snapshot) === selectedVisualTreeSnapshotKey) ?? null
-      : null,
-    [selectedVisualTreeSnapshotKey, visualTrees],
-  )
   const selectedFrame = useMemo(
-    () => (explicitlySelectedVisualTree ? selectFrameForVisualTree(frames, explicitlySelectedVisualTree) : null)
-      ?? selectFrameForTimestamp(timelineReplayIndex.frames, effectiveScrubAtMs, 'previous')
-      ?? (activeRecording ? { frameId: `video-${activeRecording.recordingId}`, capturedAtUtc: activeRecording.startedUtc, width: activeRecording.width, height: activeRecording.height } : null),
+    () => activeRecording
+      ? { frameId: `video-${activeRecording.recordingId}`, capturedAtUtc: new Date(effectiveScrubAtMs).toISOString(), width: activeRecording.width, height: activeRecording.height }
+      : (explicitlySelectedVisualTree ? selectFrameForVisualTree(frames, explicitlySelectedVisualTree) : null)
+        ?? selectFrameForTimestamp(timelineReplayIndex.frames, effectiveScrubAtMs, 'previous'),
     [activeRecording, effectiveScrubAtMs, explicitlySelectedVisualTree, frames, timelineReplayIndex],
   )
   const sessionVideoFramesById = useMemo(

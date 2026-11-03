@@ -1,10 +1,20 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { completedTestRecordingEndMs, selectRecording, recordingTimeSeconds, recordingFile } from '../src/replay/sessionRecordings.ts'
+import { completedTestRecordingEndMs, selectRecording, selectRecordingForVisualTree, recordingTimeSeconds, recordingFile } from '../src/replay/sessionRecordings.ts'
 
 const first = { recordingId: 'one', startedUtc: '2026-10-25T00:00:10Z', durationUs: 20_000_000, entryPath: 'session-video/one.mp4', byteSize: 123 }
 const second = { ...first, recordingId: 'two', startedUtc: '2026-10-25T00:00:40Z' }
 const at = seconds => Date.parse('2026-10-25T00:00:00Z') + seconds * 1000
+
+test('tree inspection uses video unless an explicitly linked screenshot is retained', () => {
+  const frames = [{ frameId: 'old', capturedAtUtc: new Date(at(9)).toISOString() }]
+  const tree = { capturedAtUtc: new Date(at(15)).toISOString() }
+  assert.equal(selectRecordingForVisualTree([first], at(15), tree, frames), first)
+  assert.equal(selectRecordingForVisualTree([first], at(15), tree, []), first)
+  assert.equal(selectRecordingForVisualTree([first], at(15), { ...tree, screenshotFrameId: 'missing' }, frames), first)
+  assert.equal(selectRecordingForVisualTree([first], at(15), { ...tree, screenshotFrameId: ' old ' }, frames), null)
+  assert.equal(selectRecordingForVisualTree([first], at(35), tree, frames), null)
+})
 
 test('completed test playback excludes compression, metering and profiler shutdown time', () => {
   const session = { isHistorical: true, lastUpdatedUtc: new Date(at(46)).toISOString(),

@@ -1,4 +1,4 @@
-import type { SessionSnapshot, SessionVideoRecording, SharedSessionStreamFile } from './sessionViewerData'
+import type { SessionImageFrame, SessionSnapshot, SessionVideoRecording, SessionVisualTreeSnapshot, SharedSessionStreamFile } from './sessionViewerData'
 
 // Completed test recordings own their playback boundary. Host processing can update
 // lastUpdatedUtc (and append diagnostics) long after the app and recorder have stopped.
@@ -25,6 +25,13 @@ export function selectRecording(recordings: SessionVideoRecording[], atMs: numbe
   return recordings.filter(video => Number.isFinite(Date.parse(video.startedUtc)) && video.durationUs > 0
     && Date.parse(video.startedUtc) <= atMs && atMs < Date.parse(video.startedUtc) + video.durationUs / 1000)
     .sort((left, right) => Date.parse(right.startedUtc) - Date.parse(left.startedUtc))[0] ?? null
+}
+
+export function selectRecordingForVisualTree(recordings: SessionVideoRecording[], atMs: number,
+  snapshot: SessionVisualTreeSnapshot | null, frames: SessionImageFrame[]): SessionVideoRecording | null {
+  const linkedFrameId = snapshot?.screenshotFrameId?.trim()
+  if (linkedFrameId && frames.some(frame => frame.frameId === linkedFrameId)) return null
+  return selectRecording(recordings, atMs)
 }
 
 export function recordingTimeSeconds(video: SessionVideoRecording, atMs: number): number {
