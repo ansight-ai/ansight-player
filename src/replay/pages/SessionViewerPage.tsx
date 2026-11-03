@@ -161,6 +161,7 @@ import {
   type SessionViewerPayload,
   type SessionVisualTreeSnapshot,
   loadSessionViewerExternalPayload,
+  loadSessionEvidenceWindow,
   loadSessionViewerPayload,
   loadSessionVisualTreeSnapshot,
   readCloudSessionArtifactFile,
@@ -357,6 +358,7 @@ type SessionImageUrlBatch = {
 }
 
 export type SessionViewerSource = {
+  loadEvidenceWindow?: (payload: SessionViewerPayload, fromMs: number, toMs: number) => Promise<SessionViewerPayload>
   loadNetworkRequests?: (payload: SessionViewerPayload) => Promise<SessionNetworkRequest[]>
   loadConnectivity?: (payload: SessionViewerPayload, fromMs: number, toMs: number) => Promise<ConnectivityWindow>
   activity?: SessionActivitySource
@@ -619,6 +621,7 @@ const cloudSessionViewerSource: SessionViewerSource = {
   loadAiReadState: loadSessionAiReadState,
   loadPayload: (sessionId, superAdminMode) => loadSessionViewerPayload(sessionId, { superAdminMode }),
   hydratePayload: loadSessionViewerExternalPayload,
+  loadEvidenceWindow: loadSessionEvidenceWindow,
   loadConnectivity: loadSessionConnectivity,
   loadNetworkRequests: loadSessionNetworkRequests,
 }
@@ -1426,6 +1429,46 @@ export function SessionViewerPage({
   const effectiveSessionDurationMs = resolveEffectiveSessionDurationMs(payload?.session.duration_ms ?? null, timelineRange)
   const effectiveScrubAtMs = resolveEffectiveScrubAt(scrubAtMs, timelineRange, isLiveSession)
   playbackAtRef.current = effectiveScrubAtMs
+  const evidenceBucket = Math.floor(effectiveScrubAtMs / 15_000)
+  const chunkedReplay = payload?.manifest.schema === 'ansight.offline-capture.v2'
+  const offlineChunkState = (payload?.session.metadata as {
+    offlineCapture?: { status?: string; failedChunks?: number; chunks?: { droppedRecords?: number }[] }
+  } | null)?.offlineCapture
+  const offlineCaptureStatus = offlineChunkState?.status
+  const chunkIndexVersion = chunkedReplay ? JSON.stringify(payload?.session.metadata) : ''
+  useEffect(() => {
+    if (!chunkedReplay || offlineCaptureStatus === 'complete') return
+    let cancelled = false
+    let busy = false
+    const timer = window.setInterval(async () => {
+      if (busy) return
+      busy = true
+      try {
+        const next = await source.loadPayload(sessionId, superAdminMode)
+        if (!cancelled) {
+          setPayload(current => current ? { ...current, session: next.session } : next)
+        }
+      } catch (error) {
+        if (!cancelled) setMessage(getErrorMessage(error, 'Unable to refresh the offline capture.'))
+      } finally {
+        busy = false
+      }
+    }, 5000)
+    return () => { cancelled = true; window.clearInterval(timer) }
+  }, [chunkedReplay, offlineCaptureStatus, sessionId, source.loadPayload, superAdminMode])
+  useEffect(() => {
+    if (!payload || !chunkedReplay || !source.loadEvidenceWindow) return
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      source.loadEvidenceWindow!(payload, (evidenceBucket - 1) * 15_000, (evidenceBucket + 2) * 15_000)
+        .then(next => { if (!cancelled) setPayload(next) })
+        .catch((error: unknown) => { if (!cancelled) setMessage(error instanceof Error ? error.message : 'Offline evidence could not be loaded.') })
+    }, 100)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+    // Evidence changes are intentionally excluded: only the playhead window or
+    // durable chunk index should request another load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, chunkedReplay, chunkIndexVersion, evidenceBucket, source.loadEvidenceWindow])
   const explicitlySelectedVisualTree = useMemo(
     () => selectedVisualTreeSnapshotKey
       ? visualTrees.find((snapshot) => resolveVisualTreeSnapshotKey(snapshot) === selectedVisualTreeSnapshotKey) ?? null
@@ -2704,6 +2747,14 @@ export function SessionViewerPage({
       ) : null}
 
       {message ? <p className="inline-message">{message}</p> : null}
+      {chunkedReplay && offlineCaptureStatus !== 'complete' ? <p className="inline-message" role="status">
+        {(offlineChunkState?.failedChunks ?? 0) > 0
+          ? 'Some capture chunks could not be processed. Available evidence is shown; the capture is incomplete.'
+          : 'This capture is still receiving or processing chunks. Available evidence is shown and updates automatically.'}
+      </p> : null}
+      {chunkedReplay && offlineChunkState?.chunks?.some(chunk => (chunk.droppedRecords ?? 0) > 0) ? <p className="inline-message" role="status">
+        The recorder reported dropped evidence. Gaps may be present in this capture.
+      </p> : null}
       {session.storage_layout === 'archive_zip' ? (
         <p className="inline-message">
           This is a raw offline capture archive. Download it, import it with the Ansight CLI using <code>ansight session import</code>, then publish a streamable replay using <code>ansight session share</code> to enable browser replay and cloud AI.

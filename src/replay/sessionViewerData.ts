@@ -635,6 +635,7 @@ export async function loadSessionConnectivity(payload: SessionViewerPayload, fro
 }
 
 export type SessionViewerDataServices = {
+  loadSessionEvidenceWindow?: (payload: SessionViewerPayload, fromMs: number, toMs: number) => Promise<SessionViewerPayload>
   loadSessionNetworkRequests?: (payload: SessionViewerPayload) => Promise<SessionNetworkRequest[]>
   loadSessionConnectivity?: (payload: SessionViewerPayload, fromMs: number, toMs: number) => Promise<ConnectivityWindow>
   loadSessionViewerPayload: (sessionId: string, options?: LoadSessionViewerPayloadOptions) => Promise<SessionViewerPayload>
@@ -644,6 +645,11 @@ export type SessionViewerDataServices = {
   createSessionFileSignedUrl: (session: TeamSession, file: SharedSessionStreamFile) => Promise<string>
   createSessionFileSignedUrls: (session: TeamSession, files: SharedSessionStreamFile[]) => Promise<Map<string, string>>
   readCloudSessionArtifactFile: (payload: SessionViewerPayload, snapshotId: string | null, path: string, forceText?: boolean, allowLargeFile?: boolean) => Promise<SessionLiveFileContent>
+}
+
+export async function loadSessionEvidenceWindow(payload: SessionViewerPayload, fromMs: number, toMs: number): Promise<SessionViewerPayload> {
+  const loader = getCloudPlayerAdapter().sessions.loadSessionEvidenceWindow
+  return loader ? loader(payload, fromMs, toMs) : payload
 }
 
 export async function loadSessionNetworkRequests(payload: SessionViewerPayload): Promise<SessionNetworkRequest[]> {
