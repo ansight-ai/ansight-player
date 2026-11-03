@@ -305,6 +305,9 @@ export type LocalAppGraphLiveNode = {
 }
 
 export type LocalAppGraphLiveEdge = {
+  hasStableAutomationId?: boolean
+  selector?: Record<string, unknown>
+
   id: string
   from: string
   to: string
@@ -379,13 +382,17 @@ export type LocalAppGraphLiveCoverage = {
 }
 
 export type LocalAppGraphLiveAction = {
+  hasStableAutomationId?: boolean
+  isNavigationEssential?: boolean
+  navigationKind?: string
+
   id: string
   destinationId: string
   toolName: string
   automationId: string
   selector: Record<string, unknown>
   semanticMeaning: string
-  status: 'queued' | 'attempted' | 'explored' | 'blocked' | 'unsafe' | 'unavailable'
+  status: 'queued' | 'attempted' | 'needs_verification' | 'deferred' | 'explored' | 'blocked' | 'unsafe' | 'unavailable' | 'navigation'
   attemptCount: number
   lastOutcome: string
   resultDestinationId?: string | null
@@ -408,9 +415,18 @@ export type LocalAppGraphLiveRun = {
   sessionId: string
   appId?: string | null
   graphName: string
-  status: 'starting' | 'running' | 'succeeded' | 'failed' | 'cancelled'
+  status: 'starting' | 'running' | 'succeeded' | 'partial' | 'failed' | 'cancelled'
   message: string
   currentDestinationId?: string | null
+  pendingOutcome?: {
+    inputId: string
+    actionId: string
+    fromDestinationId: string
+    toolName: string
+    evidenceId: string
+    semanticMeaning: string
+    selector: Record<string, unknown>
+  } | null
   activeToolName?: string | null
   turn: number
   startedUtc: string

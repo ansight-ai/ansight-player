@@ -628,7 +628,8 @@ button.local-runner-status:hover {
 .local-app-graph-status--starting { color: var(--accent); }
 .local-app-graph-status--succeeded { color: var(--success); }
 .local-app-graph-status--failed { color: var(--danger); }
-.local-app-graph-status--cancelled { color: var(--warning); }
+.local-app-graph-status--cancelled,
+.local-app-graph-status--partial { color: var(--warning); }
 
 .local-app-graph-body {
   display: grid;

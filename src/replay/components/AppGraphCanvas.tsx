@@ -5,19 +5,10 @@ import type {
   WheelEvent as ReactWheelEvent,
 } from 'react'
 import type { AppGraphDefinition, AppGraphEdge, AppGraphNode, AppGraphRunStepStatus } from '../../types'
-import { appGraphNodeKindLabel, normalizeAppGraphDefinition } from '../appGraphModel'
+import { appGraphNodeKindLabel } from '../appGraphModel'
+import { createCompoundCanvasLayout, groupHeaderHeight } from '../appGraphLayout'
+import type { CanvasNode, CanvasGroup } from '../appGraphLayout'
 
-const nodeWidth = 212
-const nodeHeight = 96
-const childNodeWidth = 150
-const childNodeHeight = 68
-const childColumnGap = 44
-const childRowGap = 24
-const parentStateGap = 56
-const maximumChildRows = 4
-const groupHeaderHeight = 62
-const groupPadding = 20
-const groupEdgeGutter = 38
 const canvasMinimumWidth = 1_160
 const canvasMinimumHeight = 650
 const canvasRightPadding = 120
@@ -29,33 +20,6 @@ type DragState = {
 }
 
 type Point = { x: number; y: number }
-
-type CanvasNode = {
-  node: AppGraphNode
-  x: number
-  y: number
-  width: number
-  height: number
-  groupKey?: string
-}
-
-type CanvasGroup = {
-  key: string
-  label: string
-  x: number
-  y: number
-  width: number
-  height: number
-  nodeIds: string[]
-  stateCount: number
-}
-
-type CanvasLayout = {
-  definition: AppGraphDefinition
-  groups: CanvasGroup[]
-  nodes: CanvasNode[]
-  nodeById: Map<string, CanvasNode>
-}
 
 type CanvasEdge = {
   edge: AppGraphEdge
@@ -102,7 +66,7 @@ export function AppGraphCanvas({
     ...layout.groups.map((group) => group.y + group.height + canvasBottomPadding),
   )
   const nodeById = layout.nodeById
-  const canvasEdges = useMemo(() => createCanvasEdges(layout.definition.edges), [layout.definition.edges])
+  const canvasEdges = useMemo(() => createCanvasEdges([...layout.definition.edges, ...(layout.definition.observedTransitions ?? [])]), [layout.definition.edges, layout.definition.observedTransitions])
   const viewWidth = width / zoom
   const viewHeight = height / zoom
 
@@ -113,7 +77,7 @@ export function AppGraphCanvas({
     const point = clientPointToCanvas(event.clientX, event.clientY)
     const groupKey = layout.nodeById.get(node.id)?.groupKey
     const movedNodes = groupKey
-      ? definition.nodes.filter((candidate) => layout.nodeById.get(candidate.id)?.groupKey === groupKey)
+      ? definition.nodes.filter((candidate) => layout.groups.find(group => group.key === groupKey)?.nodeIds.includes(candidate.id))
       : [node]
     dragStateRef.current = {
       nodes: movedNodes.map((candidate) => ({ id: candidate.id, x: candidate.x, y: candidate.y })),
@@ -267,10 +231,10 @@ export function AppGraphCanvas({
                   className="app-graph-state-group-header"
                   d={`M ${group.x + 15} ${group.y} H ${group.x + group.width - 15} Q ${group.x + group.width} ${group.y} ${group.x + group.width} ${group.y + 15} V ${group.y + groupHeaderHeight} H ${group.x} V ${group.y + 15} Q ${group.x} ${group.y} ${group.x + 15} ${group.y} Z`}
                 />
-                <text className="app-graph-state-group-kind" x={group.x + 20} y={group.y + 22}>Screen</text>
+                <text className="app-graph-state-group-kind" x={group.x + 20} y={group.y + 22}>{group.kindLabel}</text>
                 <text className="app-graph-state-group-label" x={group.x + 20} y={group.y + 45}>{truncateNodeLabel(group.label, 48)}</text>
                 <text className="app-graph-state-group-count" textAnchor="end" x={group.x + group.width - 20} y={group.y + 37}>
-                  {group.stateCount} internal state{group.stateCount === 1 ? '' : 's'}
+                  {group.stateCount} {group.memberLabel}{group.stateCount === 1 ? '' : 's'}
                 </text>
                 {firstNode && !readOnly ? (
                   <rect
@@ -433,7 +397,8 @@ function canvasEdgeLabel(edge: AppGraphEdge, reverseEdge: AppGraphEdge | null): 
 }
 
 function edgeSemanticMeaning(edge: AppGraphEdge): string {
-  return edge.action.semanticMeaning.trim()
+  const label = edge.action.semanticMeaning.trim()
+  return edge.action.hasStableAutomationId === false ? `${label} · observed only` : label
 }
 
 function resolveCanvasEdgeStatus(
@@ -444,100 +409,6 @@ function resolveCanvasEdgeStatus(
   const statuses = [edgeStatuses[edge.id], reverseEdge ? edgeStatuses[reverseEdge.id] : undefined]
   const priority: AppGraphRunStepStatus[] = ['failed', 'running', 'succeeded', 'skipped', 'pending']
   return priority.find((status) => statuses.includes(status))
-}
-
-function createCompoundCanvasLayout(sourceDefinition: AppGraphDefinition): CanvasLayout {
-  const definition = normalizeAppGraphDefinition(sourceDefinition)
-  const groupedNodes = new Map<string, { label: string; nodes: AppGraphNode[] }>()
-  const nodes: CanvasNode[] = []
-
-  for (const node of definition.nodes) {
-    const parentScreen = node.parentScreen?.trim()
-    if (!parentScreen) continue
-    const key = normalizeGroupKey(parentScreen)
-    const group = groupedNodes.get(key) ?? { label: parentScreen, nodes: [] }
-    group.nodes.push(node)
-    groupedNodes.set(key, group)
-  }
-
-  const parentNodeByGroupKey = new Map<string, AppGraphNode>()
-  for (const node of definition.nodes) {
-    if (node.parentScreen?.trim()) continue
-    const key = normalizeGroupKey(node.name)
-    if (groupedNodes.has(key)) parentNodeByGroupKey.set(key, node)
-  }
-
-  const groups: CanvasGroup[] = []
-  for (const [key, grouped] of groupedNodes) {
-    const members = [...grouped.nodes].sort((left, right) => left.x - right.x || left.y - right.y || left.name.localeCompare(right.name))
-    const parentNode = parentNodeByGroupKey.get(key)
-    const rows = Math.min(maximumChildRows, Math.max(1, members.length))
-    const columns = Math.ceil(members.length / rows)
-    const childGridWidth = columns * childNodeWidth + Math.max(0, columns - 1) * childColumnGap
-    const childGridHeight = rows * childNodeHeight + Math.max(0, rows - 1) * childRowGap
-    const contentWidth = parentNode
-      ? nodeWidth + parentStateGap + childGridWidth
-      : childGridWidth
-    const contentHeight = Math.max(parentNode ? nodeHeight : 0, childGridHeight)
-    const x = Math.max(24, parentNode?.x ?? Math.min(...members.map((node) => node.x)))
-    const y = Math.max(24, parentNode?.y ?? Math.min(...members.map((node) => node.y)))
-    const width = groupPadding * 2 + contentWidth
-    const height = groupHeaderHeight + groupPadding * 2 + contentHeight + groupEdgeGutter
-    const groupNodeIds = parentNode
-      ? [parentNode.id, ...members.map((node) => node.id)]
-      : members.map((node) => node.id)
-    const group: CanvasGroup = {
-      key,
-      label: grouped.label,
-      x,
-      y,
-      width,
-      height,
-      nodeIds: groupNodeIds,
-      stateCount: members.length,
-    }
-    groups.push(group)
-
-    if (parentNode) {
-      nodes.push({
-        node: parentNode,
-        x: x + groupPadding,
-        y: y + groupHeaderHeight + groupPadding + (contentHeight - nodeHeight) / 2,
-        width: nodeWidth,
-        height: nodeHeight,
-        groupKey: key,
-      })
-    }
-
-    members.forEach((node, index) => {
-      const column = Math.floor(index / rows)
-      const row = index % rows
-      nodes.push({
-        node,
-        x: x + groupPadding + (parentNode ? nodeWidth + parentStateGap : 0) + column * (childNodeWidth + childColumnGap),
-        y: y + groupHeaderHeight + groupPadding + row * (childNodeHeight + childRowGap),
-        width: childNodeWidth,
-        height: childNodeHeight,
-        groupKey: key,
-      })
-    })
-  }
-
-  for (const node of definition.nodes) {
-    if (node.parentScreen?.trim() || parentNodeByGroupKey.has(normalizeGroupKey(node.name))) continue
-    nodes.push({ node, x: node.x, y: node.y, width: nodeWidth, height: nodeHeight })
-  }
-
-  return {
-    definition,
-    groups,
-    nodes,
-    nodeById: new Map(nodes.map((placement) => [placement.node.id, placement])),
-  }
-}
-
-function normalizeGroupKey(value: string): string {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')
 }
 
 function createEdgeGeometry(

@@ -1,3 +1,4 @@
+import { minimumHostChildren, readAppGraphContainment } from './appGraphContainment'
 import type {
   AppGraphBinding,
   AppGraphBindingCandidate,
@@ -134,7 +135,7 @@ export function validateAppGraph(definition: AppGraphDefinition): string[] {
   for (const host of definition.navigationHosts ?? []) {
     if (!nodeIds.has(host.destinationId)
       || host.childDestinationIds.some((id) => !nodeIds.has(id))
-      || host.childDestinationIds.length < 2
+      || host.childDestinationIds.length < minimumHostChildren(host.kind)
       || !host.childDestinationIds.includes(host.activeChildDestinationId)) {
       errors.push(`Navigation host '${host.id}' has incomplete or invalid destination membership.`)
     }
@@ -142,7 +143,7 @@ export function validateAppGraph(definition: AppGraphDefinition): string[] {
   if (definition.nodes.some((node) => node.kind === 'screen'
     && !!node.parentScreen?.trim()
     && !(definition.navigationHosts ?? []).some((host) => host.childDestinationIds.includes(node.id)
-      && nodeById.get(host.destinationId)?.name.trim() === node.parentScreen?.trim()))) {
+      && [host.destinationId, nodeById.get(host.destinationId)?.name.trim()].includes(node.parentScreen?.trim())))) {
     errors.push('A screen may identify a parent only when that navigation host declares it as a child.')
   }
   if (new Set((definition.tabGroups ?? []).map((group) => group.id)).size !== (definition.tabGroups ?? []).length) {
@@ -156,6 +157,8 @@ export function validateAppGraph(definition: AppGraphDefinition): string[] {
       errors.push(`Tab group '${group.id}' has incomplete or invalid destination membership.`)
     }
   }
+
+  errors.push(...readAppGraphContainment(definition).errors)
 
   const targetNodeIds = new Set(definition.edges.map((edge) => edge.to))
   const explicitEntryNodes = definition.nodes.filter((node) => node.isEntry)
@@ -206,10 +209,15 @@ export function validateAppGraph(definition: AppGraphDefinition): string[] {
 export function normalizeAppGraphDefinition(definition: AppGraphDefinition): AppGraphDefinition {
   const nodeByMeaning = new Map<string, AppGraphNode>()
   const nodeIdRedirects = new Map<string, string>()
+  const { parentById: sourceParents } = readAppGraphContainment(definition)
+  const sourceNames = new Map(definition.nodes.map(node => [node.id, node.name]))
 
   for (const sourceNode of definition.nodes) {
     if (isVisualTreeImplementationLeak(sourceNode)) continue
-    const normalizedNode = normalizeDestinationNode(sourceNode)
+    const parentId = sourceParents.get(sourceNode.id)
+    const normalizedNode = normalizeDestinationNode(parentId
+      ? { ...sourceNode, parentScreen: sourceNames.get(parentId) }
+      : sourceNode)
     const meaning = createNodeMeaning(normalizedNode)
     const existing = nodeByMeaning.get(meaning)
     if (existing) {
@@ -232,7 +240,7 @@ export function normalizeAppGraphDefinition(definition: AppGraphDefinition): App
 
   const nodes = [...nodeByMeaning.values()]
   const nodeIds = new Set(nodes.map((node) => node.id))
-  const edges = deduplicateEdges(definition.edges.flatMap((sourceEdge) => {
+  const normalizeEdges = (sourceEdges: AppGraphEdge[]) => deduplicateEdges(sourceEdges.flatMap((sourceEdge) => {
     const from = nodeIdRedirects.get(sourceEdge.from)
     const to = nodeIdRedirects.get(sourceEdge.to)
     if (!from || !to || from === to || !nodeIds.has(from) || !nodeIds.has(to)) return []
@@ -263,7 +271,16 @@ export function normalizeAppGraphDefinition(definition: AppGraphDefinition): App
     return [{ ...group, parentDestinationId, selectedDestinationId, tabDestinationIds }]
   })
 
-  return { ...definition, nodes, edges, navigationHosts, tabGroups }
+  const normalized = { ...definition, nodes, edges: normalizeEdges(definition.edges),
+    observedTransitions: definition.observedTransitions ? normalizeEdges(definition.observedTransitions) : undefined,
+    navigationHosts, tabGroups }
+  const { parentById } = readAppGraphContainment(normalized)
+  const namesById = new Map(nodes.map(node => [node.id, node.name]))
+  for (const node of nodes) {
+    const parentId = parentById.get(node.id)
+    if (parentId && node.kind !== 'dialog') node.parentScreen = namesById.get(parentId)
+  }
+  return normalized
 }
 
 export function validateExecutableAppGraph(
@@ -469,7 +486,7 @@ export function mergeAppGraphObservations(
       const childDestinationIds = host.childDestinationIds
         .map(redirect)
         .filter((id): id is string => !!id)
-      if (!destinationId || !activeChildDestinationId || childDestinationIds.length < 2) continue
+      if (!destinationId || !activeChildDestinationId || childDestinationIds.length < minimumHostChildren(host.kind)) continue
       const existing = navigationHostByDestination.get(destinationId)
       if (existing) {
         existing.childDestinationIds = deduplicateStrings([...existing.childDestinationIds, ...childDestinationIds])
@@ -516,8 +533,19 @@ export function mergeAppGraphObservations(
     }
   }
 
+  const observedTransitions = structureSources.flatMap((source) => (source.observedTransitions ?? []).flatMap((edge) => {
+    const fromNode = source.nodes.find((node) => node.id === edge.from)
+    const toNode = source.nodes.find((node) => node.id === edge.to)
+    const from = fromNode ? nodeByMeaning.get(createNodeMeaning(fromNode))?.id : undefined
+    const to = toNode ? nodeByMeaning.get(createNodeMeaning(toNode))?.id : undefined
+    if (!from || !to) return []
+    const id = allocateSemanticId('observed', usedEdgeIds)
+    usedEdgeIds.add(id)
+    return [{ ...cloneEdge(edge), id, from, to }]
+  }))
   return normalizeAppGraphDefinition({
     schema: 'ansight.app-graph/v1',
+    observedTransitions: deduplicateEdges(observedTransitions),
     nodes: additiveLayout,
     edges,
     navigationHosts: [...navigationHostByDestination.values()],
@@ -799,6 +827,8 @@ function inferDestinationKind(label: string, parentStateLabel?: string): AppGrap
 
 function normalizeElementAction(action: AppGraphEdge['action']): AppGraphEdge['action'] {
   return {
+    ...action,
+    selector: action.selector ? cloneRecord(action.selector) : undefined,
     automationId: action.automationId.trim(),
     semanticMeaning: collapseDuplicateBoundaryAction(action.semanticMeaning),
   }

@@ -37,7 +37,6 @@ import type { SessionAnnotation } from '../replay/sessionViewerData'
 
 const linkedTraceRefreshIntervalMs = 8000
 const appGraphRefreshIntervalMs = 750
-const isAppGraphToolVisible = false
 const sessionEventRefreshDebounceMs = 250
 const sessionRecoveryRefreshIntervalMs = 10_000
 const sessionFailedRefreshIntervalMs = 3_000
@@ -521,6 +520,7 @@ export function LocalReplayApp() {
   const canManageSelectedSession = bootstrap !== null
     && (bootstrap.mode === 'explorer' || selectedSession?.sessionId === bootstrap.initialSessionId)
   const hasActiveAppGraphRun = appGraphRuns.some((run) => run.status === 'starting' || run.status === 'running')
+  const isAppGraphToolVisible = appGraphRuns.length > 0
   const openDeviceLocation = useCallback(() => {
     setIsLocationOpen(true)
     trackLocalWebEvent({ kind: 'panel_opened', panel: 'device_location' })

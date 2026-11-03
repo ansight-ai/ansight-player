@@ -177,6 +177,11 @@ export type AppGraphBindingCandidate = {
 }
 
 export type AppGraphElementAction = {
+  /** False when the link is retained from an observed selector only. */
+  hasStableAutomationId?: boolean
+  selector?: Record<string, unknown>
+  navigationKind?: string
+
   /** Stable automation/accessibility/test identifier for the element that performs the action. */
   automationId: string
   /** Product-level meaning of using the element, independent of gesture or framework. */
@@ -231,6 +236,8 @@ export type AppGraphDefinition = {
   schema: 'ansight.app-graph/v1'
   nodes: AppGraphNode[]
   edges: AppGraphEdge[]
+  /** Observed routes awaiting stable target identity; excluded from executable planning. */
+  observedTransitions?: AppGraphEdge[]
   navigationHosts?: AppGraphNavigationHost[]
   tabGroups?: AppGraphTabGroup[]
   sourceMermaid?: string

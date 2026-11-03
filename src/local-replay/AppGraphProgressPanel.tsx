@@ -9,6 +9,7 @@ import {
 } from '@phosphor-icons/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AppGraphDefinition, AppGraphRunStepStatus } from '../types'
+import { createCompoundCanvasLayout } from '../replay/appGraphLayout'
 import { AppGraphCanvas } from '../replay/components/AppGraphCanvas'
 import type { LocalAppGraphLiveRun } from './types'
 
@@ -53,10 +54,17 @@ export function AppGraphProgressPanel({
     ?? null
   const trace = selectedRun?.trace ?? []
   const pendingActions = (selectedRun?.frontier ?? [])
-    .filter((action) => action.status === 'queued' || action.status === 'attempted')
-    .sort((left, right) => left.attemptCount - right.attemptCount
+    .filter((action) => !action.isNavigationEssential
+      && ['queued', 'attempted', 'needs_verification', 'deferred'].includes(action.status))
+    .sort((left, right) => Number(left.status === 'deferred') - Number(right.status === 'deferred')
+      || left.attemptCount - right.attemptCount
       || left.firstObservedUtc.localeCompare(right.firstObservedUtc))
   const latestTraceSequence = trace.at(-1)?.sequence ?? 0
+  const observedTargets = (selectedRun?.frontier ?? []).filter((action) => {
+    const visibleTarget = action.status !== 'unavailable'
+      && (action.isNavigationEssential || !action.automationId)
+    return visibleTarget
+  })
 
   useEffect(() => {
     const element = traceRef.current
@@ -116,6 +124,7 @@ export function AppGraphProgressPanel({
                   <Metric label="Navigation hosts" value={(selectedRun.navigationHosts ?? []).length} />
                   <Metric label="Internal tab groups" value={(selectedRun.tabGroups ?? []).length} />
                   <Metric label="Pending actions" value={pendingActions.length} />
+                  <Metric label="Blocked actions" value={(selectedRun.frontier ?? []).filter((action) => action.status === 'blocked').length} />
                   <Metric
                     label="Actions explored"
                     value={`${selectedRun.coverage.actionsExplored}/${selectedRun.coverage.safeActionsObserved}`}
@@ -131,6 +140,14 @@ export function AppGraphProgressPanel({
                   <strong>{selectedRun.message}</strong>
                   <span>Updated {formatRelativeTime(selectedRun.updatedUtc)}</span>
                 </div>
+
+                {selectedRun.pendingOutcome ? (
+                  <div className="local-app-graph-gaps">
+                    <small>Awaiting action verification</small>
+                    <strong>{selectedRun.pendingOutcome.semanticMeaning || selectedRun.pendingOutcome.actionId}</strong>
+                    <span>This action needs an observed outcome before exploration can continue.</span>
+                  </div>
+                ) : null}
 
                 {selectedNode ? (
                   <div className="local-app-graph-destination">
@@ -151,6 +168,20 @@ export function AppGraphProgressPanel({
                   </div>
                 ) : null}
 
+                {observedTargets.length > 0 ? (
+                  <div className="local-app-graph-gaps">
+                    <small>Navigation and observed targets</small>
+                    {observedTargets.map((action) => (
+                      <span key={action.id}>
+                        {action.semanticMeaning || action.automationId || action.id}
+                        {action.isNavigationEssential && action.status === 'navigation' ? ' · reusable navigation' : ''}
+                        {action.status === 'blocked' ? ' · blocked' : ''}
+                        {!action.automationId ? ' · no stable automation ID' : ''}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+
                 {pendingActions.length > 0 ? (
                   <div className="local-app-graph-gaps">
                     <small>Next action frontier</small>
@@ -158,6 +189,8 @@ export function AppGraphProgressPanel({
                       <span key={action.id}>
                         <CircleNotch aria-hidden="true" />
                         {action.destinationId} · {action.automationId || action.semanticMeaning}
+                        {` · ${action.status.replaceAll('_', ' ')}`}
+                        {!action.automationId ? ' · observed selector' : ''}
                         {action.attemptCount > 0 ? ` · ${action.attemptCount} attempt(s)` : ''}
                       </span>
                     ))}
@@ -233,14 +266,13 @@ function Metric({ label, value }: { label: string; value: number | string }) {
 function RunStatusIcon({ status }: { status: LocalAppGraphLiveRun['status'] }) {
   if (status === 'running' || status === 'starting') return <CircleNotch className="spin" aria-hidden="true" />
   if (status === 'succeeded') return <CheckCircle aria-hidden="true" />
-  if (status === 'cancelled') return <WarningCircle aria-hidden="true" />
+  if (status === 'cancelled' || status === 'partial') return <WarningCircle aria-hidden="true" />
   return <XCircle aria-hidden="true" />
 }
 
-function createLiveDefinition(run: LocalAppGraphLiveRun): AppGraphDefinition {
-  const positions = createLiveGraphPositions(run)
+export function createLiveDefinition(run: LocalAppGraphLiveRun): AppGraphDefinition {
   const destinationNameById = new Map(run.nodes.map((node) => [node.id, node.name]))
-  return {
+  const definition: AppGraphDefinition = {
     schema: 'ansight.app-graph/v1',
     nodes: run.nodes.map((node, index) => ({
       id: node.id,
@@ -252,8 +284,8 @@ function createLiveDefinition(run: LocalAppGraphLiveRun): AppGraphDefinition {
       synonyms: node.synonyms,
       purpose: node.purpose,
       isEntry: index === 0,
-      x: positions.get(node.id)?.x ?? 120,
-      y: positions.get(node.id)?.y ?? 120,
+      x: 120,
+      y: 120,
       confidence: node.confidence,
     })),
     edges: run.edges.map((edge) => ({
@@ -262,6 +294,8 @@ function createLiveDefinition(run: LocalAppGraphLiveRun): AppGraphDefinition {
       to: edge.to,
       action: {
         automationId: edge.automationId,
+        hasStableAutomationId: edge.hasStableAutomationId ?? Boolean(edge.automationId),
+        selector: edge.selector,
         semanticMeaning: edge.semanticMeaning,
       },
       confidence: edge.confidence,
@@ -286,6 +320,8 @@ function createLiveDefinition(run: LocalAppGraphLiveRun): AppGraphDefinition {
       confidence: group.confidence,
     })),
   }
+  const positions = createLiveGraphPositions(definition)
+  return { ...definition, nodes: definition.nodes.map(node => ({ ...node, ...positions.get(node.id) })) }
 }
 
 type LiveGraphLayoutUnit = {
@@ -301,15 +337,6 @@ type LiveGraphLayoutUnit = {
 
 const liveNodeWidth = 212
 const liveNodeHeight = 96
-const liveChildNodeWidth = 150
-const liveChildNodeHeight = 68
-const liveChildColumnGap = 44
-const liveChildRowGap = 24
-const liveParentStateGap = 56
-const liveMaximumChildRows = 4
-const liveGroupHeaderHeight = 62
-const liveGroupPadding = 20
-const liveGroupEdgeGutter = 38
 const liveLayoutLeft = 64
 const liveLayoutTop = 54
 const liveLayoutColumnGap = 116
@@ -317,62 +344,19 @@ const liveLayoutLayerGap = 52
 const liveLayoutRowGap = 80
 const liveLayoutTargetColumnHeight = 548
 
-function createLiveGraphPositions(run: LocalAppGraphLiveRun): Map<string, { x: number; y: number }> {
+function createLiveGraphPositions(definition: AppGraphDefinition): Map<string, { x: number; y: number }> {
+  const layout = createCompoundCanvasLayout(definition)
   const unitById = new Map<string, LiveGraphLayoutUnit>()
   const unitIdByNodeId = new Map<string, string>()
-  const parentNodeByReference = new Map<string, LocalAppGraphLiveRun['nodes'][number]>()
-  const nodeIndexById = new Map(run.nodes.map((node, index) => [node.id, index]))
-
-  for (const node of run.nodes) {
-    if (node.parentScreen?.trim()) continue
-    parentNodeByReference.set(normalizeLiveGraphReference(node.id), node)
-    parentNodeByReference.set(normalizeLiveGraphReference(node.name), node)
-    const unit: LiveGraphLayoutUnit = {
-      id: node.id,
-      primaryNodeId: node.id,
-      nodeIds: [node.id],
-      originalIndex: nodeIndexById.get(node.id) ?? 0,
-      width: liveNodeWidth,
-      height: liveNodeHeight,
-      outgoing: new Set(),
-      incoming: new Set(),
-    }
-    unitById.set(unit.id, unit)
-    unitIdByNodeId.set(node.id, unit.id)
-  }
-
-  for (const node of run.nodes) {
-    const parentScreen = node.parentScreen?.trim()
-    if (!parentScreen) continue
-    const parentNode = parentNodeByReference.get(normalizeLiveGraphReference(parentScreen))
-    const unitId = parentNode?.id ?? `state-group:${normalizeLiveGraphReference(parentScreen)}`
-    const unit = unitById.get(unitId) ?? {
-      id: unitId,
-      primaryNodeId: null,
-      nodeIds: [],
-      originalIndex: nodeIndexById.get(node.id) ?? 0,
-      width: liveNodeWidth,
-      height: liveNodeHeight,
-      outgoing: new Set<string>(),
-      incoming: new Set<string>(),
-    }
-    unit.nodeIds.push(node.id)
-    unit.originalIndex = Math.min(unit.originalIndex, nodeIndexById.get(node.id) ?? unit.originalIndex)
-    unitById.set(unitId, unit)
-    unitIdByNodeId.set(node.id, unitId)
-  }
-
-  for (const unit of unitById.values()) {
-    const stateCount = unit.nodeIds.length - (unit.primaryNodeId ? 1 : 0)
-    if (stateCount > 0) {
-      const dimensions = estimateLiveCompoundDimensions(stateCount, !!unit.primaryNodeId)
-      unit.width = dimensions.width
-      unit.height = dimensions.height
-    }
+  const nodeIndexById = new Map(definition.nodes.map((node, index) => [node.id, index]))
+  for (const root of layout.roots) {
+    unitById.set(root.id, { ...root, originalIndex: Math.min(...root.nodeIds.map(id => nodeIndexById.get(id) ?? 0)),
+      outgoing: new Set(), incoming: new Set() })
+    for (const id of root.nodeIds) unitIdByNodeId.set(id, root.id)
   }
 
   const directionalPairs = new Set<string>()
-  for (const edge of run.edges) {
+  for (const edge of definition.edges) {
     const fromUnitId = unitIdByNodeId.get(edge.from)
     const toUnitId = unitIdByNodeId.get(edge.to)
     if (!fromUnitId || !toUnitId || fromUnitId === toUnitId) continue
@@ -465,43 +449,22 @@ function createLiveGraphPositions(run: LocalAppGraphLiveRun): Map<string, { x: n
   const positions = new Map<string, { x: number; y: number }>()
   for (const unit of orderedUnits) {
     const anchor = positionByUnitId.get(unit.id) ?? { x: liveLayoutLeft, y: liveLayoutTop }
-    if (unit.primaryNodeId) positions.set(unit.primaryNodeId, anchor)
-    const stateNodeIds = unit.nodeIds.filter((nodeId) => nodeId !== unit.primaryNodeId)
-    const rows = Math.min(liveMaximumChildRows, Math.max(1, stateNodeIds.length))
-    stateNodeIds.forEach((nodeId, index) => {
-      const column = Math.floor(index / rows)
-      const row = index % rows
-      positions.set(nodeId, {
-        x: anchor.x + (unit.primaryNodeId ? liveGroupPadding + liveNodeWidth + liveParentStateGap : 0)
-          + column * (liveChildNodeWidth + liveChildColumnGap),
-        y: anchor.y + row * (liveChildNodeHeight + liveChildRowGap),
+    const originalRoot = layout.roots.find(root => root.id === unit.id)!
+    for (const id of unit.nodeIds) {
+      const placement = layout.nodeById.get(id)!
+      positions.set(id, unit.primaryNodeId === id ? anchor : {
+        x: anchor.x + placement.x - originalRoot.x,
+        y: anchor.y + placement.y - originalRoot.y,
       })
-    })
+    }
   }
   return positions
-}
-
-function estimateLiveCompoundDimensions(stateCount: number, hasParent: boolean): { width: number; height: number } {
-  const rows = Math.min(liveMaximumChildRows, Math.max(1, stateCount))
-  const columns = Math.ceil(stateCount / rows)
-  const childGridWidth = columns * liveChildNodeWidth + Math.max(0, columns - 1) * liveChildColumnGap
-  const childGridHeight = rows * liveChildNodeHeight + Math.max(0, rows - 1) * liveChildRowGap
-  return {
-    width: liveGroupPadding * 2 + (hasParent ? liveNodeWidth + liveParentStateGap : 0) + childGridWidth,
-    height: liveGroupHeaderHeight + liveGroupPadding * 2
-      + Math.max(hasParent ? liveNodeHeight : 0, childGridHeight)
-      + liveGroupEdgeGutter,
-  }
 }
 
 function measureLiveLayerHeight(units: LiveGraphLayoutUnit[]): number {
   return units.reduce((height, unit, index) => (
     height + unit.height + (index === 0 ? 0 : liveLayoutRowGap)
   ), 0)
-}
-
-function normalizeLiveGraphReference(value: string): string {
-  return value.trim().toLocaleLowerCase().replace(/[^a-z0-9]+/g, '-')
 }
 
 function createEdgeStatuses(run: LocalAppGraphLiveRun): Record<string, AppGraphRunStepStatus> {
