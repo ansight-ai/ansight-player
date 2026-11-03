@@ -71,7 +71,6 @@ export function LocalReplayApp() {
   const [bootstrap, setBootstrap] = useState<LocalReplayBootstrap | null>(null)
   const [sessions, setSessions] = useState<LocalSessionSummary[]>([])
   const [hostReachable, setHostReachable] = useState(false)
-  const [refreshingTools, setRefreshingTools] = useState(false)
   const [gettingStarted, setGettingStarted] = useState<LocalGettingStartedState | null>(null)
   const [showGettingStarted, setShowGettingStarted] = useState(false)
   const initialGettingStartedDecision = useRef(false)
@@ -1298,26 +1297,13 @@ export function LocalReplayApp() {
           {selectedSession?.connectionDiagnostics?.map((diagnostic) => <div className="inline-message local-replay-message" key={diagnostic.code} role="status">
             <strong>Device connection: </strong>{diagnostic.message} <span>{diagnostic.recovery}</span>
           </div>)}
-          {selectedSession && selectedSession.captureSource === 'sdk' ? <div className="local-replay-message" role="status">
-            {!selectedSession.isConnected && /connecting|awaiting|paired|websocket open|^connected$/i.test(selectedSession.status)
-              ? 'Waiting for the app stream. Keep the app open and check that it can reach this host. '
-              : null}
-            {selectedSession.toolCatalogStatus === 'loading' ? 'Discovering app tools…'
-              : selectedSession.toolCatalogStatus === 'failed' ? `Tool discovery failed: ${selectedSession.toolCatalogMessage ?? 'No response from the app.'}`
-                : selectedSession.toolCatalogStatus === 'ready' ? (selectedSession.toolCount ? `${selectedSession.toolCount} app tools${selectedSession.isConnected ? ' available' : ' recorded'}.` : 'No app tools registered. Enable the SDK tools integration, reconnect, then refresh tools.')
-                  : 'No app tool catalog recorded.'}
-            {hostReachable && selectedSession.isConnected ? <button className="local-text-button" disabled={refreshingTools} type="button" onClick={async () => {
-              setRefreshingTools(true)
-              try {
-                const response = await fetch(`api/sessions/${encodeURIComponent(selectedSession.sessionId)}/refresh-tools`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
-                const result = await response.json() as LocalOperationResult
-                if (!response.ok || !result.isSuccess) throw new Error(result.message)
-                setSessionActionError(null)
-                setSessionRefreshNonce((value) => value + 1)
-              } catch (error) { setSessionActionError(resolveErrorMessage(error, 'Unable to refresh app tools.')) }
-              finally { setRefreshingTools(false) }
-            }}>{refreshingTools ? 'Refreshing…' : 'Refresh tools'}</button> : null}
-          </div> : null}
+          {selectedSession?.captureSource === 'sdk'
+            && !selectedSession.isConnected
+            && /connecting|awaiting|paired|websocket open|^connected$/i.test(selectedSession.status) ? (
+              <div className="local-replay-message" role="status">
+                Waiting for the app stream. Keep the app open and check that it can reach this host.
+              </div>
+            ) : null}
           {message ? <p className="inline-message local-replay-message" role="status">{message}</p> : null}
           {showGettingStarted && gettingStarted ? (
             <GettingStartedPanel
