@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AppGraphDefinition, AppGraphRunStepStatus } from '../types'
 import { createCompoundCanvasLayout } from '../replay/appGraphLayout'
 import { AppGraphCanvas } from '../replay/components/AppGraphCanvas'
+import { AppGraphFocusView } from './AppGraphFocusView'
 import type { LocalAppGraphLiveRun } from './types'
 
 type AppGraphProgressPanelProps = {
@@ -30,6 +31,7 @@ export function AppGraphProgressPanel({
 }: AppGraphProgressPanelProps) {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const [graphView, setGraphView] = useState<'focus' | 'full'>('focus')
   const traceRef = useRef<HTMLOListElement>(null)
 
   const effectiveSelectedRunId = selectedRunId && runs.some((run) => run.runId === selectedRunId)
@@ -49,7 +51,8 @@ export function AppGraphProgressPanel({
   const effectiveSelectedNodeId = selectedNodeId
     && selectedRun?.nodes.some((node) => node.id === selectedNodeId)
     ? selectedNodeId
-    : selectedRun?.currentDestinationId
+    : selectedRun?.nodes.find(node => node.id === selectedRun.currentDestinationId)?.id
+      ?? selectedRun?.nodes[0]?.id
   const selectedNode = selectedRun?.nodes.find((node) => node.id === effectiveSelectedNodeId)
     ?? null
   const trace = selectedRun?.trace ?? []
@@ -60,11 +63,19 @@ export function AppGraphProgressPanel({
       || left.attemptCount - right.attemptCount
       || left.firstObservedUtc.localeCompare(right.firstObservedUtc))
   const latestTraceSequence = trace.at(-1)?.sequence ?? 0
-  const observedTargets = (selectedRun?.frontier ?? []).filter((action) => {
+  const selectedActions = (selectedRun?.frontier ?? []).filter(action => action.destinationId === effectiveSelectedNodeId)
+  const selectedPendingActions = pendingActions.filter(action => action.destinationId === effectiveSelectedNodeId)
+  const observedTargets = selectedActions.filter((action) => {
     const visibleTarget = action.status !== 'unavailable'
       && (action.isNavigationEssential || !action.automationId)
     return visibleTarget
   })
+
+  function focusNode(nodeId: string) {
+    if (!nodeId) return
+    setSelectedNodeId(nodeId)
+    setGraphView('focus')
+  }
 
   useEffect(() => {
     const element = traceRef.current
@@ -100,7 +111,10 @@ export function AppGraphProgressPanel({
             <div className="local-app-graph-toolbar">
               <label>
                 <span>Exploration run</span>
-                <select onChange={(event) => setSelectedRunId(event.target.value)} value={selectedRun.runId}>
+                <select onChange={(event) => {
+                  setSelectedRunId(event.target.value)
+                  setSelectedNodeId(null)
+                }} value={selectedRun.runId}>
                   {runs.map((run) => (
                     <option key={run.runId} value={run.runId}>
                       {run.graphName} · {formatStatus(run.status)} · {formatTime(run.startedUtc)}
@@ -118,36 +132,42 @@ export function AppGraphProgressPanel({
 
             <div className="local-app-graph-body">
               <aside className="local-app-graph-inspector">
-                <div className="local-app-graph-counts">
-                  <Metric label="Destinations" value={selectedRun.nodes.length} />
-                  <Metric label="Transitions" value={selectedRun.edges.length} />
-                  <Metric label="Navigation hosts" value={(selectedRun.navigationHosts ?? []).length} />
-                  <Metric label="Internal tab groups" value={(selectedRun.tabGroups ?? []).length} />
-                  <Metric label="Pending actions" value={pendingActions.length} />
-                  <Metric label="Blocked actions" value={(selectedRun.frontier ?? []).filter((action) => action.status === 'blocked').length} />
-                  <Metric
-                    label="Actions explored"
-                    value={`${selectedRun.coverage.actionsExplored}/${selectedRun.coverage.safeActionsObserved}`}
-                  />
-                  <Metric
-                    label="Scroll coverage"
-                    value={`${selectedRun.coverage.scrollContainersCompleted}/${selectedRun.coverage.scrollContainersObserved}`}
-                  />
-                </div>
-
-                <div className="local-app-graph-activity">
-                  <small>Latest activity</small>
-                  <strong>{selectedRun.message}</strong>
-                  <span>Updated {formatRelativeTime(selectedRun.updatedUtc)}</span>
-                </div>
-
-                {selectedRun.pendingOutcome ? (
-                  <div className="local-app-graph-gaps">
-                    <small>Awaiting action verification</small>
-                    <strong>{selectedRun.pendingOutcome.semanticMeaning || selectedRun.pendingOutcome.actionId}</strong>
-                    <span>This action needs an observed outcome before exploration can continue.</span>
+                <details className="local-app-graph-run-summary">
+                  <summary>
+                    <strong>Whole run</strong>
+                    <span>{selectedRun.nodes.length} nodes · {selectedRun.edges.length} transitions · {pendingActions.length} pending</span>
+                  </summary>
+                  <div className="local-app-graph-counts">
+                    <Metric label="Nodes (incl. containers)" value={selectedRun.nodes.length} />
+                    <Metric label="Transitions" value={selectedRun.edges.length} />
+                    <Metric label="Navigation hosts" value={(selectedRun.navigationHosts ?? []).length} />
+                    <Metric label="Internal tab groups" value={(selectedRun.tabGroups ?? []).length} />
+                    <Metric label="Pending actions" value={pendingActions.length} />
+                    <Metric label="Blocked actions" value={(selectedRun.frontier ?? []).filter((action) => action.status === 'blocked').length} />
+                    <Metric
+                      label="Actions explored"
+                      value={`${selectedRun.coverage.actionsExplored}/${selectedRun.coverage.safeActionsObserved}`}
+                    />
+                    <Metric
+                      label="Scroll coverage"
+                      value={`${selectedRun.coverage.scrollContainersCompleted}/${selectedRun.coverage.scrollContainersObserved}`}
+                    />
                   </div>
-                ) : null}
+
+                  <div className="local-app-graph-activity">
+                    <small>Latest activity</small>
+                    <strong>{selectedRun.message}</strong>
+                    <span>Updated {formatRelativeTime(selectedRun.updatedUtc)}</span>
+                  </div>
+
+                  {selectedRun.pendingOutcome ? (
+                    <div className="local-app-graph-gaps">
+                      <small>Awaiting action verification</small>
+                      <strong>{selectedRun.pendingOutcome.semanticMeaning || selectedRun.pendingOutcome.actionId}</strong>
+                      <span>This action needs an observed outcome before exploration can continue.</span>
+                    </div>
+                  ) : null}
+                </details>
 
                 {selectedNode ? (
                   <div className="local-app-graph-destination">
@@ -170,7 +190,7 @@ export function AppGraphProgressPanel({
 
                 {observedTargets.length > 0 ? (
                   <div className="local-app-graph-gaps">
-                    <small>Navigation and observed targets</small>
+                    <small>This screen · navigation and targets</small>
                     {observedTargets.map((action) => (
                       <span key={action.id}>
                         {action.semanticMeaning || action.automationId || action.id}
@@ -182,13 +202,13 @@ export function AppGraphProgressPanel({
                   </div>
                 ) : null}
 
-                {pendingActions.length > 0 ? (
+                {selectedPendingActions.length > 0 ? (
                   <div className="local-app-graph-gaps">
-                    <small>Next action frontier</small>
-                    {pendingActions.slice(0, 8).map((action) => (
+                    <small>This screen · pending actions</small>
+                    {selectedPendingActions.map((action) => (
                       <span key={action.id}>
                         <CircleNotch aria-hidden="true" />
-                        {action.destinationId} · {action.automationId || action.semanticMeaning}
+                        {action.semanticMeaning || action.automationId}
                         {` · ${action.status.replaceAll('_', ' ')}`}
                         {!action.automationId ? ' · observed selector' : ''}
                         {action.attemptCount > 0 ? ` · ${action.attemptCount} attempt(s)` : ''}
@@ -199,35 +219,55 @@ export function AppGraphProgressPanel({
               </aside>
 
               <main className="local-app-graph-canvas">
-                {definition.nodes.length > 0 ? (
-                  <AppGraphCanvas
-                    definition={definition}
-                    edgeStatuses={edgeStatuses}
-                    onChange={() => {}}
-                    onSelectNode={setSelectedNodeId}
-                    readOnly
-                    selectedNodeId={selectedNode?.id ?? null}
-                  />
-                ) : (
-                  <div className="local-app-graph-empty">
-                    {selectedRun.status === 'running' || selectedRun.status === 'starting'
-                      ? <CircleNotch className="spin" aria-hidden="true" />
-                      : <FlowArrow aria-hidden="true" />}
-                    <strong>Waiting for the first verified destination</strong>
-                    <span>The graph appears as soon as the exploration agent reports semantic evidence.</span>
+                <div className="local-app-graph-view-toolbar">
+                  <label>
+                    <span>Screen or container</span>
+                    <select value={effectiveSelectedNodeId ?? ''} onChange={event => focusNode(event.target.value)}>
+                      {[...selectedRun.nodes].sort((left, right) => left.name.localeCompare(right.name)).map(node => (
+                        <option key={node.id} value={node.id}>{node.name} · {node.kind}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <div aria-label="Graph view" className="local-app-graph-view-switch">
+                    <button aria-pressed={graphView === 'focus'} onClick={() => setGraphView('focus')} type="button">Screen focus</button>
+                    <button aria-pressed={graphView === 'full'} onClick={() => setGraphView('full')} type="button">Full graph</button>
                   </div>
-                )}
+                </div>
+                <div className="local-app-graph-stage">
+                  {definition.nodes.length > 0 ? (
+                    graphView === 'focus' && effectiveSelectedNodeId ? (
+                      <AppGraphFocusView definition={definition} nodeId={effectiveSelectedNodeId} onSelectNode={focusNode} />
+                    ) : (
+                      <AppGraphCanvas
+                        definition={definition}
+                        edgeStatuses={edgeStatuses}
+                        onChange={() => {}}
+                        onSelectNode={focusNode}
+                        readOnly
+                        selectedNodeId={selectedNode?.id ?? null}
+                      />
+                    )
+                  ) : (
+                    <div className="local-app-graph-empty">
+                      {selectedRun.status === 'running' || selectedRun.status === 'starting'
+                        ? <CircleNotch className="spin" aria-hidden="true" />
+                        : <FlowArrow aria-hidden="true" />}
+                      <strong>Waiting for the first verified destination</strong>
+                      <span>The graph appears as soon as the exploration agent reports semantic evidence.</span>
+                    </div>
+                  )}
+                </div>
               </main>
             </div>
 
-            <section aria-label="App Graph exploration trace" className="local-app-graph-trace">
-              <header>
+            <details aria-label="App Graph exploration trace" className="local-app-graph-trace">
+              <summary>
                 <div>
                   <strong>Exploration trace</strong>
                   <span>The ordered instruction and accessibility-tool chain for this graph build.</span>
                 </div>
                 <span>{trace.length} {trace.length === 1 ? 'event' : 'events'}</span>
-              </header>
+              </summary>
               <ol ref={traceRef}>
                 {trace.length > 0 ? trace.map((entry) => (
                   <li
@@ -242,10 +282,14 @@ export function AppGraphProgressPanel({
                     <p>{entry.message}</p>
                   </li>
                 )) : (
-                  <li className="local-app-graph-trace-empty">Waiting for the first exploration instruction…</li>
+                  <li className="local-app-graph-trace-empty">
+                    {selectedRun.status === 'starting' || selectedRun.status === 'running'
+                      ? 'Waiting for the first exploration instruction…'
+                      : 'No exploration events retained here. Open Trace → Execution trace for the saved model and tool history.'}
+                  </li>
                 )}
               </ol>
-            </section>
+            </details>
           </>
         ) : (
           <div className="local-app-graph-empty">

@@ -193,7 +193,7 @@ export function AppGraphCanvas({
         <span><i className="app-graph-legend-dot app-graph-legend-dot--weak" />Single observation</span>
       </div>
       <svg
-        aria-label="Editable App Graph"
+        aria-label={readOnly ? 'App Graph overview' : 'Editable App Graph'}
         className={`app-graph-canvas${readOnly ? ' app-graph-canvas--readonly' : ''}`}
         onPointerCancel={stopPointer}
         onPointerDown={startPanning}
