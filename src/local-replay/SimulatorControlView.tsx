@@ -24,6 +24,7 @@ import type { ScreenshotAnnotationGeometryDraft } from '../replay/pages/SessionV
 import type { SessionAnnotation, SessionImageFrame } from '../replay/sessionViewerData'
 import { createSimulatorCommandQueue } from './simulatorCommandQueue'
 import { createSimulatorVideoProgressMonitor } from './simulatorVideoProgress'
+import { fetchSimulatorScreenshot, resolveSimulatorResponseError } from './simulatorTransport'
 
 type ControlPhase = 'negotiating' | 'connecting' | 'connected' | 'fallback' | 'failed'
 
@@ -96,6 +97,7 @@ export function SimulatorControlView({
   const [phase, setPhase] = useState<ControlPhase>('negotiating')
   const [error, setError] = useState<string | null>(null)
   const [fallbackFrameUrl, setFallbackFrameUrl] = useState<string | null>(null)
+  const [fallbackFrameError, setFallbackFrameError] = useState<string | null>(null)
   const [connectionAttempt, setConnectionAttempt] = useState(0)
   const [mediaBounds, setMediaBounds] = useState<MediaBounds | null>(null)
   const [mediaAspectRatio, setMediaAspectRatio] = useState(() => resolveMediaAspectRatio(frame?.width, frame?.height))
@@ -199,7 +201,7 @@ export function SimulatorControlView({
           method: 'POST',
         })
         if (!response.ok) {
-          throw new Error(await resolveResponseError(response, 'Simulator video is unavailable.'))
+          throw new Error(await resolveSimulatorResponseError(response, 'Simulator video is unavailable.'))
         }
 
         const answer = await response.json() as WebRtcAnswer
@@ -260,23 +262,61 @@ export function SimulatorControlView({
       return
     }
 
-    let requestedAt = 0
-    const updateFrame = () => {
-      const now = Date.now()
-      // Let a screenshot finish loading before replacing its URL. Otherwise
-      // a slow capture is repeatedly cancelled by the polling interval.
-      const image = fallbackImageRef.current
-      if (image && !image.complete && now - requestedAt < 10_000) {
-        return
+    let isDisposed = false
+    let frameUrl: string | null = null
+    const cancellation = new AbortController()
+    let timer: number
+
+    async function updateFrame() {
+      let pendingUrl: string | null = null
+      try {
+        const signal = AbortSignal.any([cancellation.signal, AbortSignal.timeout(10_000)])
+        const frame = await fetchSimulatorScreenshot(`${apiRoot}/frame?at=${Date.now()}`, signal)
+        if (isDisposed) {
+          return
+        }
+
+        pendingUrl = URL.createObjectURL(frame)
+        const preview = new Image()
+        preview.src = pendingUrl
+        await preview.decode()
+        if (isDisposed) {
+          return
+        }
+
+        // Keep the last valid screenshot visible until its replacement has
+        // loaded. Failed captures must not replace it with a broken image.
+        const previousUrl = frameUrl
+        frameUrl = pendingUrl
+        pendingUrl = null
+        setFallbackFrameUrl(frameUrl)
+        setFallbackFrameError(null)
+        if (previousUrl) {
+          URL.revokeObjectURL(previousUrl)
+        }
+      } catch (captureError) {
+        if (!isDisposed) {
+          const message = captureError instanceof Error ? captureError.message : 'Screenshot capture failed.'
+          setFallbackFrameError(message)
+        }
+      } finally {
+        if (pendingUrl) {
+          URL.revokeObjectURL(pendingUrl)
+        }
+        if (!isDisposed) {
+          timer = window.setTimeout(() => void updateFrame(), 650)
+        }
       }
-      requestedAt = now
-      setFallbackFrameUrl(`${apiRoot}/frame?at=${now}`)
     }
-    const initialUpdate = window.setTimeout(updateFrame, 0)
-    const interval = window.setInterval(updateFrame, 650)
+
+    timer = window.setTimeout(() => void updateFrame(), 0)
     return () => {
-      window.clearTimeout(initialUpdate)
-      window.clearInterval(interval)
+      isDisposed = true
+      cancellation.abort()
+      window.clearTimeout(timer)
+      if (frameUrl) {
+        URL.revokeObjectURL(frameUrl)
+      }
     }
   }, [apiRoot, isAnnotationEditorOpen, phase])
 
@@ -322,7 +362,7 @@ export function SimulatorControlView({
         method: 'POST',
       })
       if (!response.ok) {
-        throw new Error(await resolveResponseError(response, 'The simulator command failed.'))
+        throw new Error(await resolveSimulatorResponseError(response, 'The simulator command failed.'))
       }
     })
   }
@@ -548,6 +588,7 @@ export function SimulatorControlView({
     aspectRatio: `${resolvedMediaAspectRatio}`,
     width: `min(100cqw, ${resolvedMediaAspectRatio * 100}cqh)`,
   } satisfies CSSProperties
+  const displayError = phase === 'fallback' ? fallbackFrameError ?? error : error
 
   return (
     <div className="local-simulator-control">
@@ -611,6 +652,12 @@ export function SimulatorControlView({
               <strong>Connecting live control</strong>
             </div>
           ) : null}
+          {phase === 'fallback' && (fallbackFrameError || !fallbackFrameUrl) ? (
+            <div className="local-simulator-overlay" role="status">
+              {fallbackFrameError ? <WarningCircle aria-hidden="true" /> : <CircleNotch className="spin" aria-hidden="true" />}
+              <strong>{fallbackFrameError ? 'Screenshot unavailable' : 'Loading screenshot'}</strong>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -656,15 +703,16 @@ export function SimulatorControlView({
         {canAnnotate ? <><span aria-hidden="true">·</span><kbd>⇧</kbd> drag to annotate</> : null}
       </p>
 
-      {error ? (
+      {displayError ? (
         <div className="local-simulator-error" role="status">
           <WarningCircle aria-hidden="true" />
-          <span>{error}</span>
+          <span>{displayError}</span>
           {phase === 'fallback' ? (
             <button
               onClick={() => {
                 setPhase('negotiating')
                 setError(null)
+                setFallbackFrameError(null)
                 setConnectionAttempt((current) => current + 1)
               }}
               type="button"
@@ -879,15 +927,6 @@ async function closeRemoteSession(apiRoot: string, remoteSessionId: string): Pro
     keepalive: true,
     method: 'POST',
   }).catch(() => undefined)
-}
-
-async function resolveResponseError(response: Response, fallback: string): Promise<string> {
-  try {
-    const body = await response.json() as { message?: string; error?: string }
-    return body.message || body.error || fallback
-  } catch {
-    return fallback
-  }
 }
 
 function resolveContainedPoint(
