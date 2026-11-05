@@ -1166,6 +1166,7 @@ export type LocalSessionSummary = {
   toolCatalogMessage?: string | null
   toolCount?: number
   connectionDiagnostics?: { code: string; message: string; recovery: string; candidates?: string | null }[]
+  hostMetadata?: Record<string, unknown> | null
   customProperties?: Record<string, Record<string, unknown>> | null
   sessionId: string
   appId: string
@@ -1524,6 +1525,7 @@ export type LocalSessionLiveUpdate = {
   appState?: string | number | null
   appStateChangedUtc?: string | null
   lifecycleEvents?: SessionApplicationEvent[]
+  hostMetadata?: Record<string, unknown> | null
   customProperties?: Record<string, Record<string, unknown>> | null
   logs: SessionLogEntry[]
   logStreams: SessionLogStream[]

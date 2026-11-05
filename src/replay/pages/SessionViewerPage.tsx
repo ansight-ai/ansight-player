@@ -3626,18 +3626,23 @@ function SessionInfoModal({
   const sessionId = session.session_id || captureSession.sessionId || 'Unknown'
   const deviceSummary = formatSessionDeviceSummary(session, deviceProfile, sessionMetadata)
   const devicePropertySections = buildDevicePropertySections(deviceProfile, captureSession, session)
+  const hostPropertySections = buildHostPropertySections(captureSession.hostMetadata)
+  const filteredHostPropertySections = filterPropertySections(hostPropertySections, propertyQuery)
   const customPropertySections = buildCustomPropertySections(captureSession.customProperties)
   const uploadMetadataRows = buildUploadMetadataRows(session, captureSession, sessionMetadata, metricChannels, metrics, frames, logs, touches, visualTrees, artifactSnapshots)
   const filteredDevicePropertySections = filterPropertySections(devicePropertySections, propertyQuery)
   const filteredCustomPropertySections = filterPropertySections(customPropertySections, propertyQuery)
   const filteredUploadMetadataRows = filterPropertyRows(uploadMetadataRows, propertyQuery)
-  const propertyMatchCount = filteredDevicePropertySections.reduce((total, section) => total + section.rows.length, 0)
+  const propertyMatchCount = filteredHostPropertySections.reduce((total, section) => total + section.rows.length, 0)
+    + filteredDevicePropertySections.reduce((total, section) => total + section.rows.length, 0)
     + filteredCustomPropertySections.reduce((total, section) => total + section.rows.length, 0)
     + (showSessionMetadata ? filteredUploadMetadataRows.length : 0)
-  const hasSearchableProperties = devicePropertySections.length > 0
+  const hasSearchableProperties = hostPropertySections.length > 0
+    || devicePropertySections.length > 0
     || customPropertySections.length > 0
     || (showSessionMetadata && uploadMetadataRows.length > 0)
-  const hasPropertyMatches = filteredDevicePropertySections.length > 0
+  const hasPropertyMatches = filteredHostPropertySections.length > 0
+    || filteredDevicePropertySections.length > 0
     || filteredCustomPropertySections.length > 0
     || (showSessionMetadata && filteredUploadMetadataRows.length > 0)
 
@@ -3747,6 +3752,27 @@ function SessionInfoModal({
           <div className="session-info-section">
             <h3>Device properties</h3>
             <p className="muted">No device/app properties have been captured for this session.</p>
+          </div>
+        ) : null}
+
+        {filteredHostPropertySections.length > 0 ? (
+          <div className="session-info-section">
+            <h3>Capture host</h3>
+            <div className="session-property-sections">
+              {filteredHostPropertySections.map((section) => (
+                <article className="session-property-section" key={`custom-${section.title}`}>
+                  <div>
+                    <h4>{section.title}</h4>
+                    <p>{section.subtitle}</p>
+                  </div>
+                  <div className="session-property-grid">
+                    {section.rows.map((row) => (
+                      <SessionPropertyRow key={`${section.title}-${row.label}`} label={row.label} value={row.value} />
+                    ))}
+                  </div>
+                </article>
+              ))}
+            </div>
           </div>
         ) : null}
 
@@ -9823,6 +9849,20 @@ function buildDevicePropertySections(
     ],
   )
 
+  return sections
+}
+
+function buildHostPropertySections(hostMetadata: unknown): DevicePropertySection[] {
+  const metadata = asRecord(hostMetadata)
+  if (!metadata) return []
+
+  const { tools, ...host } = metadata
+  const sections = buildCustomPropertySections({ Host: host })
+  for (const tool of Array.isArray(tools) ? tools : []) {
+    const properties = asRecord(tool)
+    if (!properties || typeof properties.name !== 'string') continue
+    sections.push(...buildCustomPropertySections({ [properties.name]: properties }))
+  }
   return sections
 }
 

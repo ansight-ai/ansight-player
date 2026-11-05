@@ -78,6 +78,7 @@ export type SessionSnapshot = {
   author?: SessionAuthor | null
   tags?: string[] | null
   notes?: string | null
+  hostMetadata?: Record<string, unknown> | null
   customProperties?: Record<string, Record<string, unknown>> | null
   appState?: string | number | null
   appStateChangedUtc?: string | null

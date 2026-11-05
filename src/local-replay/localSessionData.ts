@@ -321,6 +321,7 @@ async function refreshLocalPayload(
     lastUpdatedUtc: update.lastUpdatedUtc,
     appState: update.appState,
     appStateChangedUtc: update.appStateChangedUtc,
+    hostMetadata: update.hostMetadata === undefined ? capture.hostMetadata : update.hostMetadata,
     customProperties: update.customProperties === undefined ? capture.customProperties : update.customProperties,
     applicationEvents: update.lifecycleEvents === undefined ? capture.applicationEvents : [
       ...(capture.applicationEvents ?? []).filter(event =>
