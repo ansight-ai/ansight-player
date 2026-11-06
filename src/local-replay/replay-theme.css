@@ -1154,32 +1154,18 @@
   border-radius: 28px;
 }
 
-/* ---------- Status toast ---------- */
+/* ---------- Action feedback ---------- */
 
-/* One-off notices (export saved, host messages) float as a toast over the pane
-   instead of pushing the player down. */
 .local-replay-root .local-replay-viewer > .local-replay-message {
-  position: fixed;
-  bottom: 24px;
-  left: calc((100vw + var(--local-explorer-width)) / 2);
-  z-index: 30;
-  max-width: min(720px, calc(100vw - var(--local-explorer-width) - 48px));
-  margin: 0;
+  margin: 0 0 12px;
   padding: 10px 14px;
   color: var(--rp-text);
   background: var(--rp-bg);
   border: 1px solid var(--rp-line);
   border-radius: 10px;
-  box-shadow: 0 12px 32px rgba(15, 15, 18, 0.14);
   font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.4;
-  transform: translateX(-50%);
-}
-
-.local-replay-root.local-replay-root--collapsed .local-replay-viewer > .local-replay-message {
-  left: 50vw;
-  max-width: min(720px, calc(100vw - 48px));
 }
 
 /* ---------- Player buttons ---------- */

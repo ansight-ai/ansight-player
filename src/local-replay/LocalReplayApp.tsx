@@ -235,7 +235,7 @@ export function LocalReplayApp() {
   const [copiedSessionLinkId, setCopiedSessionLinkId] = useState<string | null>(null)
   const [exportingSessionId, setExportingSessionId] = useState<string | null>(null)
   const [exportMessage, setExportMessage] = useState<string | null>(null)
-  // Export notices are transient toasts; clear them after a few seconds.
+  // Clear export confirmations after a few seconds.
   useEffect(() => {
     if (!exportMessage) {
       return undefined
@@ -1295,16 +1295,6 @@ export function LocalReplayApp() {
             </div>
           ) : null}
           {exportMessage ? <p className="inline-message local-replay-message" role="status">{exportMessage}</p> : null}
-          {selectedSession?.connectionDiagnostics?.map((diagnostic) => <div className="inline-message local-replay-message" key={diagnostic.code} role="status">
-            <strong>Device connection: </strong>{diagnostic.message} <span>{diagnostic.recovery}</span>
-          </div>)}
-          {selectedSession?.captureSource === 'sdk'
-            && !selectedSession.isConnected
-            && /connecting|awaiting|paired|websocket open|^connected$/i.test(selectedSession.status) ? (
-              <div className="local-replay-message" role="status">
-                Waiting for the app stream. Keep the app open and check that it can reach this host.
-              </div>
-            ) : null}
           {message ? <p className="inline-message local-replay-message" role="status">{message}</p> : null}
           {showGettingStarted && gettingStarted ? (
             <GettingStartedPanel
