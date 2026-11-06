@@ -541,7 +541,7 @@ export function LocalReplayApp() {
     const platform = selectedSession.runtimePlatform
     const sessionId = selectedSession.sessionId
     const appName = selectedSession.name || selectedSession.clientName || selectedSession.appId
-    return ({ annotations, captureToolbar, frame, isAnnotationEditorOpen, onCreateAnnotation, selectedAnnotationId }: SessionReplayPanelContext) => (
+    return ({ annotations, captureToolbar, frame, isAnnotationEditorOpen, onCreateAnnotation, onCaptureAnnotationVisualTree, selectedAnnotationId }: SessionReplayPanelContext) => (
       <SimulatorControlView
         annotations={annotations}
         captureToolbar={captureToolbar}
@@ -550,6 +550,7 @@ export function LocalReplayApp() {
         isAnnotationEditorOpen={isAnnotationEditorOpen}
         key={sessionId}
         onCreateAnnotation={onCreateAnnotation}
+        onCaptureAnnotationVisualTree={onCaptureAnnotationVisualTree}
         onOpenDeviceLocation={bootstrap?.supportsDeviceLocation ? openDeviceLocation : undefined}
         onOpenDeviceNetwork={() => setNetworkTarget(current => current ? { ...current, isOpen: true } : { sessionId, appName, isOpen: true })}
         platform={platform}

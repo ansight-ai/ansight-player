@@ -21,6 +21,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react'
 import type { ScreenshotAnnotationGeometryDraft } from '../replay/pages/SessionViewerPage'
+import type { AnnotationVisualTreeCaptureResult, ScreenshotAnnotationCapture } from '../replay/annotationCapture'
 import type { SessionAnnotation, SessionImageFrame } from '../replay/sessionViewerData'
 import { createSimulatorCommandQueue } from './simulatorCommandQueue'
 import { createSimulatorVideoProgressMonitor } from './simulatorVideoProgress'
@@ -51,6 +52,7 @@ type AnnotationDrag = {
   startClientX: number
   startClientY: number
   start: NormalizedPoint
+  capture?: ScreenshotAnnotationCapture
 }
 
 type MediaPointerEvent = ReactPointerEvent<HTMLVideoElement | HTMLImageElement>
@@ -62,6 +64,7 @@ export function SimulatorControlView({
   frame,
   isAnnotationEditorOpen,
   onCreateAnnotation,
+  onCaptureAnnotationVisualTree,
   onOpenDeviceLocation,
   onOpenDeviceNetwork,
   platform,
@@ -73,7 +76,8 @@ export function SimulatorControlView({
   deviceIdentifier: string
   frame: SessionImageFrame | null
   isAnnotationEditorOpen: boolean
-  onCreateAnnotation?: (geometry: ScreenshotAnnotationGeometryDraft) => void
+  onCreateAnnotation?: (geometry: ScreenshotAnnotationGeometryDraft, capture?: ScreenshotAnnotationCapture) => void
+  onCaptureAnnotationVisualTree?: () => Promise<AnnotationVisualTreeCaptureResult>
   onOpenDeviceLocation?: () => void
   onOpenDeviceNetwork?: () => void
   platform?: string | null
@@ -385,6 +389,9 @@ export function SimulatorControlView({
         startClientX: event.clientX,
         startClientY: event.clientY,
         start: point,
+        capture: frame && onCaptureAnnotationVisualTree
+          ? { frame, visualTree: onCaptureAnnotationVisualTree() }
+          : undefined,
       }
       event.currentTarget.setPointerCapture(event.pointerId)
       setAnnotationDraft({ kind: 0, x: point.x, y: point.y })
@@ -501,7 +508,7 @@ export function SimulatorControlView({
     }
     setAnnotationDraft(null)
     setAnnotationMode(false)
-    onCreateAnnotation?.(nextDraft)
+    onCreateAnnotation?.(nextDraft, drag.capture)
   }
 
   function handleKey(event: ReactKeyboardEvent<HTMLDivElement>, keyPhase: 'down' | 'up') {

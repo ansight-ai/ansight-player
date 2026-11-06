@@ -1,6 +1,7 @@
 import { recordingFile } from '../replay/sessionRecordings'
 import { artifactTimelineHref } from './artifactLinks'
 import { summariseLocalAnnotation } from './annotationSummary'
+import { captureLocalAnnotationVisualTree } from './liveAnnotationCapture'
 import { readSessionOperationStream, type SessionOperationProgress } from './sessionOperationStream'
 import type { ArtifactComparisonSource, ArtifactListResult, ArtifactDiffResult } from '../replay/components/artifactComparison'
 import type {
@@ -73,6 +74,7 @@ export const localReplaySource: SessionViewerSource = {
   refreshPayload: refreshLocalPayload,
   captureLiveFile: captureLocalLiveFile,
   captureLiveVisualTree: captureLocalLiveVisualTree,
+  captureAnnotationVisualTree: captureLocalAnnotationVisualTree,
   loadLiveVisualTreeSources: loadLocalLiveVisualTreeSources,
   deleteAnnotation: deleteLocalAnnotation,
   extractTimelineRange: extractLocalTimelineRange,

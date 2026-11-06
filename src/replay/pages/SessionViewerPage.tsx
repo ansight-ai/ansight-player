@@ -74,6 +74,7 @@ import type { SessionOperationProgress } from '../../local-replay/sessionOperati
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { LiveVisualTreeCaptureToolbar, type LiveVisualTreeSource } from '../LiveVisualTreeCaptureToolbar'
+import { attachCapturedAnnotationVisualTree, type AnnotationEditorDraft, type AnnotationVisualTreeCaptureResult, type ScreenshotAnnotationCapture } from '../annotationCapture'
 import { selectFrameForVisualTree } from '../visualTreeFrame'
 import { DetailRow } from '../../components/DetailRow'
 import { EmptyState } from '../../components/EmptyState'
@@ -382,6 +383,7 @@ export type SessionViewerSource = {
   optimizeSession?: (sessionId: string, encodeVideo: boolean, onProgress: (progress: SessionOptimizationProgress) => void) => Promise<SessionOptimizationResult>
   loadLiveVisualTreeSources?: (sessionId: string) => Promise<LiveVisualTreeSource[]>
   captureLiveVisualTree?: (sessionId: string, toolId: string) => Promise<string>
+  captureAnnotationVisualTree?: (sessionId: string) => Promise<AnnotationVisualTreeCaptureResult>
   upsertAnnotation?: (sessionId: string, annotation: SessionAnnotation) => Promise<string>
   deleteAnnotation?: (sessionId: string, annotationId: string) => Promise<string>
   extractTimelineRange?: (
@@ -526,10 +528,6 @@ type FrameAnnotationGeometryView = {
   key: string
 }
 
-type AnnotationEditorDraft = {
-  annotation: SessionAnnotation
-}
-
 export type ScreenshotAnnotationGeometryDraft = {
   kind: 0 | 1
   x: number
@@ -543,7 +541,8 @@ export type SessionReplayPanelContext = {
   annotations: SessionAnnotation[]
   frame: SessionImageFrame | null
   isAnnotationEditorOpen: boolean
-  onCreateAnnotation?: (geometry: ScreenshotAnnotationGeometryDraft) => void
+  onCreateAnnotation?: (geometry: ScreenshotAnnotationGeometryDraft, capture?: ScreenshotAnnotationCapture) => void
+  onCaptureAnnotationVisualTree?: () => Promise<AnnotationVisualTreeCaptureResult>
   selectedAnnotationId: string | null
 }
 
@@ -822,6 +821,24 @@ export function SessionViewerPage({
   const [isTimelineRangeSelecting, setIsTimelineRangeSelecting] = useState(false)
   const [timelineEditSelection, setTimelineEditSelection] = useState<TimelineEditSelection | null>(null)
   const [annotationEditorDraft, setAnnotationEditorDraft] = useState<AnnotationEditorDraft | null>(null)
+  const annotationCapture = annotationEditorDraft?.visualTreeCapture
+  const capturingAnnotationId = annotationEditorDraft?.annotation.annotationId
+  useEffect(() => {
+    if (!annotationCapture || !capturingAnnotationId) {
+      return
+    }
+
+    let active = true
+    void annotationCapture.then((result) => {
+      if (active) {
+        setAnnotationEditorDraft((current) => attachCapturedAnnotationVisualTree(current, capturingAnnotationId, result))
+      }
+    })
+
+    return () => {
+      active = false
+    }
+  }, [annotationCapture, capturingAnnotationId, sessionId])
   const lastAnnotationWorkflowIdRef = useRef<number | null>(null)
   const [isAnnotationSubmitting, setIsAnnotationSubmitting] = useState(false)
   const [selectedFrameImageContentBounds, setSelectedFrameImageContentBounds] = useState<SessionFrameImageContentBounds | null>(null)
@@ -1909,18 +1926,38 @@ export function SessionViewerPage({
     })
   }
 
-  function openScreenshotAnnotationEditor(geometry: ScreenshotAnnotationGeometryDraft) {
-    if (!source.upsertAnnotation || !selectedFrame) {
+  function beginScreenshotAnnotationCapture(): ScreenshotAnnotationCapture | undefined {
+    const canCapture = !!selectedFrame
+      && isFollowingLive
+      && !!source.captureAnnotationVisualTree
+
+    if (!canCapture) {
+      return undefined
+    }
+
+    setScrubAtMs(toTimestamp(selectedFrame.capturedAtUtc) ?? effectiveScrubAtMs)
+    return {
+      frame: selectedFrame,
+      visualTree: source.captureAnnotationVisualTree!(sessionId),
+    }
+  }
+
+  function openScreenshotAnnotationEditor(geometry: ScreenshotAnnotationGeometryDraft, capture?: ScreenshotAnnotationCapture) {
+    const frame = capture?.frame ?? selectedFrame
+    if (!source.upsertAnnotation || !frame) {
       return
     }
 
+    const annotation = createScreenshotAnnotation(
+      frame,
+      effectiveScrubAtMs,
+      geometry,
+      capture ? null : selectedVisualTree,
+    )
     setAnnotationEditorDraft({
-      annotation: createScreenshotAnnotation(
-        selectedFrame,
-        effectiveScrubAtMs,
-        geometry,
-        selectedVisualTree,
-      ),
+      annotation,
+      visualTreeCapturePending: !!capture,
+      visualTreeCapture: capture?.visualTree,
     })
   }
 
@@ -2662,6 +2699,9 @@ export function SessionViewerPage({
         onCreateAnnotation: source.upsertAnnotation && selectedFrame
           ? openScreenshotAnnotationEditor
           : undefined,
+        onCaptureAnnotationVisualTree: isLiveSession && source.captureAnnotationVisualTree
+          ? () => source.captureAnnotationVisualTree!(sessionId)
+          : undefined,
         selectedAnnotationId: resolvedSelectedAnnotationId,
       })
     : replayPanelOverride
@@ -2930,6 +2970,7 @@ export function SessionViewerPage({
                         {source.upsertAnnotation ? (
                           <SessionFrameAnnotationAuthoringOverlay
                             isEnabled={false}
+                            onBeginCapture={beginScreenshotAnnotationCapture}
                             onCreate={openScreenshotAnnotationEditor}
                           />
                         ) : null}
@@ -4106,10 +4147,12 @@ function SessionFrameAnnotationOverlay({
 
 function SessionFrameAnnotationAuthoringOverlay({
   isEnabled,
+  onBeginCapture,
   onCreate,
 }: {
   isEnabled: boolean
-  onCreate: (geometry: ScreenshotAnnotationGeometryDraft) => void
+  onBeginCapture: () => ScreenshotAnnotationCapture | undefined
+  onCreate: (geometry: ScreenshotAnnotationGeometryDraft, capture?: ScreenshotAnnotationCapture) => void
 }) {
   const dragRef = useRef<{
     pointerId: number
@@ -4119,6 +4162,7 @@ function SessionFrameAnnotationAuthoringOverlay({
     startY: number
     x: number
     y: number
+    capture?: ScreenshotAnnotationCapture
   } | null>(null)
   const [draft, setDraft] = useState<ScreenshotAnnotationGeometryDraft | null>(null)
 
@@ -4169,6 +4213,7 @@ function SessionFrameAnnotationAuthoringOverlay({
       startY: point.y,
       x: point.x,
       y: point.y,
+      capture: onBeginCapture(),
     }
     event.currentTarget.setPointerCapture(event.pointerId)
     setDraft({ kind: 0, x: point.x, y: point.y })
@@ -4192,13 +4237,14 @@ function SessionFrameAnnotationAuthoringOverlay({
     event.preventDefault()
     event.stopPropagation()
     const completedDraft = updateDraft(event.currentTarget, event.clientX, event.clientY)
+    const capture = dragRef.current.capture
     dragRef.current = null
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
     setDraft(null)
     if (completedDraft) {
-      onCreate(completedDraft)
+      onCreate(completedDraft, capture)
     }
   }
 
@@ -8050,6 +8096,9 @@ function AnnotationEditorModal({
   const [summaryElapsedSeconds, setSummaryElapsedSeconds] = useState(0)
   const isBusy = isSubmitting || isSummarising
   const normalizedComment = normalizeAnnotationComment(comment)
+  const cannotSave = isBusy
+    || !!draft.visualTreeCapturePending
+    || !normalizedComment
 
   useEffect(() => {
     if (!isSummarising) return
@@ -8081,7 +8130,7 @@ function AnnotationEditorModal({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (isBusy || !normalizedComment) {
+    if (cannotSave) {
       return
     }
 
@@ -8121,6 +8170,10 @@ function AnnotationEditorModal({
 
         <div className="annotation-editor-body">
           <p className="annotation-editor-time"><Clock aria-hidden="true" />{timeDisplay}</p>
+          {draft.visualTreeCapturePending ? <p className="muted" role="status">Capturing the visual tree…</p> : null}
+          {draft.visualTreeCaptureError ? (
+            <p className="inline-message" role="alert">Visual tree capture failed: {draft.visualTreeCaptureError} You can still save the annotation without it.</p>
+          ) : null}
           {canSummarise ? (
             <div className="annotation-summary">
               <div className="annotation-summary-controls">
@@ -8181,7 +8234,7 @@ function AnnotationEditorModal({
           ) : <span />}
           <div>
             <button className="button button--secondary" disabled={isBusy} onClick={onClose} type="button">Cancel</button>
-            <button className="button button--primary" disabled={isBusy || !normalizedComment} type="submit">
+            <button className="button button--primary" disabled={cannotSave} type="submit">
               {isSubmitting ? <CircleNotch className="spin" aria-hidden="true" /> : <Check aria-hidden="true" />}
               Save annotation
             </button>
