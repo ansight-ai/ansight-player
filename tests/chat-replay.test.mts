@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildGestures, touchPoint, visibleTouches, touchFadeMs } from '../src/chat-replay/touches.ts';
+import { recordingAt, recordingTime } from '../src/chat-replay/timeline.ts';
+import { loadRecording } from '../src/chat-replay/video.ts';
 const touch = (id, timeMs, action, overrides = {}) => ({ id, timeMs, action, pointerId: 1, pointerIndex: 0, x: 195, y: 422, surfaceWidth: 390, surfaceHeight: 844, coordinateUnit: 'points', ...overrides });
 test('touch coordinates use normalized values, surface points, and pixel fallback without density errors', () => {
   const frame = { width: 1170, height: 2532 };
@@ -36,5 +38,44 @@ test('swipe trails stop at the playhead and multi-touch/reused pointer IDs stay 
   assert.equal(visible.length, 2);
   assert.deepEqual(visible[0].trail.map(point => point.x), [.5, 100 / 390]);
   assert.equal(gestures[2].samples.length, 1);
+});
+
+const recording = { recordingId: 'shakespeare', startMs: 1000, endMs: 21000, width: 840, height: 1280, byteSize: 6 };
+
+test('video owns its capture interval, including moments between sparse screenshots', () => {
+  assert.equal(recordingAt([recording], 9000), recording);
+  assert.equal(recordingTime(recording, 9000), 8);
+  assert.equal(recordingAt([recording], 21000), undefined);
+  assert.equal(recordingAt([recording], 999), undefined);
+  const overlap = { ...recording, recordingId: 'later', startMs: 8000 };
+  assert.equal(recordingAt([recording, overlap], 9000), overlap);
+  assert.equal(recordingTime(recording, 50000), 19.999);
+});
+
+test('video chunks reconstruct the original bytes in order', async () => {
+  const offsets: number[] = [];
+  const blob = await loadRecording(recording, async offset => {
+    offsets.push(offset);
+    return { recordingId: recording.recordingId, offset, byteSize: 6, data: offset === 0 ? 'AAEC' : 'AwQF' };
+  }, new AbortController().signal);
+  assert.deepEqual(offsets, [0, 3]);
+  assert.equal(blob.type, 'video/mp4');
+  assert.deepEqual([...new Uint8Array(await blob.arrayBuffer())], [0, 1, 2, 3, 4, 5]);
+});
+
+test('switching recordings aborts the previous load without returning stale pixels', async () => {
+  const controller = new AbortController();
+  await assert.rejects(loadRecording(recording, async offset => {
+    controller.abort();
+    return { recordingId: recording.recordingId, offset, byteSize: 6, data: 'AAECAwQF' };
+  }, controller.signal), { name: 'AbortError' });
+});
+
+test('video rejects mismatched or empty chunks instead of silently showing a stale screenshot', async () => {
+  for (const replacement of [{ recordingId: 'foreign' }, { offset: 1 }, { byteSize: 5 }, { data: '' }, { data: 'AAECAwQFBg==' }]) {
+    await assert.rejects(loadRecording(recording, async offset => ({
+      recordingId: recording.recordingId, offset, byteSize: 6, data: 'AAECAwQF', ...replacement,
+    }), new AbortController().signal));
+  }
 });
 

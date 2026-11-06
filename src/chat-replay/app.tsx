@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from '@modelcontextprotocol/ext-apps';
-import { elapsed, frameAt, type ImageFrame, type Replay } from './timeline';
+import { elapsed, frameAt, recordingAt, type ImageFrame, type Replay } from './timeline';
+import { RecordedVideo } from './RecordedVideo';
+import type { VideoChunk } from './video';
 import { buildGestures, visibleTouches } from './touches';
 import { RecordedTouchOverlay } from '../replay/components/RecordedTouchOverlay';
 import { AnnotationShape } from './annotations';
@@ -21,7 +23,7 @@ function publish(update: Partial<Snapshot>) {
 function readResult(result: Result) {
   if (result.isError) { publish({ error: result.content?.find(item => item.type === 'text')?.text || 'Could not load replay.' }); return; }
   const replay = result._meta?.replay as Replay | undefined;
-  if (replay?.frames?.length) publish({ replay, images: result._meta?.frames as ImageFrame[] ?? [], error: undefined });
+  if (replay && (replay.frames?.length || replay.recordings?.length)) publish({ replay, images: result._meta?.frames as ImageFrame[] ?? [], error: undefined });
 }
 bridge.ontoolresult = readResult;
 bridge.onhostcontextchanged = context => {
@@ -33,6 +35,8 @@ bridge.onteardown = async () => { publish({ connected: false }); return {}; };
 function Player() {
   const [data, setData] = useState(snapshot);
   const [time, setTime] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [presented, setPresented] = useState<{ recordingId: string; timeMs: number }>();
   const [imageVersion, setImageVersion] = useState(0);
   const [frameError, setFrameError] = useState('');
   const [actionError, setActionError] = useState('');
@@ -47,12 +51,22 @@ function Player() {
   const replay = data.replay;
   const position = replay ? frameAt(replay.frames, time) : 0;
   const frame = replay?.frames[position];
+  const recording = recordingAt(replay?.recordings ?? [], time);
   const imageUrl = frame && cache.current.get(frame.frameId);
   const selectedMarker = replay?.markers.find(marker => Math.abs(marker.timeMs - time) < 1000);
   const gestures = useMemo(() => buildGestures(replay?.touches ?? []), [replay]);
-  const dimensions = { width: frame?.width || 1000, height: frame?.height || 1000 };
+  const dimensions = { width: recording?.width || frame?.width || 1000, height: recording?.height || frame?.height || 1000 };
   const viewHeight = 1000 * dimensions.height / dimensions.width;
-  const touches = visibleTouches(gestures, time, dimensions);
+  const displayedTime = recording && presented?.recordingId === recording.recordingId ? presented.timeMs : time;
+  const touches = visibleTouches(gestures, displayedTime, dimensions);
+  const readVideoChunk = useCallback(async (offset: number): Promise<VideoChunk> => {
+    const result = await bridge.callServerTool({ name: 'get_replay_video_chunk',
+      arguments: { sessionId: replay!.sessionId, recordingId: recording!.recordingId, offset } });
+    if (result.isError) throw new Error(result.content?.find(item => item.type === 'text')?.text as string || 'Video could not load.');
+    const chunk = result._meta?.videoChunk as VideoChunk | undefined;
+    if (!chunk) throw new Error('The host returned no video data.');
+    return chunk;
+  }, [replay?.sessionId, recording?.recordingId]);
 
   useEffect(() => { subscribers.add(setData); setData(snapshot); return () => { subscribers.delete(setData); }; }, []);
   useEffect(() => {
@@ -60,8 +74,25 @@ function Player() {
     cache.current.clear(); pending.current.clear();
     for (const image of data.images) cache.current.set(image.frameId, image.dataUrl);
     setTime(replay?.initialTimeMs ?? 0); setFrameError(''); setActionError(''); setAnnotationError('');
+    setPlaying(false); setPresented(undefined);
     setImageVersion(version => version + 1);
   }, [replay?.frames, data.images]);
+
+  useEffect(() => {
+    if (!playing || recording || !replay) return;
+    let previous = performance.now();
+    let callback = 0;
+    const advance = (now: number) => {
+      const delta = now - previous;
+      previous = now;
+      setTime(current => Math.min(replay.endMs, current + delta));
+      callback = requestAnimationFrame(advance);
+    };
+    callback = requestAnimationFrame(advance);
+    return () => cancelAnimationFrame(callback);
+  }, [playing, recording, replay]);
+
+  useEffect(() => { if (replay && time >= replay.endMs) setPlaying(false); }, [replay, time]);
 
   useEffect(() => {
     if (!replay || !data.connected || !frame) return;
@@ -90,11 +121,13 @@ function Player() {
   }, [replay, position, data.connected, retry]);
 
   async function attachMoment() {
-    if (!replay || !frame || !data.connected || attachingMoment) return;
-    const context = { sessionId: replay.sessionId, title: replay.title, playheadUtc: new Date(time).toISOString(),
-      screenshotFrameId: frame.frameId, screenshotCapturedAtUtc: frame.capturedAtUtc,
+    if (!replay || (!frame && !recording) || !data.connected || attachingMoment) return;
+    const context = { sessionId: replay.sessionId, title: replay.title, playheadUtc: new Date(displayedTime).toISOString(),
+      screenshotFrameId: recording ? null : frame?.frameId, screenshotCapturedAtUtc: recording ? null : frame?.capturedAtUtc,
+      recordingId: recording?.recordingId ?? null,
       annotationId: selectedMarker?.id ?? null, annotationLabel: selectedMarker?.label ?? null,
-      note: 'This is selection metadata. Fetch the Ansight screenshot to inspect the pixels.' };
+      note: recording ? 'This moment is a video frame; an earlier screenshot does not represent its pixels.'
+        : 'This is selection metadata. Fetch the Ansight screenshot to inspect the pixels.' };
     setAttachingMoment(true);
     try {
       setActionError('');
@@ -103,7 +136,7 @@ function Player() {
     finally { setAttachingMoment(false); }
   }
 
-  function seek(next: number) { setFrameError(''); setTime(next); }
+  function seek(next: number) { setPlaying(false); setFrameError(''); setTime(next); }
   async function expand() {
     try {
       setActionError('');
@@ -145,7 +178,14 @@ function Player() {
       <h1>{replay.title}</h1></div>
       {data.canExpand && <button className="expand" onClick={expand} aria-label={data.fullscreen ? 'Exit fullscreen' : 'Expand replay'}>{data.fullscreen ? '↙' : '↗'}</button>}</header>
     <section className="stage" aria-label="Recorded app screen">
-      {imageUrl ? <svg className="recorded-frame" viewBox={`0 0 1000 ${viewHeight}`} preserveAspectRatio="xMidYMid meet">
+      {recording ? <RecordedVideo key={`${replay.sessionId}-${recording.recordingId}`} recording={recording}
+        timeMs={time} playing={playing} readChunk={readVideoChunk}
+        onPresented={timeMs => setPresented({ recordingId: recording.recordingId, timeMs })}
+        onPlaybackTime={setTime} onEnded={() => setTime(recording.endMs)}>
+        <svg className="video-overlay" viewBox={`0 0 1000 ${viewHeight}`} preserveAspectRatio="xMidYMid meet">
+          <RecordedTouchOverlay touches={touches} viewHeight={viewHeight} />
+        </svg>
+      </RecordedVideo> : imageUrl ? <svg className="recorded-frame" viewBox={`0 0 1000 ${viewHeight}`} preserveAspectRatio="xMidYMid meet">
         <image key={frame!.frameId} href={imageUrl} x="0" y="0" width="1000" height={viewHeight}
           role="img" aria-label={`Recorded screen at ${frame!.capturedAtUtc}`} onError={() => setFrameError('Screenshot could not be decoded.')} />
         <RecordedTouchOverlay touches={touches} viewHeight={viewHeight} />
@@ -158,6 +198,10 @@ function Player() {
     </section>
     <div className="transport">
       <div className="frame-controls">
+        <button aria-label={playing ? 'Pause replay' : 'Play replay'} onClick={() => {
+          if (time >= replay.endMs) setTime(replay.startMs);
+          setPlaying(value => !value);
+        }}>{playing ? 'Ⅱ' : '▶'}</button>
         <button aria-label="Previous screenshot" disabled={position === 0} onClick={() => seek(replay.frames[position - 1].timeMs)}>‹</button>
         <button aria-label="Next screenshot" disabled={position >= replay.frames.length - 1} onClick={() => seek(replay.frames[position + 1].timeMs)}>›</button>
       </div>
@@ -167,7 +211,7 @@ function Player() {
         onChange={event => seek(Number(event.target.value))} />
       <span className="clock">{elapsed(time - replay.startMs)} <span>/ {elapsed(replay.endMs - replay.startMs)}</span></span>
       <div className="replay-actions">
-        <button className="attach-moment" disabled={!data.connected || !frame || attachingMoment} onClick={attachMoment}>{attachingMoment ? 'Attaching…' : 'Attach this moment'}</button>
+        <button className="attach-moment" disabled={!data.connected || (!frame && !recording) || attachingMoment} onClick={attachMoment}>{attachingMoment ? 'Attaching…' : 'Attach this moment'}</button>
         <button className="full-replay" disabled={!data.connected || openingFullReplay} onClick={openFullReplay}>{openingFullReplay ? 'Opening…' : 'Open full replay'} <span aria-hidden="true">↗</span></button>
       </div>
     </div>
