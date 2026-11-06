@@ -1,6 +1,6 @@
 {
   "name": "@ansight/player",
-  "version": "0.1.27",
+  "version": "0.1.28",
   "type": "module",
   "scripts": {
     "dev": "vite --config vite.config.ts",
