@@ -1453,7 +1453,7 @@ export function TaskExtractionPanel({
                   </label>
                 </div>
                 {capabilities && !capabilities.canUseModel ? (
-                  <p className="local-task-extraction-hint local-admin-form--wide"><WarningCircle />Set OPENAI_API_KEY before starting the host to use your own model account. Ansight-hosted AI is available with ANSIGHT_AI_TRANSPORT=cloud and cloud login.</p>
+                  <p className="local-task-extraction-hint local-admin-form--wide"><WarningCircle />Open Runner settings to save your OpenAI API key, or enable the cloud extension and sign in to use Ansight AI.</p>
                 ) : null}
                 <p className="local-task-extraction-hint local-admin-form--wide">Deeper reasoning may take longer and cost more with your model provider.</p>
               </div>

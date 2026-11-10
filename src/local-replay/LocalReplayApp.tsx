@@ -965,11 +965,11 @@ export function LocalReplayApp() {
             <HardDrives aria-hidden="true" />
             {isCacheApproachingLimit ? <i aria-hidden="true" /> : null}
           </button> : null}
-          {bootstrap?.supportsAccountManagement ? <button
-            aria-label={runnerStatus ? `Remote runner: ${runnerStatus.state}` : 'Manage remote runner'}
+          {bootstrap?.supportsSettings ? <button
+            aria-label={runnerStatus ? `Runner settings: ${runnerStatus.state}` : 'Runner settings'}
             aria-expanded={activePanel === 'runner'}
             className={`local-header-status ${activePanel === 'runner' ? 'local-header-status--active' : ''} ${runnerStatus?.state === 'error' ? 'local-header-status--warning' : runnerStatus?.enabled ? 'local-header-status--online' : ''}`}
-            data-tooltip={runnerStatus ? `Remote runner · ${runnerStatus.message}` : 'Manage remote runner'}
+            data-tooltip={runnerStatus ? `Runner settings · ${runnerStatus.message}` : 'Runner settings · Configure your OpenAI key'}
             onClick={() => toggleGlobalPanel('runner')}
             type="button"
           >
@@ -1513,6 +1513,7 @@ export function LocalReplayApp() {
       {activePanel === 'account' ? <AccountCompanionPanel onClose={() => setActivePanel(null)} /> : null}
       {activePanel === 'runner' ? <RemoteRunnerPanel
         canManage={canManageRunner}
+        supportsCloud={bootstrap?.supportsAccountManagement === true}
         onClose={() => setActivePanel(null)}
         onOpenAccount={() => setActivePanel('account')}
         registration={runnerRegistration}
