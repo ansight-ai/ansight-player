@@ -235,15 +235,18 @@ export function TrendsPanel({
           </div>
         </header>
 
-        <nav aria-label="Trends explorer breadcrumb" className="local-trends-breadcrumb">
-          {selectedApp ? <button onClick={showAppsRoot} type="button">Home</button> : <strong>Home</strong>}
-          {selectedApp ? <><CaretRight aria-hidden="true" />{selectedTrendsGroup ? (
-            <button onClick={() => {
-              setSelectedDecisionId('')
-            }} type="button">{selectedApp.name}</button>
-          ) : <strong>{selectedApp.name}</strong>}</> : null}
-          {selectedTrendsGroup ? <><CaretRight aria-hidden="true" /><strong>{selectedTrendsGroup.title}</strong></> : null}
-        </nav>
+        {selectedApp ? (
+          <nav aria-label="Trends explorer breadcrumb" className="local-trends-breadcrumb">
+            <button onClick={showAppsRoot} type="button">Apps</button>
+            <CaretRight aria-hidden="true" />
+            {selectedTrendsGroup ? (
+              <button onClick={() => {
+                setSelectedDecisionId('')
+              }} type="button">{selectedApp.name}</button>
+            ) : <strong>{selectedApp.name}</strong>}
+            {selectedTrendsGroup ? <><CaretRight aria-hidden="true" /><strong>{selectedTrendsGroup.title}</strong></> : null}
+          </nav>
+        ) : null}
 
         {selectedApp && !selectedTrendsGroup && !isLoadingHistory && trendsGroups.length > 0 ? (
           <div className="local-trends-toolbar">
