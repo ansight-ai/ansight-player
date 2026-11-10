@@ -79,10 +79,9 @@
 
 /* ---------- Layering ---------- */
 
-/* The fixed chrome stays above page content but below every modal backdrop
-   (the lowest one in the app is 12), so popups always cover the whole window. */
+/* Keep panel triggers reachable so a second click can close the open panel. */
 .local-replay-root .local-replay-banner {
-  z-index: 10;
+  z-index: 60;
 }
 
 .local-replay-root .local-session-context-toolbar,
@@ -2325,3 +2324,54 @@
 .device-shell--landscape.device-shell--iphone-island .device-screen-cutout::after { right: 24%; top: 8%; width: 52%; height: auto; }
 .device-shell--camera-long-edge .device-shell-camera { top: calc(50% - 2px); left: auto; right: 5px; }
 .device-shell--landscape.device-shell--camera-long-edge .device-shell-camera { top: 5px; left: calc(50% - 2px); right: auto; }
+
+/* Compact host controls retain their names and status in accessible tooltips. */
+.local-replay-root .local-header-status {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  padding: 0;
+  color: var(--rp-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.local-header-status > svg { width: 18px; height: 18px; }
+.local-replay-root .local-header-status:hover { color: var(--rp-text); background: var(--rp-hover); }
+.local-replay-root .local-header-status--active { color: var(--rp-text); background: var(--rp-hover); border-color: var(--rp-line); }
+.local-replay-root .local-header-status--online { color: var(--success); }
+.local-replay-root .local-header-status--warning { color: var(--danger); }
+.local-header-status > i { position: absolute; right: 3px; bottom: 3px; width: 5px; height: 5px; background: currentColor; border-radius: 50%; }
+.local-header-status:focus-visible { outline: 2px solid var(--rp-text); outline-offset: 2px; }
+.local-companion-panel { width: min(460px, 100vw); }
+.local-companion-form { display: grid; gap: 18px; }
+.local-companion-remember { display: flex; align-items: center; gap: 10px; }
+
+/* Panels cover session chrome; only the main navigation stays accessible. */
+.local-replay-root .modal-backdrop,
+.local-replay-root .local-app-graph-backdrop,
+.local-replay-root .local-test-history-backdrop,
+.local-replay-root .local-task-extraction-backdrop {
+  top: var(--local-banner-height);
+}
+
+.local-replay-root .local-enrollment-qr-modal {
+  top: var(--local-banner-height);
+}
+
+@media (max-width: 900px) {
+  .local-replay-root .local-global-navigation .local-banner-button,
+  .local-replay-root .local-manage-menu > .local-banner-button,
+  .local-replay-root .local-replay-actions > .local-banner-button {
+    width: 32px;
+    padding: 0;
+    justify-content: center;
+    font-size: 0;
+  }
+}

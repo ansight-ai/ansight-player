@@ -1,6 +1,6 @@
 import { readSessionTimelineLink, sessionTimelineHref, type SessionTimelineLink } from './sessionLinks'
 import { observeLocalActivity } from './usage'
-import { ArrowClockwise, Check, Copy, DownloadSimple, Archive, CaretDown, ChartLineUp, CircleNotch, CloudArrowUp, DeviceMobile, FlowArrow, Gear, HardDrives, Info, Link, NotePencil, Pulse, QrCode, SidebarSimple, Sparkle, SquaresFour, TestTube, Trash, UserCircle, VideoCamera, WifiHigh, X } from '@phosphor-icons/react'
+import { ArrowClockwise, Check, Copy, DownloadSimple, Archive, CaretDown, ChartLineUp, CircleNotch, CloudArrowUp, DeviceMobile, FlowArrow, Gear, HardDrives, Info, Link, NotePencil, PlugsConnected, Pulse, QrCode, SidebarSimple, Sparkle, SquaresFour, TestTube, Trash, UserCircle, VideoCamera, WifiHigh, X } from '@phosphor-icons/react'
 import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type SetStateAction } from 'react'
 import { SessionIcon } from './SessionIcon'
 import { SessionDeviceBadge } from './SessionDeviceBadge'
@@ -9,7 +9,8 @@ import { SessionUiTestBadge } from '../replay/components/SessionUiTestBadge'
 import { GithubRepositoryBadge } from '../components/GithubRepositoryBadge'
 import { SessionViewerPage, type SessionReplayPanelContext, type SessionViewerHandle, type SessionViewerSource, type TimelineEditSelection } from '../replay/pages/SessionViewerPage'
 import { AccountCompanionPanel } from './AccountCompanionPanel'
-import { AnalyticsNotice } from './AnalyticsNotice'
+import { CompanionAccessPanel } from './CompanionAccessPanel'
+import { useHostAccessStatus } from './useHostAccessStatus'
 import { RemoteRunnerPanel } from './RemoteRunnerPanel'
 import { AboutInstallationPanel } from './AboutInstallationPanel'
 import { AppGraphProgressPanel } from './AppGraphProgressPanel'
@@ -32,7 +33,7 @@ import { SimulatorControlView } from './SimulatorControlView'
 import { TeamSessionExplorer } from './TeamSessionExplorer'
 import { TestHistoryPanel } from './TestHistoryPanel'
 import { TestExecutionPanel } from './TestExecutionPanel'
-import type { LocalAppGraphLiveRun, LocalEnrollmentInviteResult, LocalGettingStartedState, LocalOperationResult, LocalRemoteRunnerRegistration, LocalRemoteRunnerStatus, LocalReplayBootstrap, LocalSessionCachePlan, LocalSessionSummary, LocalTestHistory, LocalTestRunSummary } from './types'
+import type { LocalAppGraphLiveRun, LocalEnrollmentInviteResult, LocalGettingStartedState, LocalOperationResult, LocalReplayBootstrap, LocalSessionCachePlan, LocalSessionSummary, LocalTestHistory, LocalTestRunSummary } from './types'
 import type { SessionAnnotation } from '../replay/sessionViewerData'
 
 const linkedTraceRefreshIntervalMs = 8000
@@ -178,8 +179,7 @@ export function LocalReplayApp() {
     return () => window.clearTimeout(timer)
   }, [networkTarget, sessions])
   const [activePanel, setActivePanel] = useState<LocalGlobalPanel>(null)
-  const runnerStatus: LocalRemoteRunnerStatus | null = null
-  const runnerRegistration: LocalRemoteRunnerRegistration | null = null
+  const { companion, runnerStatus, runnerRegistration, refresh: refreshAccessStatus } = useHostAccessStatus(bootstrap?.supportsAccountManagement === true)
   const canManageRunner = true
   const [isManageMenuOpen, setIsManageMenuOpen] = useState(false)
   const [liveViewPreference, setLiveViewPreference] = useState<LocalLiveViewPreference>({
@@ -206,6 +206,10 @@ export function LocalReplayApp() {
   const [sessionActionError, setSessionActionError] = useState<string | null>(null)
 
   function openSessionTestGeneration() {
+    if (taskExtractionRequest?.wholeReplay && taskExtractionRequest.sessionId === selectedSessionId) {
+      setTaskExtractionRequest(null)
+      return
+    }
     if (!selectedSessionId || !selectedReplayPeriod) return
     setSessionActionError(null)
     setTaskExtractionRequest({
@@ -217,6 +221,10 @@ export function LocalReplayApp() {
   }
 
   async function openSummary() {
+    if (isSessionInfoOpen && aiViewKind === 'analysis') {
+      handleSessionInfoOpenChange(false)
+      return
+    }
     setSessionActionError(null)
     setAiViewKind('analysis')
     setIsSessionInfoOpen(true)
@@ -710,6 +718,13 @@ export function LocalReplayApp() {
     const isOpening = activePanel !== panel
     setIsManageMenuOpen(false)
     setActivePanel(isOpening ? panel : null)
+    setShowGettingStarted(false)
+    if (isOpening) {
+      handleSessionInfoOpenChange(false)
+      setIsSessionMetadataOpen(false)
+      setIsShareModalOpen(false)
+      setTaskExtractionRequest(null)
+    }
     if (panel === 'test_history' && isOpening) {
       setTestHistorySession(null)
       setTestHistoryInitialRun(null)
@@ -723,7 +738,7 @@ export function LocalReplayApp() {
   function openGettingStarted() {
     setIsManageMenuOpen(false)
     setActivePanel(null)
-    setShowGettingStarted(true)
+    setShowGettingStarted(current => !current)
     void updateGettingStarted(gettingStarted?.skipped ? 'resume' : 'open').catch(() => {})
   }
 
@@ -735,6 +750,10 @@ export function LocalReplayApp() {
 
   function openSessionTrace() {
     if (!selectedSession) return
+    if (activePanel === 'test_history' && testHistorySession?.sessionId === selectedSession.sessionId) {
+      setActivePanel(null)
+      return
+    }
     setTestHistorySession({ sessionId: selectedSession.sessionId, title: sessionDisplayTitle(selectedSession) })
     setTestHistoryInitialRun(selectedLinkedTraceRun)
     setActivePanel('test_history')
@@ -935,54 +954,50 @@ export function LocalReplayApp() {
           <GithubRepositoryBadge />
         </div>
         <div className="local-replay-actions">
-          <AnalyticsNotice />
-          {cacheFeedback ? <button
-            aria-label={cacheFeedback}
-            className={isCacheApproachingLimit ? 'local-host-status local-cache-status local-cache-status--warning' : 'local-host-status local-cache-status'}
-            onClick={() => setActivePanel('session_admin')}
+          {bootstrap?.supportsSessionAdministration ? <button
+            aria-label={cacheFeedback ?? 'Session storage'}
+            aria-expanded={activePanel === 'session_admin'}
+            className={`local-header-status ${activePanel === 'session_admin' ? 'local-header-status--active' : ''} ${isCacheApproachingLimit ? 'local-header-status--warning' : ''}`}
+            data-tooltip={cacheFeedback ?? 'Session storage'}
+            onClick={() => toggleGlobalPanel('session_admin')}
             type="button"
           >
             <HardDrives aria-hidden="true" />
-            {isCacheApproachingLimit ? `Storage ${cacheUsagePercent}%` : 'Storage cleaned'}
-            <span className="local-host-status-tooltip" role="tooltip">{cacheFeedback} Open session storage for details.</span>
+            {isCacheApproachingLimit ? <i aria-hidden="true" /> : null}
           </button> : null}
-          <button
-            aria-describedby="local-runner-status-tooltip"
-            aria-label="Manage remote runner"
-            className={`local-host-status local-runner-status local-runner-status--${'disabled'}`}
-            onClick={() => setActivePanel('runner')}
+          {bootstrap?.supportsAccountManagement ? <button
+            aria-label={runnerStatus ? `Remote runner: ${runnerStatus.state}` : 'Manage remote runner'}
+            aria-expanded={activePanel === 'runner'}
+            className={`local-header-status ${activePanel === 'runner' ? 'local-header-status--active' : ''} ${runnerStatus?.state === 'error' ? 'local-header-status--warning' : runnerStatus?.enabled ? 'local-header-status--online' : ''}`}
+            data-tooltip={runnerStatus ? `Remote runner · ${runnerStatus.message}` : 'Manage remote runner'}
+            onClick={() => toggleGlobalPanel('runner')}
             type="button"
           >
             <Pulse aria-hidden="true" />
-            Runner
-            <span className="local-host-status-tooltip" id="local-runner-status-tooltip" role="tooltip">
-              Select to manage a cloud runner.
-            </span>
-          </button>
-          <span
-            aria-describedby="local-host-status-tooltip"
-            className={liveCount > 0 ? 'local-host-status local-host-status--live' : 'local-host-status'}
-            tabIndex={0}
+            {runnerStatus?.enabled ? <i aria-hidden="true" /> : null}
+          </button> : null}
+          {bootstrap?.supportsHostHealth ? <button
+            aria-label={!hostReachable ? 'Host unavailable' : liveCount > 0 ? `Host ready: ${liveCount} live apps` : 'Host ready'}
+            aria-expanded={activePanel === 'health'}
+            className={`local-header-status ${activePanel === 'health' ? 'local-header-status--active' : ''} ${!hostReachable ? 'local-header-status--warning' : ''}`}
+            data-tooltip={!hostReachable ? 'Host unavailable — retrying connection' : liveCount > 0 ? `Host ready · ${liveCount} live apps` : 'Host ready'}
+            onClick={() => toggleGlobalPanel('health')}
+            type="button"
           >
             <WifiHigh aria-hidden="true" />
-            {!hostReachable ? 'Host unavailable' : liveCount > 0 ? `${liveCount} live` : 'Host ready'}
-            <span className="local-host-status-tooltip" id="local-host-status-tooltip" role="tooltip">
-              {!hostReachable ? 'Unable to reach the host. Session connection state is unknown; retrying automatically.' : liveCount > 0
-                ? `The host is available and connected to ${liveCount} ${liveCount === 1 ? 'app' : 'apps'}.`
-                : 'The host is available and ready for apps to connect.'}
-            </span>
-          </span>
+          </button> : null}
+          {bootstrap?.supportsAccountManagement ? <button
+            aria-label={`Companion access: ${companion?.access.isEnabled ? 'on' : companion ? 'off' : 'status unavailable'}`}
+            aria-expanded={activePanel === 'companion'}
+            className={`local-header-status ${activePanel === 'companion' ? 'local-header-status--active' : ''} ${companion?.access.isEnabled ? 'local-header-status--online' : ''}`}
+            data-tooltip={!companion ? 'Companion status unavailable · Click for details' : companion.access.isEnabled ? companion.access.status : 'Companion access is off · Click to enable'}
+            onClick={() => toggleGlobalPanel('companion')}
+            type="button"
+          >
+            <PlugsConnected aria-hidden="true" />
+            <i aria-hidden="true" />
+          </button> : null}
           <nav aria-label="Local explorer" className="local-global-navigation">
-            {bootstrap?.mode === 'explorer' ? <button
-              aria-current={showGettingStarted ? 'page' : undefined}
-              className={showGettingStarted ? 'local-banner-button local-banner-button--active' : 'local-banner-button'}
-              onClick={openGettingStarted}
-              title="Getting started"
-              type="button"
-            >
-              <Sparkle aria-hidden="true" />
-              Getting started
-            </button> : null}
             <button
               aria-current={isSessionsSectionActive ? 'page' : undefined}
               className={isSessionsSectionActive ? 'local-banner-button local-banner-button--active' : 'local-banner-button'}
@@ -990,6 +1005,10 @@ export function LocalReplayApp() {
                 setIsManageMenuOpen(false)
                 setActivePanel(null)
                 setShowGettingStarted(false)
+                handleSessionInfoOpenChange(false)
+                setIsSessionMetadataOpen(false)
+                setIsShareModalOpen(false)
+                setTaskExtractionRequest(null)
               }}
               title="Sessions"
               type="button"
@@ -1000,10 +1019,12 @@ export function LocalReplayApp() {
             {bootstrap?.supportsTestExecution ? (
               <button
                 aria-current={isTestsSectionActive ? 'page' : undefined}
+                aria-expanded={isTestsSectionActive}
                 className={isTestsSectionActive ? 'local-banner-button local-banner-button--active' : 'local-banner-button'}
                 onClick={() => {
                   setTestHistoryInitialRun(null)
-                  toggleGlobalPanel('test_execution')
+                  if (isTestsSectionActive) setActivePanel(null)
+                  else toggleGlobalPanel('test_execution')
                 }}
                 title="Tests"
                 type="button"
@@ -1015,6 +1036,7 @@ export function LocalReplayApp() {
             {bootstrap?.supportsTrends ? (
               <button
                 aria-current={isTrendsSectionActive ? 'page' : undefined}
+                aria-expanded={isTrendsSectionActive}
                 className={isTrendsSectionActive ? 'local-banner-button local-banner-button--active' : 'local-banner-button'}
                 onClick={() => toggleGlobalPanel('trends')}
                 title="Trends"
@@ -1040,6 +1062,12 @@ export function LocalReplayApp() {
             </button>
             {isManageMenuOpen ? (
               <div className="local-manage-menu-popover" role="menu">
+                {bootstrap?.mode === 'explorer' ? (
+                  <button onClick={openGettingStarted} role="menuitem" type="button">
+                    <Sparkle aria-hidden="true" />
+                    <span><strong>Getting started</strong><small>Capture your first session and explore Ansight</small></span>
+                  </button>
+                ) : null}
                 {bootstrap?.supportsRegisteredApps ? (
                   <button onClick={() => toggleGlobalPanel('apps')} role="menuitem" type="button">
                     <SquaresFour aria-hidden="true" />
@@ -1090,11 +1118,11 @@ export function LocalReplayApp() {
               <button
                 aria-expanded={pairingQr !== null}
                 aria-haspopup="dialog"
-                aria-label={isIssuingPairingQr ? 'Issuing pairing QR' : 'Issue pairing QR'}
+                aria-label={isIssuingPairingQr ? 'Issuing pairing QR' : pairingQr ? 'Hide pairing QR' : 'Issue pairing QR'}
                 className="local-banner-button local-banner-button--icon local-pairing-qr-button"
                 disabled={isIssuingPairingQr}
-                onClick={() => void issuePairingQr()}
-                title="Issue and open a pairing QR"
+                onClick={() => pairingQr ? setPairingQr(null) : void issuePairingQr()}
+                title={pairingQr ? 'Hide pairing QR' : 'Issue and open a pairing QR'}
                 type="button"
               >
                 {isIssuingPairingQr ? <CircleNotch className="spin" aria-hidden="true" /> : <QrCode aria-hidden="true" />}
@@ -1230,7 +1258,8 @@ export function LocalReplayApp() {
               </button>
               <button
                 className="local-banner-button"
-                onClick={() => { setAiViewKind(null); setIsSessionInfoOpen(true) }}
+                aria-expanded={isSessionInfoOpen && aiViewKind === null}
+                onClick={() => { setAiViewKind(null); setIsSessionInfoOpen(!isSessionInfoOpen || aiViewKind !== null) }}
                 data-tooltip="View session information"
                 type="button"
               >
@@ -1240,7 +1269,8 @@ export function LocalReplayApp() {
               {canManageSelectedSession ? (
                 <button
                   className="local-banner-button"
-                  onClick={() => setIsSessionMetadataOpen(true)}
+                  aria-expanded={isSessionMetadataOpen}
+                  onClick={() => setIsSessionMetadataOpen(current => !current)}
                   data-tooltip="Edit session name and notes"
                   type="button"
                 >
@@ -1252,7 +1282,8 @@ export function LocalReplayApp() {
                 <button
                   className="local-banner-button"
                   disabled={selectedSession.isConnected}
-                  onClick={() => setIsShareModalOpen(true)}
+                  aria-expanded={isShareModalOpen}
+                  onClick={() => setIsShareModalOpen(current => !current)}
                   data-tooltip={selectedSession.isConnected ? 'Finish recording before sharing this session' : 'Share this session to a team'}
                   type="button"
                 >
@@ -1262,6 +1293,7 @@ export function LocalReplayApp() {
               ) : null}
               <button
                 className="local-banner-button"
+                aria-expanded={isSessionInfoOpen && aiViewKind === 'analysis'}
                 onClick={() => void openSummary()}
                 data-tooltip="Summarise this local session"
                 type="button"
@@ -1473,6 +1505,11 @@ export function LocalReplayApp() {
         <HostManagementPanel onClose={() => setActivePanel(null)} />
       ) : null}
       {activePanel === 'about' ? <AboutInstallationPanel onClose={() => setActivePanel(null)} /> : null}
+      {activePanel === 'companion' ? <CompanionAccessPanel
+        onClose={() => setActivePanel(null)}
+        onOpenAccount={() => setActivePanel('account')}
+        onChanged={refreshAccessStatus}
+      /> : null}
       {activePanel === 'account' ? <AccountCompanionPanel onClose={() => setActivePanel(null)} /> : null}
       {activePanel === 'runner' ? <RemoteRunnerPanel
         canManage={canManageRunner}
@@ -1644,7 +1681,7 @@ function resolveErrorMessage(error: unknown, fallback: string): string {
 type LocalWebAnalyticsEvent = {
   kind: 'daily_active' | 'opened' | 'session_viewed' | 'panel_opened'
   isLive?: boolean
-  panel?: 'about' | 'account' | 'app_graph' | 'apps' | 'device_location' | 'devices' | 'health' | 'trends' | 'runner' | 'session_admin' | 'settings' | 'test_execution' | 'test_history'
+  panel?: 'about' | 'account' | 'companion' | 'app_graph' | 'apps' | 'device_location' | 'devices' | 'health' | 'trends' | 'runner' | 'session_admin' | 'settings' | 'test_execution' | 'test_history'
 }
 
 type LocalLiveViewMode = 'simulator' | 'playback'
@@ -1655,7 +1692,7 @@ type LocalLiveViewPreference = {
 }
 
 
-type LocalGlobalPanel = 'about' | 'account' | 'app_graph' | 'apps' | 'devices' | 'health' | 'trends' | 'runner' | 'session_admin' | 'settings' | 'test_execution' | 'test_history' | null
+type LocalGlobalPanel = 'about' | 'account' | 'companion' | 'app_graph' | 'apps' | 'devices' | 'health' | 'trends' | 'runner' | 'session_admin' | 'settings' | 'test_execution' | 'test_history' | null
 
 
 function trackLocalWebEvent(event: LocalWebAnalyticsEvent): void {
