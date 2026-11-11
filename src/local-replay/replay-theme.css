@@ -1345,12 +1345,11 @@
   font-weight: 600;
 }
 
-/* Cards in a row share one height (rows start at the top of each), so edges line up. */
 .local-replay-root .session-info-modal .session-property-sections {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 10px;
-  align-items: stretch;
+  align-items: start;
 }
 
 .local-replay-root .session-info-modal .session-property-section {
@@ -1358,18 +1357,14 @@
   flex-direction: column;
   justify-content: flex-start;
   margin: 0;
-  padding: 10px 12px 6px;
+  padding: 10px 12px;
   background: var(--rp-panel);
   border: 0;
   border-radius: 10px;
 }
 
-.local-replay-root .session-info-modal .session-property-section > div:first-child {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
+.local-replay-root .session-info-modal .session-property-group-heading {
   gap: 2px 8px;
-  margin-bottom: 4px;
 }
 
 .local-replay-root .session-info-modal .session-property-section h4 {
@@ -1378,8 +1373,7 @@
   font-weight: 600;
 }
 
-.local-replay-root .session-info-modal .session-property-section > div:first-child > p {
-  margin: 0;
+.local-replay-root .session-info-modal .session-property-group-subtitle {
   color: var(--rp-muted);
   font-size: 11px;
 }

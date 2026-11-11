@@ -4903,6 +4903,7 @@
 
 .session-property-sections {
   display: grid;
+  align-items: start;
   gap: 12px;
   margin-top: 12px;
 }
@@ -4923,10 +4924,57 @@
   line-height: 1.2;
 }
 
-.session-property-section p {
-  margin: 4px 0 0;
+.session-property-group-toggle {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.session-property-group-toggle:hover {
+  color: var(--accent);
+}
+
+.session-property-group-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+.session-property-group-toggle > svg {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  align-self: flex-start;
+  margin-top: 2px;
+  transform: rotate(-90deg);
+}
+
+.session-property-group-toggle[aria-expanded='true'] > svg {
+  transform: rotate(0);
+}
+
+.session-property-group-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.session-property-group-subtitle {
   color: var(--text-muted);
   font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
 }
 
 .session-property-grid {

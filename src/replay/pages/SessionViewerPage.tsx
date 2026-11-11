@@ -3583,6 +3583,8 @@ function SessionInfoModal({
   visualTrees: SessionVisualTreeSnapshot[]
 }) {
   const [propertyQuery, setPropertyQuery] = useState('')
+  const [collapsedPropertyGroups, setCollapsedPropertyGroups] = useState(new Set(['host']))
+  const [collapsedSearchPropertyGroups, setCollapsedSearchPropertyGroups] = useState(new Set<string>())
   const [encodeVideo, setEncodeVideo] = useState(false)
   const [loadedStorageBreakdown, setLoadedStorageBreakdown] = useState<SessionStorageBreakdown | null>(null)
   const [storageBreakdownError, setStorageBreakdownError] = useState<string | null>(null)
@@ -3689,6 +3691,54 @@ function SessionInfoModal({
     || filteredDevicePropertySections.length > 0
     || filteredCustomPropertySections.length > 0
     || (showSessionMetadata && filteredUploadMetadataRows.length > 0)
+  const isSearchingProperties = propertyQuery.trim().length > 0
+  const collapsedGroups = isSearchingProperties ? collapsedSearchPropertyGroups : collapsedPropertyGroups
+
+  function togglePropertyGroup(groupId: string) {
+    const setCollapsedGroups = isSearchingProperties ? setCollapsedSearchPropertyGroups : setCollapsedPropertyGroups
+    setCollapsedGroups((current) => {
+      const next = new Set(current)
+      if (next.has(groupId)) {
+        next.delete(groupId)
+      } else {
+        next.add(groupId)
+      }
+
+      return next
+    })
+  }
+
+  function renderPropertySections(groupId: string, title: string, sections: DevicePropertySection[]) {
+    return (
+      <SessionPropertyGroup
+        expanded={!collapsedGroups.has(groupId)}
+        onToggle={() => togglePropertyGroup(groupId)}
+        title={title}
+      >
+        <div className="session-property-sections">
+          {sections.map((section) => {
+            const sectionId = `${groupId}:${section.title}`
+            return (
+              <SessionPropertyGroup
+                expanded={!collapsedGroups.has(sectionId)}
+                headingLevel={4}
+                key={sectionId}
+                onToggle={() => togglePropertyGroup(sectionId)}
+                subtitle={section.subtitle}
+                title={section.title}
+              >
+                <div className="session-property-grid">
+                  {section.rows.map((row) => (
+                    <SessionPropertyRow key={row.label} label={row.label} value={row.value} />
+                  ))}
+                </div>
+              </SessionPropertyGroup>
+            )
+          })}
+        </div>
+      </SessionPropertyGroup>
+    )
+  }
 
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
@@ -3756,7 +3806,10 @@ function SessionInfoModal({
             <MagnifyingGlass aria-hidden="true" />
             <input
               aria-label="Search session properties"
-              onChange={(event) => setPropertyQuery(event.target.value)}
+              onChange={(event) => {
+                setPropertyQuery(event.target.value)
+                setCollapsedSearchPropertyGroups(new Set())
+              }}
               placeholder="Search session properties"
               type="search"
               value={propertyQuery}
@@ -3774,24 +3827,7 @@ function SessionInfoModal({
         ) : null}
 
         {filteredDevicePropertySections.length > 0 ? (
-          <div className="session-info-section">
-            <h3>Device properties</h3>
-            <div className="session-property-sections">
-              {filteredDevicePropertySections.map((section) => (
-                <article className="session-property-section" key={section.title}>
-                  <div>
-                    <h4>{section.title}</h4>
-                    <p>{section.subtitle}</p>
-                  </div>
-                  <div className="session-property-grid">
-                    {section.rows.map((row) => (
-                      <SessionPropertyRow key={`${section.title}-${row.label}`} label={row.label} value={row.value} />
-                    ))}
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
+          renderPropertySections('device', 'Device properties', filteredDevicePropertySections)
         ) : devicePropertySections.length === 0 && !propertyQuery.trim() ? (
           <div className="session-info-section">
             <h3>Device properties</h3>
@@ -3800,45 +3836,11 @@ function SessionInfoModal({
         ) : null}
 
         {filteredHostPropertySections.length > 0 ? (
-          <div className="session-info-section">
-            <h3>Capture host</h3>
-            <div className="session-property-sections">
-              {filteredHostPropertySections.map((section) => (
-                <article className="session-property-section" key={`custom-${section.title}`}>
-                  <div>
-                    <h4>{section.title}</h4>
-                    <p>{section.subtitle}</p>
-                  </div>
-                  <div className="session-property-grid">
-                    {section.rows.map((row) => (
-                      <SessionPropertyRow key={`${section.title}-${row.label}`} label={row.label} value={row.value} />
-                    ))}
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
+          renderPropertySections('host', 'Capture host', filteredHostPropertySections)
         ) : null}
 
         {filteredCustomPropertySections.length > 0 ? (
-          <div className="session-info-section">
-            <h3>Custom properties</h3>
-            <div className="session-property-sections">
-              {filteredCustomPropertySections.map((section) => (
-                <article className="session-property-section" key={`custom-${section.title}`}>
-                  <div>
-                    <h4>{section.title}</h4>
-                    <p>{section.subtitle}</p>
-                  </div>
-                  <div className="session-property-grid">
-                    {section.rows.map((row) => (
-                      <SessionPropertyRow key={`${section.title}-${row.label}`} label={row.label} value={row.value} />
-                    ))}
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
+          renderPropertySections('custom', 'Custom properties', filteredCustomPropertySections)
         ) : null}
 
         {onOptimizeSession ? (
@@ -3894,14 +3896,17 @@ function SessionInfoModal({
         </div>
 
         {showSessionMetadata && filteredUploadMetadataRows.length > 0 ? (
-          <div className="session-info-section">
-            <h3>Session metadata</h3>
+          <SessionPropertyGroup
+            expanded={!collapsedGroups.has('metadata')}
+            onToggle={() => togglePropertyGroup('metadata')}
+            title="Session metadata"
+          >
             <div className="session-property-grid">
               {filteredUploadMetadataRows.map((row) => (
                 <SessionPropertyRow key={row.label} label={row.label} value={row.value} />
               ))}
             </div>
-          </div>
+          </SessionPropertyGroup>
         ) : null}
       </section>
     </div>
@@ -4074,6 +4079,50 @@ function SessionStorageBreakdownSection({
         </div>
       )}
     </div>
+  )
+}
+
+function SessionPropertyGroup({
+  children,
+  expanded,
+  headingLevel = 3,
+  onToggle,
+  subtitle,
+  title,
+}: {
+  children: ReactNode
+  expanded: boolean
+  headingLevel?: 3 | 4
+  onToggle: () => void
+  subtitle?: string
+  title: string
+}) {
+  const contentId = useId()
+  const Heading = headingLevel === 3 ? 'h3' : 'h4'
+  const className = headingLevel === 3 ? 'session-info-section' : 'session-property-section'
+
+  return (
+    <section className={className}>
+      <Heading>
+        <button
+          aria-controls={contentId}
+          aria-expanded={expanded}
+          aria-label={title}
+          className="session-property-group-toggle"
+          onClick={onToggle}
+          type="button"
+        >
+          <CaretDown aria-hidden="true" />
+          <span className="session-property-group-heading">
+            <span>{title}</span>
+            {subtitle ? <span className="session-property-group-subtitle">{subtitle}</span> : null}
+          </span>
+        </button>
+      </Heading>
+      <div hidden={!expanded} id={contentId}>
+        {expanded ? children : null}
+      </div>
+    </section>
   )
 }
 
