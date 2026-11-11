@@ -3057,6 +3057,7 @@ export function SessionViewerPage({
             onSelectOverlay={setVisualTreeOverlay}
             onSelectSnapshot={selectVisualTreeSnapshot}
             selectedFrame={selectedFrame}
+            screenshotUrl={selectedFrame ? imageUrls[selectedFrame.frameId] : undefined}
             selectedVisualTree={selectedVisualTree}
             visualTrees={visualTrees}
           />
@@ -8911,12 +8912,14 @@ function VisualTreeSection({
   onSelectOverlay,
   onSelectSnapshot,
   selectedFrame,
+  screenshotUrl,
   selectedVisualTree,
   visualTrees,
 }: {
   onSelectOverlay: (selection: VisualTreeOverlaySelection | null) => void
   onSelectSnapshot: (snapshot: SessionVisualTreeSnapshot) => void
   selectedFrame: SessionImageFrame | null
+  screenshotUrl?: string
   selectedVisualTree: SessionVisualTreeSnapshot | null
   visualTrees: SessionVisualTreeSnapshot[]
 }) {
@@ -8950,6 +8953,7 @@ function VisualTreeSection({
       <VisualTreeInspector
         onSelectOverlay={onSelectOverlay}
         snapshot={selectedVisualTree}
+        screenshotUrl={screenshotUrl}
         viewportHeight={selectedFrame?.height}
         viewportWidth={selectedFrame?.width}
         snapshotDetails={(

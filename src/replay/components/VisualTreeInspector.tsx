@@ -62,12 +62,14 @@ const sdkOverlayAutomationId = 'ansight.overlay.surface'
 export function VisualTreeInspector({
   onSelectOverlay,
   snapshot,
+  screenshotUrl,
   snapshotDetails,
   viewportHeight,
   viewportWidth,
 }: {
   onSelectOverlay?: (selection: VisualTreeOverlaySelection | null) => void
   snapshot: SessionVisualTreeSnapshot
+  screenshotUrl?: string
   snapshotDetails?: ReactNode
   viewportHeight?: number | null
   viewportWidth?: number | null
@@ -259,6 +261,7 @@ export function VisualTreeInspector({
           coordinateSpace={parsed.payload.coordinateSpace}
           nodes={filteredNodes}
           selectedNode={selectedNode}
+          screenshotUrl={screenshotUrl}
           onSelect={selectNode}
           viewportHeight={viewportHeight}
           viewportWidth={viewportWidth}
@@ -273,6 +276,7 @@ function VisualTreeWireframe({
   nodes,
   onSelect,
   selectedNode,
+  screenshotUrl,
   viewportHeight,
   viewportWidth,
 }: {
@@ -280,9 +284,12 @@ function VisualTreeWireframe({
   nodes: VisualTreeNodeRecord[]
   onSelect: (node: VisualTreeNodeRecord) => void
   selectedNode: VisualTreeNodeRecord | null
+  screenshotUrl?: string
   viewportHeight?: number | null
   viewportWidth?: number | null
 }) {
+  const [previewMode, setPreviewMode] = useState<'screenshot' | 'wireframe'>('screenshot')
+
   if (!coordinateSpace || coordinateSpace.width <= 0 || coordinateSpace.height <= 0) {
     return (
       <div className="visual-tree-wireframe-empty">
@@ -296,54 +303,67 @@ function VisualTreeWireframe({
   const boundedNodes = nodes.filter((node) => isRenderableWireframeNode(node, coordinateSpace))
   const inspectionLayerOffset = nodes.reduce((maximum, node) => Math.max(maximum, node.paintOrder), 0) + 1
   const aspectRatio = resolveWireframeAspectRatio(coordinateSpace, viewportWidth, viewportHeight)
+  const frameAspectRatio = viewportWidth && viewportHeight ? viewportWidth / viewportHeight : 0
+  const canShowScreenshot = !!screenshotUrl
+    && coordinateSpace.x === 0
+    && coordinateSpace.y === 0
+    && Math.abs(aspectRatio / frameAspectRatio - 1) < 0.005
+  const showsScreenshot = previewMode === 'screenshot' && canShowScreenshot
   const maximumWidth = Math.min(520, 650 * aspectRatio)
   return (
-    <div className="visual-tree-wireframe-scroll">
-      <div
-        aria-label="Visual tree wireframe"
-        className="visual-tree-wireframe"
-        style={{
-          aspectRatio,
-          width: `min(100%, ${maximumWidth}px)`,
-        }}
-      >
-        {boundedNodes.map((node) => {
-          const bounds = node.bounds!
-          const style = {
-            '--visual-tree-node-fill': node.backgroundColor || 'transparent',
-            '--visual-tree-node-text': node.foregroundColor || 'currentColor',
-            height: `${(bounds.height / coordinateSpace.height) * 100}%`,
-            left: `${((bounds.x - coordinateSpace.x) / coordinateSpace.width) * 100}%`,
-            opacity: (node.isHidden || node.isOccluded || node.opacity <= 0)
-              ? Math.max(0.35, clamp(node.opacity))
-              : clamp(node.opacity),
-            top: `${((bounds.y - coordinateSpace.y) / coordinateSpace.height) * 100}%`,
-            width: `${(bounds.width / coordinateSpace.width) * 100}%`,
-            zIndex: (node.isHidden || node.isOccluded || node.opacity <= 0)
-              ? inspectionLayerOffset + node.paintOrder + 1
-              : node.paintOrder + 1,
-          } as CSSProperties
-          return (
-            <button
-              aria-label={`Select ${node.label || node.typeName}`}
-              className={[
-                'visual-tree-wireframe-node',
-                node.role === 'button' || node.supportedActions.includes('tap') ? 'visual-tree-wireframe-node--interactive' : '',
-                node.key === selectedNode?.key ? 'visual-tree-wireframe-node--selected' : '',
-                node.isHidden ? 'visual-tree-wireframe-node--hidden' : '',
-                node.isOccluded ? 'visual-tree-wireframe-node--occluded' : '',
-                node.opacity <= 0 ? 'visual-tree-wireframe-node--transparent' : '',
-              ].filter(Boolean).join(' ')}
-              key={node.key}
-              onClick={() => onSelect(node)}
-              style={style}
-              title={`${node.typeName}${node.label ? ` · ${node.label}` : ''}`}
-              type="button"
-            >
-              {node.wireframeText ? <span>{node.wireframeText}</span> : null}
-            </button>
-          )
-        })}
+    <div className="visual-tree-preview">
+      {canShowScreenshot ? <div className="visual-tree-preview-modes" aria-label="Tree preview mode">
+        <button type="button" aria-pressed={previewMode === 'screenshot'} onClick={() => setPreviewMode('screenshot')}>Screenshot</button>
+        <button type="button" aria-pressed={previewMode === 'wireframe'} onClick={() => setPreviewMode('wireframe')}>Wireframe</button>
+      </div> : null}
+      <div className="visual-tree-wireframe-scroll">
+        <div
+          aria-label={showsScreenshot ? 'Tree bounds over captured screenshot' : 'Visual tree wireframe'}
+          className={`visual-tree-wireframe${showsScreenshot ? ' visual-tree-wireframe--screenshot' : ''}`}
+          style={{
+            aspectRatio,
+            width: `min(100%, ${maximumWidth}px)`,
+          }}
+        >
+          {showsScreenshot ? <img className="visual-tree-preview-image" src={screenshotUrl} alt="Captured app screen" /> : null}
+          {boundedNodes.map((node) => {
+            const bounds = node.bounds!
+            const style = {
+              '--visual-tree-node-fill': node.backgroundColor || 'transparent',
+              '--visual-tree-node-text': node.foregroundColor || 'currentColor',
+              height: `${(bounds.height / coordinateSpace.height) * 100}%`,
+              left: `${((bounds.x - coordinateSpace.x) / coordinateSpace.width) * 100}%`,
+              opacity: (node.isHidden || node.isOccluded || node.opacity <= 0)
+                ? Math.max(0.35, clamp(node.opacity))
+                : clamp(node.opacity),
+              top: `${((bounds.y - coordinateSpace.y) / coordinateSpace.height) * 100}%`,
+              width: `${(bounds.width / coordinateSpace.width) * 100}%`,
+              zIndex: (node.isHidden || node.isOccluded || node.opacity <= 0)
+                ? inspectionLayerOffset + node.paintOrder + 1
+                : node.paintOrder + 1,
+            } as CSSProperties
+            return (
+              <button
+                aria-label={`Select ${node.label || node.typeName}`}
+                className={[
+                  'visual-tree-wireframe-node',
+                  node.role === 'button' || node.supportedActions.includes('tap') ? 'visual-tree-wireframe-node--interactive' : '',
+                  node.key === selectedNode?.key ? 'visual-tree-wireframe-node--selected' : '',
+                  node.isHidden ? 'visual-tree-wireframe-node--hidden' : '',
+                  node.isOccluded ? 'visual-tree-wireframe-node--occluded' : '',
+                  node.opacity <= 0 ? 'visual-tree-wireframe-node--transparent' : '',
+                ].filter(Boolean).join(' ')}
+                key={node.key}
+                onClick={() => onSelect(node)}
+                style={style}
+                title={`${node.typeName}${node.label ? ` · ${node.label}` : ''}`}
+                type="button"
+              >
+                {!showsScreenshot && node.wireframeText ? <span>{node.wireframeText}</span> : null}
+              </button>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
@@ -455,9 +475,14 @@ function appendNode(
   const label = readString(source.label)
     || readString(visual?.text)
     || readString(visual?.value)
-  const wireframeText = readString(visual?.value)
+  const capturedText = readString(visual?.value)
     || readString(visual?.text)
     || (children.length === 0 ? label : '')
+  // Avalonia's semantic names and Content values can describe an entire page
+  // or duplicate a template's text child. Only text-rendering nodes locate text.
+  const isAvaloniaTree = payload.source.startsWith('avalonia-')
+  const isAvaloniaTextNode = /^Avalonia\.Controls\.(TextBlock|Primitives\.AccessText|Presenters\.TextPresenter)$/.test(typeName ?? '')
+  const wireframeText = isAvaloniaTree && !isAvaloniaTextNode ? '' : capturedText
   nodes.push({
     key,
     parentKey,
