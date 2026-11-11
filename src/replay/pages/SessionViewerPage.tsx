@@ -18,8 +18,10 @@ import { AnnotationSummaryProgress } from '../components/AnnotationSummaryProgre
 import { deferredTelemetryReport, type DeferredTelemetryReport } from '../deferredTelemetry'
 import { DeferredTelemetryStatus } from '../components/DeferredTelemetryStatus'
 import { AiOperationMessage } from '../components/AiOperationMessage'
-import { timelineCornerPaths } from '../timelineCurve'
-import { formatMetricValue, isFlutterDiagnosticChannel, isFpsChannel, metricAxisMaximum, metricPresentation } from '../metricPresentation'
+import { sampledMetricValue, timelineCornerPaths, timelineStepPaths } from '../timelineCurve'
+import { buildMetricGroups, metricLegendLabel } from '../metricGroups'
+import { TimelineMetricGroups } from '../components/TimelineMetricGroups'
+import { formatMetricValue, isDiscreteMetricChannel, isFpsChannel, metricAxisMaximum, metricPresentation } from '../metricPresentation'
 import { ArtifactComparisonExplorer } from '../components/ArtifactComparisonExplorer'
 import type { ArtifactComparisonSource } from '../components/artifactComparison'
 import { trackInspection, type InspectionFeature } from '../../local-replay/usage'
@@ -4539,8 +4541,8 @@ function SessionTimelineChart({
   const [hoverProbeAtMs, setHoverProbeAtMs] = useState<number | null>(null)
   const [annotationDraft, setAnnotationDraft] = useState<TimelineAnnotationDraft | null>(null)
   const [rangeDraft, setRangeDraft] = useState<TimelineRangeDraft | null>(null)
-  const [hiddenMetricChannelIds, setHiddenMetricChannelIds] = useState<Set<number>>(() => new Set())
-  const [showFlutterMetrics, setShowFlutterMetrics] = useState(false)
+  const [metricGroupId, setMetricGroupId] = useState('overview')
+  const [metricSelections, setMetricSelections] = useState<Record<string, number[]>>({})
   const [showAppState, setShowAppState] = useState(true)
   const [showArtifactSnapshots, setShowArtifactSnapshots] = useState(true)
   const [showVisualTreeSnapshots, setShowVisualTreeSnapshots] = useState(true)
@@ -4560,17 +4562,20 @@ function SessionTimelineChart({
     () => buildTimelineChart(metricIndex, visibleRange, range, width, plot),
     [metricIndex, plot, range, visibleRange, width],
   )
-  const flutterMetricChannelIds = useMemo(
-    () => new Set(metricIndex.channelIds.filter((channelId) => isFlutterDiagnosticChannel(metricIndex.channelMap.get(channelId)))),
-    [metricIndex.channelIds, metricIndex.channelMap],
+  const metricGroups = useMemo(
+    () => buildMetricGroups(metricIndex.channelIds
+      .filter(channelId => (metricIndex.channelSamplesById.get(channelId)?.length ?? 0) > 0)
+      .map(channelId => metricIndex.channelMap.get(channelId) ?? { channelId, name: `Channel ${channelId}` })),
+    [metricIndex],
   )
-  const flutterMetricCount = allSeriesChart.series.filter((series) => flutterMetricChannelIds.has(series.channelId)).length
-  const legendSeries = allSeriesChart.series.filter((series) => showFlutterMetrics || !flutterMetricChannelIds.has(series.channelId))
+  const selectedMetricGroup = metricGroups.find(group => group.id === metricGroupId) ?? metricGroups[0]
   const visibleMetricChannelIds = useMemo(
-    () => metricIndex.channelIds.filter((channelId) => !hiddenMetricChannelIds.has(channelId)
-      && (showFlutterMetrics || !flutterMetricChannelIds.has(channelId))),
-    [flutterMetricChannelIds, hiddenMetricChannelIds, metricIndex.channelIds, showFlutterMetrics],
+    () => (metricSelections[selectedMetricGroup.id] ?? selectedMetricGroup.defaultChannelIds)
+      .filter(channelId => selectedMetricGroup.channelIds.includes(channelId)),
+    [metricSelections, selectedMetricGroup],
   )
+  const selectedMetricIds = new Set(visibleMetricChannelIds)
+  const legendSeries = allSeriesChart.series.filter(series => selectedMetricIds.has(series.channelId))
   const chart = useMemo(
     () => visibleMetricChannelIds.length === metricIndex.channelIds.length
       ? allSeriesChart
@@ -4643,10 +4648,10 @@ function SessionTimelineChart({
       : [],
     [range, showTouchLocations, touches],
   )
-  // FPS is the only labelled left scale. Other series plot on their own maxima;
-  // promoting an arbitrary custom metric here can overflow the fixed axis margin.
   const fpsAxis = chart.axes.find((axis) => axis.axisKey === 'fps')
-  const labelledLeftAxisKey = fpsAxis?.axisKey ?? null
+  const labelledLeftAxisKey = (fpsAxis ?? chart.axes.find(axis => axis.kind !== 'memory'))?.axisKey ?? null
+  const labelledRightAxisKey = (chart.axes.find(axis => axis.kind === 'memory')
+    ?? chart.axes.find(axis => axis.axisKey !== labelledLeftAxisKey))?.axisKey ?? null
   const gridAxis = fpsAxis
     ?? chart.axes.find((axis) => axis.kind === 'memory')
     ?? chart.axes[0]
@@ -4685,13 +4690,17 @@ function SessionTimelineChart({
   const fpsScrubY = fpsScrubValue === null ? null : yForAxisValue(fpsScrubValue, chart.leftAxisMax)
 
   function toggleMetricChannel(channelId: number) {
-    setHiddenMetricChannelIds((current) => {
-      const next = new Set(current)
-      if (next.has(channelId)) {
-        next.delete(channelId)
-      } else {
-        next.add(channelId)
-      }
+    setMetricSelections(current => {
+      const selected = current[selectedMetricGroup.id] ?? selectedMetricGroup.defaultChannelIds
+      const next = selected.includes(channelId) ? selected.filter(id => id !== channelId) : [...selected, channelId]
+      return { ...current, [selectedMetricGroup.id]: next }
+    })
+  }
+
+  function resetMetricGroup() {
+    setMetricSelections(current => {
+      const next = { ...current }
+      delete next[selectedMetricGroup.id]
       return next
     })
   }
@@ -5299,8 +5308,17 @@ function SessionTimelineChart({
     <div className="timeline-chart-shell" ref={chartShellRef}>
       <div className="timeline-chart-topline">
         <div className="timeline-legend" aria-label="Timeline legend">
+          <TimelineMetricGroups
+            groups={metricGroups}
+            selectedGroup={selectedMetricGroup}
+            selectedIds={selectedMetricIds}
+            series={allSeriesChart.series}
+            onSelectGroup={setMetricGroupId}
+            onToggleMetric={toggleMetricChannel}
+            onReset={resetMetricGroup}
+          />
           {legendSeries.map((series) => {
-            const isVisible = !hiddenMetricChannelIds.has(series.channelId)
+            const isVisible = selectedMetricIds.has(series.channelId)
             const toggleLabel = `${isVisible ? 'Hide' : 'Show'} ${series.name} telemetry`
             return (
               <button
@@ -5313,7 +5331,7 @@ function SessionTimelineChart({
                 type="button"
               >
                 <i style={{ background: series.color }} />
-                {series.name}
+                {metricLegendLabel(metricIndex.channelMap.get(series.channelId), series.name)}
               </button>
             )
           })}
@@ -5373,19 +5391,7 @@ function SessionTimelineChart({
               Touches
             </button>
           ) : null}
-          {flutterMetricCount > 0 ? (
-            <button
-              aria-label={showFlutterMetrics ? 'Hide Flutter metrics' : 'Show Flutter metrics'}
-              aria-pressed={showFlutterMetrics}
-              className="timeline-legend-series-toggle timeline-legend-flutter-toggle"
-              onClick={() => setShowFlutterMetrics((current) => !current)}
-              title={showFlutterMetrics ? 'Hide Flutter diagnostics and their individual controls' : 'Show Flutter diagnostics and their individual controls'}
-              type="button"
-            >
-              <CaretDown aria-hidden="true" className={showFlutterMetrics ? 'timeline-legend-flutter-caret timeline-legend-flutter-caret--open' : 'timeline-legend-flutter-caret'} />
-              Flutter metrics ({flutterMetricCount})
-            </button>
-          ) : null}
+
         </div>
         <div className="timeline-chart-actions" aria-label="Timeline playback controls">
           {playbackControls}
@@ -5472,7 +5478,7 @@ function SessionTimelineChart({
           return <line className="timeline-y-grid-line" key={tick} x1={plot.left} x2={plot.left + plotWidth} y1={y} y2={y} />
         })}
         {chart.axes.map((axis) => {
-          const right = axis.kind === 'memory'
+          const right = axis.axisKey === labelledRightAxisKey
           if (!right && axis.axisKey !== labelledLeftAxisKey) {
             return null
           }
@@ -11019,7 +11025,7 @@ function buildTimelineChart(
     return plot.top + plotHeight - verticalPadding - ratio * usablePlotHeight
   }
 
-  const series = channelIds.flatMap((channelId, index) => {
+  const series = channelIds.flatMap((channelId) => {
     const channelSamples = metricIndex.channelSamplesById.get(channelId) ?? []
     if (channelSamples.length === 0) {
       return []
@@ -11028,7 +11034,7 @@ function buildTimelineChart(
     const channel = channelMap.get(channelId)
     const isFps = isFpsChannel(channelMap, channelId)
     const presentation = metricPresentation(channel, channelId)
-    const fallbackColor = harmonizeTimelineColor(presentation.kind === 'cpu' ? '#f59e0b' : sanitizeColorHex(channel?.colorHex) ?? palette[index % palette.length])
+    const fallbackColor = harmonizeTimelineColor(presentation.kind === 'cpu' ? '#f59e0b' : sanitizeColorHex(channel?.colorHex) ?? palette[metricIndex.channelIds.indexOf(channelId) % palette.length])
     const maxDisplayValue = axesByKey.get(presentation.axisKey)?.maximum ?? 1
     const metricSegments = metricIndex.channelSegmentsById.get(channelId) ?? []
     const segments: TimelineMetricSegment[] = []
@@ -11036,7 +11042,7 @@ function buildTimelineChart(
 
     for (const sourceMetricSegment of metricSegments) {
       const metricSegment = reduceTimelineMetricPoints(
-        clipMetricSegmentToRange(sourceMetricSegment, range),
+        clipMetricSegmentToRange(sourceMetricSegment, range, isDiscreteMetricChannel(channel)),
         targetRenderSamplesPerSeries)
       if (metricSegment.length === 0) {
         continue
@@ -11056,7 +11062,7 @@ function buildTimelineChart(
         x: xForTimestamp(sample.timestampMs, range, plot.left, plotWidth),
         y: yForValue(sample.value * presentation.scale, maxDisplayValue),
       }))
-      const cornerPaths = timelineCornerPaths(plotPoints)
+      const cornerPaths = isDiscreteMetricChannel(channel) ? timelineStepPaths(plotPoints) : timelineCornerPaths(plotPoints)
 
       if (isFps) {
         for (let sampleIndex = 1; sampleIndex < metricSegment.length; sampleIndex += 1) {
@@ -11159,12 +11165,12 @@ function buildTimelineProbeLines(
   series: Array<{ channelId: number; color: string }>,
 ): TimelineProbeLine[] {
   return series.flatMap(({ channelId, color }) => {
-    const sample = getTimelineMetricAt(metricIndex.channelSegmentsById.get(channelId) ?? [], probeAtMs)
+    const channel = metricIndex.channelMap.get(channelId)
+    const sample = getTimelineMetricAt(metricIndex.channelSegmentsById.get(channelId) ?? [], probeAtMs, isDiscreteMetricChannel(channel))
     if (!sample) {
       return []
     }
 
-    const channel = metricIndex.channelMap.get(channelId)
     const isFps = isFpsChannel(metricIndex.channelMap, channelId)
     const channelName = channel?.name || `Channel ${channelId}`
     return [{
@@ -11176,9 +11182,8 @@ function buildTimelineProbeLines(
   })
 }
 
-/** The series value at the probe time, interpolated between the neighbouring samples of the
- *  segment that spans it, so a marker placed at that value sits on the drawn line. */
-function getTimelineMetricAt(segments: TimelineMetricSamplePoint[][], probeAtMs: number): TimelineMetricSamplePoint | null {
+/** Match the plotted series: continuous interpolation or the last recorded discrete count. */
+function getTimelineMetricAt(segments: TimelineMetricSamplePoint[][], probeAtMs: number, discrete = false): TimelineMetricSamplePoint | null {
   for (const segment of segments) {
     if (segment.length === 0 || probeAtMs < segment[0].timestampMs || probeAtMs > segment[segment.length - 1].timestampMs) {
       continue
@@ -11191,8 +11196,7 @@ function getTimelineMetricAt(segments: TimelineMetricSamplePoint[][], probeAtMs:
       return previous
     }
 
-    const ratio = clamp((probeAtMs - previous.timestampMs) / (next.timestampMs - previous.timestampMs), 0, 1)
-    return { ...previous, timestampMs: probeAtMs, value: previous.value + (next.value - previous.value) * ratio }
+    return { ...previous, timestampMs: probeAtMs, value: sampledMetricValue(previous, next, probeAtMs, discrete) }
   }
 
   return null
@@ -11228,7 +11232,7 @@ function upperBoundMetricTimestamp(samples: TimelineMetricSamplePoint[], timesta
   return low
 }
 
-function clipMetricSegmentToRange(samples: TimelineMetricSamplePoint[], range: TimelineRange): TimelineMetricPoint[] {
+function clipMetricSegmentToRange(samples: TimelineMetricSamplePoint[], range: TimelineRange, discrete = false): TimelineMetricPoint[] {
   if (samples.length === 0) {
     return []
   }
@@ -11267,8 +11271,8 @@ function clipMetricSegmentToRange(samples: TimelineMetricSamplePoint[], range: T
       continue
     }
 
-    addPoint(interpolateMetricPoint(startPoint, endPoint, clippedStartMs))
-    addPoint(interpolateMetricPoint(startPoint, endPoint, clippedEndMs))
+    addPoint(interpolateMetricPoint(startPoint, endPoint, clippedStartMs, discrete))
+    addPoint(interpolateMetricPoint(startPoint, endPoint, clippedEndMs, discrete))
   }
 
   return clippedPoints
@@ -11308,16 +11312,8 @@ function reduceTimelineMetricPoints(points: TimelineMetricPoint[], targetRenderS
     .map((index) => points[index])
 }
 
-function interpolateMetricPoint(startPoint: TimelineMetricPoint, endPoint: TimelineMetricPoint, timestampMs: number): TimelineMetricPoint {
-  if (endPoint.timestampMs <= startPoint.timestampMs) {
-    return { timestampMs, value: startPoint.value }
-  }
-
-  const ratio = clamp((timestampMs - startPoint.timestampMs) / (endPoint.timestampMs - startPoint.timestampMs), 0, 1)
-  return {
-    timestampMs,
-    value: startPoint.value + (endPoint.value - startPoint.value) * ratio,
-  }
+function interpolateMetricPoint(startPoint: TimelineMetricPoint, endPoint: TimelineMetricPoint, timestampMs: number, discrete = false): TimelineMetricPoint {
+  return { timestampMs, value: sampledMetricValue(startPoint, endPoint, timestampMs, discrete) }
 }
 
 function groupMetricsBySegment(samples: TimelineMetricSamplePoint[]): TimelineMetricSamplePoint[][] {

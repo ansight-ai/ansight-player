@@ -395,6 +395,11 @@ export type SessionArtifactEntry = {
   archiveRelativePath?: string
 }
 
+export type SessionMetricGroup = {
+  id: string
+  name: string
+}
+
 export type SessionMetricChannel = {
   channelId: number
   name: string
@@ -403,6 +408,7 @@ export type SessionMetricChannel = {
   unit?: string | null
   source?: string | null
   group?: string | null
+  metricGroup?: SessionMetricGroup | null
   kind?: string | null
 }
 

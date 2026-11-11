@@ -81,8 +81,8 @@ export function TelemetryPanel({ events, channels, samples, startMs, endMs, scru
       if (channelId !== 'all' && String(id) !== channelId) continue
       const channel = channels.get(id) ?? { channelId: id, name: `Channel ${id}`, colorHex: '#0ea5e9' }
       const presentation = metricPresentation(channel, id)
-      const key = `${channel.group ?? ''}:${presentation.axisKey}`
-      const lane = grouped.get(key) ?? { label: channel.group || presentation.axisLabel, series: [] }
+      const key = JSON.stringify([channel.metricGroup?.id ?? channel.group ?? '', presentation.axisKey])
+      const lane = grouped.get(key) ?? { label: channel.metricGroup?.name || channel.group || presentation.axisLabel, series: [] }
       lane.series.push({ channel, samples: values.filter(sample => sample.timestampMs >= from && sample.timestampMs <= to && Number.isFinite(sample.value)) })
       grouped.set(key, lane)
     }

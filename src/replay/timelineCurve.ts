@@ -3,6 +3,26 @@ type Point = { x: number; y: number }
 const midpoint = (a: Point, b: Point): Point => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 })
 const coordinates = (point: Point): string => `${point.x} ${point.y}`
 
+/** Counts stay at the recorded value until the next observation. */
+export function timelineStepPaths(points: readonly Point[]): string[] {
+  return points.slice(1).map((end, index) => {
+    const start = points[index]
+    return `M ${coordinates(start)} H ${end.x} V ${end.y}`
+  })
+}
+
+export function sampledMetricValue(
+  start: { timestampMs: number; value: number },
+  end: { timestampMs: number; value: number },
+  timestampMs: number,
+  discrete: boolean,
+): number {
+  if (timestampMs >= end.timestampMs) return end.value
+  if (discrete || end.timestampMs <= start.timestampMs) return start.value
+  const ratio = Math.max(0, Math.min(1, (timestampMs - start.timestampMs) / (end.timestampMs - start.timestampMs)))
+  return start.value + (end.value - start.value) * ratio
+}
+
 /** Keep the connecting lines straight, rounding only a few pixels around corners. */
 export function timelineCornerPaths(points: readonly Point[]): string[] {
   const corners = points.map((point, i) => {

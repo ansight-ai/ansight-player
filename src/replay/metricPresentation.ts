@@ -37,6 +37,16 @@ export function isFpsChannel(channels: Map<number, SessionMetricChannel>, channe
   return metricPresentation(channels.get(channelId), channelId).kind === 'fps'
 }
 
+/** A count is the last observed whole quantity; an explicitly averaged count may be fractional. */
+export function isDiscreteMetricChannel(channel: SessionMetricChannel | undefined): boolean {
+  if (!channel) return false
+  const kind = channel.kind?.trim().toLowerCase() ?? ''
+  const unit = channel.unit?.trim().toLowerCase() ?? ''
+  if (/mean|average|rate/.test(kind) || /\b(mean|average|per second)\b/i.test(channel.name)) return false
+  return ['count', 'counts', 'references', 'reference', 'handles', 'handle', 'samples'].includes(unit)
+    || (!unit && /\bjni references?\b|reference count|open file handles/i.test(channel.name))
+}
+
 /** Keep framework diagnostics opt-in, while retaining the overview's resource and FPS metrics. */
 export function isFlutterDiagnosticChannel(channel: SessionMetricChannel | undefined): boolean {
   if (!channel || metricPresentation(channel, channel.channelId).kind !== 'other') return false
