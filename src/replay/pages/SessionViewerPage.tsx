@@ -78,6 +78,7 @@ import remarkGfm from 'remark-gfm'
 import { LiveVisualTreeCaptureToolbar, type LiveVisualTreeSource } from '../LiveVisualTreeCaptureToolbar'
 import { attachCapturedAnnotationVisualTree, type AnnotationEditorDraft, type AnnotationVisualTreeCaptureResult, type ScreenshotAnnotationCapture } from '../annotationCapture'
 import { selectFrameForVisualTree } from '../visualTreeFrame'
+import { visualTreeKindLabel } from '../visualTreeKind'
 import { DetailRow } from '../../components/DetailRow'
 import { EmptyState } from '../../components/EmptyState'
 import { GithubRepositoryBadge } from '../../components/GithubRepositoryBadge'
@@ -9701,21 +9702,11 @@ function formatArtifactSnapshotTitle(snapshot: SessionArtifactSnapshot): string 
 function formatVisualTreeSnapshotSummary(snapshot: SessionVisualTreeSnapshot): string {
   const nodeCount = snapshot.nodeCount ?? 0
   return joinDisplay(
-    resolveVisualTreeKind(snapshot),
+    visualTreeKindLabel(snapshot),
     snapshot.runtimePlatform,
     `${nodeCount} node${nodeCount === 1 ? '' : 's'}`,
     snapshot.truncated ? 'truncated' : null,
   ) ?? 'Visual tree'
-}
-
-function resolveVisualTreeKind(snapshot: SessionVisualTreeSnapshot): string | undefined {
-  const payload = asRecord(snapshot.payload)
-  const sourceEvidence = `${getString(payload, 'source') ?? ''} ${getString(payload, 'format') ?? ''}`
-  if (/accessibility|core-simulator-ax-service/i.test(sourceEvidence)) {
-    return 'accessibility'
-  }
-
-  return snapshot.visualTreeKind
 }
 
 function formatArtifactSnapshotSummary(snapshot: SessionArtifactSnapshot): string {
