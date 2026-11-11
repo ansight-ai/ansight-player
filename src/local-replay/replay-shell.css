@@ -212,18 +212,30 @@
 
 .local-live-view-toggle {
   display: flex;
+  flex: none;
   align-items: center;
   gap: 3px;
-  padding: 3px;
+  height: 32px;
+  padding: 2px;
   background: var(--surface-muted);
   border: 1px solid var(--border);
   border-radius: 9px;
 }
 
-.local-live-view-toggle .local-banner-button {
+.local-replay-root .local-live-view-toggle .local-banner-button {
+  width: 26px;
   min-height: 26px;
+  padding: 0;
+  color: var(--text-muted);
   background: transparent;
   border-color: transparent;
+  box-shadow: none;
+}
+
+.local-replay-root .local-live-view-toggle .local-banner-button--active,
+.local-replay-root .local-live-view-toggle .local-banner-button:hover {
+  color: var(--text-primary);
+  background: var(--border);
 }
 
 .local-session-context-toolbar {
@@ -2621,6 +2633,24 @@ button.local-runner-status:hover {
   grid-template-rows: auto minmax(0, 1fr);
 }
 
+.session-replay-panel-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+  padding-right: 20px;
+}
+
+.session-replay-panel-heading .session-replay-capture-toolbar {
+  flex: 1;
+  justify-content: flex-start;
+  padding: 0;
+}
+
+.session-replay-panel-heading .local-live-view-toggle {
+  margin-left: auto;
+}
+
 .session-replay-capture-toolbar {
   display: flex;
   align-items: center;
@@ -2716,8 +2746,10 @@ button.local-runner-status:hover {
 }
 
 .local-simulator-heading {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   margin-bottom: 0 !important;
 }
 
@@ -2727,52 +2759,25 @@ button.local-runner-status:hover {
   padding: 0;
 }
 
-.local-simulator-heading .local-simulator-status {
+.local-simulator-heading .local-live-view-toggle {
   margin-left: auto;
-  flex: none;
-}
-
-.local-simulator-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 8px;
-  color: var(--text-muted);
-  background: var(--surface-muted);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-full);
-  font-size: 9px;
-  font-weight: 850;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.local-simulator-status--connected {
-  color: var(--success);
-  background: color-mix(in srgb, var(--success) 9%, transparent);
-  border-color: color-mix(in srgb, var(--success) 28%, transparent);
-}
-
-.local-simulator-status--fallback,
-.local-simulator-status--failed {
-  color: var(--warning);
-}
-
-.local-simulator-status svg {
-  width: 13px;
-  height: 13px;
 }
 
 .local-simulator-stage-shell {
   display: grid;
   min-width: 0;
   min-height: 0;
+  /* Reserve space for the external bezel and keyboard focus ring. */
+  padding: 9px;
   overflow: hidden;
   container-type: size;
   place-items: center;
 }
 
 .local-simulator-stage {
+  --simulator-bezel: 5px;
+  --simulator-screen-radius: 13px;
+  --simulator-bezel-color: #0b0c0f;
   position: relative;
   display: grid;
   align-self: center;
@@ -2785,40 +2790,59 @@ button.local-runner-status:hover {
   overflow: hidden;
   background: #07080b;
   border: 0;
-  border-radius: 18px;
+  border-radius: var(--simulator-screen-radius);
   outline: none;
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
-}
-
-.local-simulator-stage::after {
-  position: absolute;
-  inset: 0;
-  z-index: 4;
-  border: 5px solid #0b0c0f;
-  border-radius: inherit;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
-  content: '';
-  pointer-events: none;
+  /* Draw the bezel outside the captured screen without obscuring its edges. */
+  box-shadow: 0 0 0 var(--simulator-bezel) var(--simulator-bezel-color);
 }
 
 .local-simulator-stage--phone {
-  border-radius: 28px;
+  --simulator-bezel: 7px;
+  --simulator-screen-radius: 21px;
 }
 
-.local-simulator-stage--phone::after {
-  border-width: 7px;
+.local-simulator-stage[hidden] {
+  display: none;
 }
 
-.local-simulator-stage--tablet {
-  border-radius: 18px;
+/* Switching views keeps the same screen bounds and space for live controls. */
+.local-simulator-control--playback .local-simulator-controls,
+.local-simulator-control--playback .local-simulator-input-help,
+.local-simulator-control--playback .local-simulator-error {
+  visibility: hidden;
+}
+
+.local-replay-root .session-viewer-dashboard .local-simulator-playback-stage > .session-frame-stage {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  box-shadow: none;
+}
+
+.local-replay-root .session-viewer-dashboard .local-simulator-playback-stage .session-frame-viewport {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.local-simulator-playback-stage .device-shell-hardware,
+.local-simulator-playback-stage .device-screen-cutout {
+  display: none;
 }
 
 .local-simulator-stage:focus-visible {
-  box-shadow: 0 0 0 2px var(--accent), 0 12px 34px rgba(0, 0, 0, 0.28);
+  box-shadow:
+    0 0 0 var(--simulator-bezel) var(--simulator-bezel-color),
+    0 0 0 calc(var(--simulator-bezel) + 2px) var(--accent);
 }
 
-.local-simulator-stage--annotating::after {
-  border-color: color-mix(in srgb, var(--danger) 72%, #0b0c0f);
+.local-simulator-stage--annotating {
+  --simulator-bezel-color: color-mix(in srgb, var(--danger) 72%, #0b0c0f);
 }
 
 .local-simulator-stage video,
@@ -2832,6 +2856,7 @@ button.local-runner-status:hover {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
+  border-radius: inherit;
   touch-action: none;
   cursor: crosshair;
   user-select: none;
@@ -2914,16 +2939,28 @@ button.local-runner-status:hover {
 
 .local-simulator-controls {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   gap: 7px;
 }
 
-.local-simulator-controls--four {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+.local-simulator-controls button {
+  padding: 0;
 }
 
-.local-simulator-controls--five {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+.local-replay-root .local-simulator-controls [data-tooltip]::after {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+
+.local-replay-root .local-simulator-controls button:first-child::after {
+  left: 0;
+  transform: translateY(-2px);
+}
+
+.local-replay-root .local-simulator-controls button:first-child:hover::after,
+.local-replay-root .local-simulator-controls button:first-child:focus-visible::after {
+  transform: translateY(0);
 }
 
 .local-simulator-controls button,

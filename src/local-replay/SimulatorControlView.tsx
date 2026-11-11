@@ -1,7 +1,6 @@
 import {
   ArrowCounterClockwise,
   CircleNotch,
-  DeviceMobile,
   House,
   Lock,
   MapPin,
@@ -63,11 +62,14 @@ export function SimulatorControlView({
   deviceIdentifier,
   frame,
   isAnnotationEditorOpen,
+  isPlayback = false,
   onCreateAnnotation,
   onCaptureAnnotationVisualTree,
   onOpenDeviceLocation,
   onOpenDeviceNetwork,
   platform,
+  playbackContent,
+  replayViewControls,
   selectedAnnotationId,
   sessionId,
 }: {
@@ -76,11 +78,14 @@ export function SimulatorControlView({
   deviceIdentifier: string
   frame: SessionImageFrame | null
   isAnnotationEditorOpen: boolean
+  isPlayback?: boolean
   onCreateAnnotation?: (geometry: ScreenshotAnnotationGeometryDraft, capture?: ScreenshotAnnotationCapture) => void
   onCaptureAnnotationVisualTree?: () => Promise<AnnotationVisualTreeCaptureResult>
   onOpenDeviceLocation?: () => void
   onOpenDeviceNetwork?: () => void
   platform?: string | null
+  playbackContent?: ReactNode
+  replayViewControls?: ReactNode
   selectedAnnotationId: string | null
   sessionId: string
 }) {
@@ -579,11 +584,9 @@ export function SimulatorControlView({
       } satisfies CSSProperties
     : undefined
   const canAnnotate = !!onCreateAnnotation && !!frame
-  const isAnnotating = canAnnotate && annotationMode
-  const controlCount = 3 + Number(!!onOpenDeviceLocation) + Number(!!onOpenDeviceNetwork) + Number(canAnnotate)
-  const controlsClassName = controlCount > 3
-    ? `local-simulator-controls local-simulator-controls--${controlCount}`
-    : 'local-simulator-controls'
+  const isAnnotating = canAnnotate
+    && annotationMode
+    && !isPlayback
   const resolvedMediaAspectRatio = mediaAspectRatio ?? resolveMediaAspectRatio(frame?.width, frame?.height) ?? (9 / 19.5)
   const viewportKind = resolveSimulatorViewportKind(resolvedMediaAspectRatio)
   const stageClassName = [
@@ -598,20 +601,24 @@ export function SimulatorControlView({
   const displayError = phase === 'fallback' ? fallbackFrameError ?? error : error
 
   return (
-    <div className="local-simulator-control">
+    <div className={isPlayback ? 'local-simulator-control local-simulator-control--playback' : 'local-simulator-control'}>
       <div className="panel-heading local-simulator-heading">
         {captureToolbar}
-        <span className={`local-simulator-status local-simulator-status--${phase}`}>
-          {phase === 'negotiating' || phase === 'connecting' ? <CircleNotch className="spin" aria-hidden="true" /> : <DeviceMobile aria-hidden="true" />}
-          {phase === 'connected' ? 'Live control' : phase === 'fallback' ? 'Screenshot control' : phase}
-        </span>
+        {replayViewControls}
       </div>
 
       <div className="local-simulator-stage-shell">
+        {isPlayback ? (
+          <div className={`${stageClassName} local-simulator-playback-stage`} style={stageStyle}>
+            {playbackContent}
+          </div>
+        ) : null}
         <div
           aria-describedby="local-simulator-input-help"
           aria-label={`Live ${platform || 'mobile'} simulator control. Click to focus, then type into the app.`}
           className={stageClassName}
+          hidden={isPlayback}
+          inert={isPlayback}
           onBlur={releasePressedKeys}
           onKeyDown={(event) => handleKey(event, 'down')}
           onKeyUp={(event) => handleKey(event, 'up')}
@@ -668,40 +675,42 @@ export function SimulatorControlView({
         </div>
       </div>
 
-      <div className={controlsClassName} aria-label="Simulator controls">
-        <button onClick={() => void sendCommand('button', { button: 'home' }).catch(showCommandError)} title="Home" type="button">
-          <House aria-hidden="true" /><span>Home</span>
+      <div className="local-simulator-controls" aria-label="Simulator controls" aria-hidden={isPlayback} inert={isPlayback}>
+        <button aria-label="Home" data-tooltip="Go to the home screen" onClick={() => void sendCommand('button', { button: 'home' }).catch(showCommandError)} type="button">
+          <House aria-hidden="true" />
         </button>
-        <button onClick={() => void sendCommand('button', { button: 'back' }).catch(showCommandError)} title="Back" type="button">
-          <ArrowCounterClockwise aria-hidden="true" /><span>Back</span>
+        <button aria-label="Back" data-tooltip="Go back" onClick={() => void sendCommand('button', { button: 'back' }).catch(showCommandError)} type="button">
+          <ArrowCounterClockwise aria-hidden="true" />
         </button>
-        <button onClick={() => void sendCommand('button', { button: 'lock' }).catch(showCommandError)} title="Lock" type="button">
-          <Lock aria-hidden="true" /><span>Lock</span>
+        <button aria-label="Lock" data-tooltip="Lock the device" onClick={() => void sendCommand('button', { button: 'lock' }).catch(showCommandError)} type="button">
+          <Lock aria-hidden="true" />
         </button>
         {onOpenDeviceNetwork ? (
-          <button onClick={onOpenDeviceNetwork} title="Network" type="button">
-            <WifiHigh aria-hidden="true" /><span>Network</span>
+          <button aria-label="Network" data-tooltip="Open network settings" onClick={onOpenDeviceNetwork} type="button">
+            <WifiHigh aria-hidden="true" />
           </button>
         ) : null}
         {onOpenDeviceLocation ? (
-          <button onClick={onOpenDeviceLocation} title="Location" type="button">
-            <MapPin aria-hidden="true" /><span>Location</span>
+          <button aria-label="Location" data-tooltip="Set the device location" data-tooltip-align="end" onClick={onOpenDeviceLocation} type="button">
+            <MapPin aria-hidden="true" />
           </button>
         ) : null}
         {canAnnotate ? (
           <button
+            aria-label="Annotate"
             aria-pressed={isAnnotating}
             className={isAnnotating ? 'local-simulator-annotate-button local-simulator-annotate-button--active' : 'local-simulator-annotate-button'}
+            data-tooltip="Draw an annotation on the live app"
+            data-tooltip-align="end"
             onClick={() => setAnnotationMode((current) => !current)}
-            title="Draw an annotation on the live app"
             type="button"
           >
-            <PencilSimpleLine aria-hidden="true" /><span>Annotate</span>
+            <PencilSimpleLine aria-hidden="true" />
           </button>
         ) : null}
       </div>
 
-      <p className="local-simulator-input-help" id="local-simulator-input-help">
+      <p className="local-simulator-input-help" id="local-simulator-input-help" aria-hidden={isPlayback}>
         Click the simulator, then type
         <span aria-hidden="true">·</span>
         <kbd>⌥</kbd> drag to pinch
@@ -711,7 +720,7 @@ export function SimulatorControlView({
       </p>
 
       {displayError ? (
-        <div className="local-simulator-error" role="status">
+        <div className="local-simulator-error" role="status" aria-hidden={isPlayback} inert={isPlayback}>
           <WarningCircle aria-hidden="true" />
           <span>{displayError}</span>
           {phase === 'fallback' ? (

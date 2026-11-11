@@ -540,7 +540,9 @@ export type ScreenshotAnnotationGeometryDraft = {
 }
 
 export type SessionReplayPanelContext = {
+  playbackContent: ReactNode
   captureToolbar?: ReactNode
+  replayViewControls?: ReactNode
   annotations: SessionAnnotation[]
   frame: SessionImageFrame | null
   isAnnotationEditorOpen: boolean
@@ -713,6 +715,7 @@ export function SessionViewerPage({
   annotationWorkflowRequest,
   onAnnotationSaved,
   replayPanelOverride,
+  replayViewControls,
   refreshKey,
   sessionId,
   sessionInfoOpen,
@@ -738,6 +741,7 @@ export function SessionViewerPage({
   annotationWorkflowRequest?: { id: number; annotationId: string | null } | null
   onAnnotationSaved?: (annotation: SessionAnnotation) => void
   replayPanelOverride?: ReactNode | ((context: SessionReplayPanelContext) => ReactNode)
+  replayViewControls?: ReactNode
   refreshKey?: string | number
   sessionId: string
   sessionInfoOpen?: boolean
@@ -2692,10 +2696,135 @@ export function SessionViewerPage({
       sessionId={sessionId}
     />
   ) : null
+  const playbackContent = (
+    <div className={selectedFrameStageClassName} aria-label={isLocalReplay ? `${selectedDeviceFrame.name} frame` : undefined} title={isLocalReplay ? selectedDeviceFrame.name : undefined}>
+      {isLocalReplay && selectedFrame && selectedDeviceFrame.kind !== 'desktop' ? <div className="device-shell-hardware" aria-hidden="true">
+        <span className="device-shell-power" /><span className="device-shell-volume-up" />
+        <span className="device-shell-volume-down" /><span className="device-shell-action" />
+        <span className="device-shell-camera-control" /><span className="device-shell-home" />
+        <span className="device-shell-speaker" /><span className="device-shell-camera" />
+      </div> : null}
+      {selectedFrame ? (
+        <div className="session-frame-viewport" ref={selectedFrameViewportRef} style={selectedFrameViewportStyle}>
+          {isLocalReplay ? <span aria-hidden="true" className="device-screen-cutout" /> : null}
+          {activeRecording && payload ? <SessionRecordingSurface key={activeRecording.recordingId}
+            recording={activeRecording} payload={payload} local={isLocalReplay} atMs={effectiveScrubAtMs}
+            playing={isPlaybackRunning} frameId={selectedFrame.frameId}
+            onMedia={element => { selectedFrameMediaRef.current = element }}
+            onError={() => setFailedRecordingId(activeRecording.recordingId)}
+            onLoaded={syncSelectedFrameImageContentBounds} /> : null}
+          {!activeRecording && canUseSelectedSessionVideo && sessionVideoUrl ? (
+            <video
+              aria-label="Selected session frame"
+              className="session-frame-video session-frame-image-layer session-frame-image-layer--presented"
+              data-frame-id={presentedVideoFrameId ?? ''}
+              muted
+              onError={() => {
+                pendingVideoSeekRef.current = null
+                setPresentedVideoFrameId(null)
+                setSessionVideoLoadState({
+                  storagePath: payload?.video?.file.storagePath ?? '',
+                  url: null,
+                  failed: true,
+                })
+              }}
+              onLoadedData={syncSelectedFrameImageContentBounds}
+              onLoadedMetadata={() => setVideoMetadataVersion((current) => current + 1)}
+              onSeeked={(event) => {
+                const pendingSeek = pendingVideoSeekRef.current
+                if (pendingSeek && Math.abs(event.currentTarget.currentTime - pendingSeek.targetSeconds) <= 0.002) {
+                  setPresentedVideoFrameId(pendingSeek.frameId)
+                }
+              }}
+              playsInline
+              preload="auto"
+              ref={(element) => {
+                sessionVideoRef.current = element
+                selectedFrameMediaRef.current = element
+              }}
+              src={sessionVideoUrl}
+            />
+          ) : null}
+          {frameImageLayers.map(({ frame, url }) => (
+            <img
+              alt="Selected session screenshot"
+              className="session-frame-image-layer session-frame-image-layer--presented"
+              data-frame-id={frame.frameId}
+              key={frame.frameId}
+              onLoad={syncSelectedFrameImageContentBounds}
+              ref={(element) => {
+                selectedFrameMediaRef.current = element
+              }}
+              src={url}
+            />
+          ))}
+          {hasSelectedMediaPending ? (
+            <div aria-label="Loading selected frame" className="session-frame-loading-indicator" role="status">
+              <CircleNotch className="spin" aria-hidden="true" />
+            </div>
+          ) : null}
+          {hasPresentedMedia ? (
+            <>
+              {isSelectedFramePresented && selectedFrameImageContentBounds?.frameId === selectedFrame.frameId ? (
+                <div
+                  className="session-frame-image-overlay-layer"
+                  style={{
+                    height: selectedFrameImageContentBounds.height,
+                    left: selectedFrameImageContentBounds.left,
+                    top: selectedFrameImageContentBounds.top,
+                    width: selectedFrameImageContentBounds.width,
+                  }}
+                >
+                  {visualTreeOverlay && selectedVisualTree && visualTreeOverlay.snapshotId === resolveVisualTreeSnapshotKey(selectedVisualTree) ? (
+                    <SessionFrameVisualTreeOverlay selection={visualTreeOverlay} />
+                  ) : null}
+                  <SessionFrameAnnotationOverlay
+                    annotations={annotations}
+                    frame={selectedFrame}
+                    selectedAnnotationId={resolvedSelectedAnnotationId}
+                  />
+                  {source.upsertAnnotation ? (
+                    <SessionFrameAnnotationAuthoringOverlay
+                      isEnabled={false}
+                      onBeginCapture={beginScreenshotAnnotationCapture}
+                      onCreate={openScreenshotAnnotationEditor}
+                    />
+                  ) : null}
+                  {showTouchLocations ? <SessionFrameTouchOverlay frame={selectedFrame} scrubAtMs={effectiveScrubAtMs} touches={activeTouches} gestures={touchGestures} /> : null}
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <div className="session-frame-placeholder">
+              {hasSelectedMediaPending ? (
+                <EmptyState icon={<CircleNotch className="spin" aria-hidden="true" />} title="Loading replay" message="Preparing the selected frame." />
+              ) : (
+                <EmptyState icon={<ImageIcon aria-hidden="true" />} title="No screenshot available" message="This point in the session has no captured screenshot." />
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+        <EmptyState icon={<ImageIcon aria-hidden="true" />} title="No screenshot available" message="This point in the session has no captured screenshot." />
+      )}
+    {isAppBackgroundedAtScrub ? (
+        <div className="session-frame-background-overlay" role="status">
+          <span>
+            <WarningCircle aria-hidden="true" />
+            The app was backgrounded
+          </span>
+        </div>
+      ) : null}
+    </div>
+  )
   const hasInlineCaptureToolbar = typeof replayPanelOverride === 'function'
+  const hasReplayPanelToolbar = !!captureToolbar || !!replayViewControls
+  const hasStandaloneReplayPanelToolbar = hasReplayPanelToolbar && !hasInlineCaptureToolbar
   const replayPanelContent = typeof replayPanelOverride === 'function'
     ? replayPanelOverride({
+        playbackContent,
         captureToolbar,
+        replayViewControls,
         annotations,
         frame: selectedFrame,
         isAnnotationEditorOpen: annotationEditorDraft !== null,
@@ -2868,7 +2997,7 @@ export function SessionViewerPage({
         </section>
 
         <aside
-          className={canCaptureLiveVisualTree && !hasInlineCaptureToolbar
+          className={hasStandaloneReplayPanelToolbar
             ? 'panel session-screenshot-panel session-screenshot-panel--has-capture-action'
             : 'panel session-screenshot-panel'}
           aria-label="Session replay"
@@ -2882,128 +3011,15 @@ export function SessionViewerPage({
           >
             <span aria-hidden="true" />
           </button>
-          {!hasInlineCaptureToolbar ? captureToolbar : null}
-          {replayPanelContent ?? <>
-          <div className={selectedFrameStageClassName} aria-label={isLocalReplay ? `${selectedDeviceFrame.name} frame` : undefined} title={isLocalReplay ? selectedDeviceFrame.name : undefined}>
-            {isLocalReplay && selectedFrame && selectedDeviceFrame.kind !== 'desktop' ? <div className="device-shell-hardware" aria-hidden="true">
-              <span className="device-shell-power" /><span className="device-shell-volume-up" />
-              <span className="device-shell-volume-down" /><span className="device-shell-action" />
-              <span className="device-shell-camera-control" /><span className="device-shell-home" />
-              <span className="device-shell-speaker" /><span className="device-shell-camera" />
-            </div> : null}
-            {selectedFrame ? (
-              <div className="session-frame-viewport" ref={selectedFrameViewportRef} style={selectedFrameViewportStyle}>
-                {isLocalReplay ? <span aria-hidden="true" className="device-screen-cutout" /> : null}
-                {activeRecording && payload ? <SessionRecordingSurface key={activeRecording.recordingId}
-                  recording={activeRecording} payload={payload} local={isLocalReplay} atMs={effectiveScrubAtMs}
-                  playing={isPlaybackRunning} frameId={selectedFrame.frameId}
-                  onMedia={element => { selectedFrameMediaRef.current = element }}
-                  onError={() => setFailedRecordingId(activeRecording.recordingId)}
-                  onLoaded={syncSelectedFrameImageContentBounds} /> : null}
-                {!activeRecording && canUseSelectedSessionVideo && sessionVideoUrl ? (
-                  <video
-                    aria-label="Selected session frame"
-                    className="session-frame-video session-frame-image-layer session-frame-image-layer--presented"
-                    data-frame-id={presentedVideoFrameId ?? ''}
-                    muted
-                    onError={() => {
-                      pendingVideoSeekRef.current = null
-                      setPresentedVideoFrameId(null)
-                      setSessionVideoLoadState({
-                        storagePath: payload?.video?.file.storagePath ?? '',
-                        url: null,
-                        failed: true,
-                      })
-                    }}
-                    onLoadedData={syncSelectedFrameImageContentBounds}
-                    onLoadedMetadata={() => setVideoMetadataVersion((current) => current + 1)}
-                    onSeeked={(event) => {
-                      const pendingSeek = pendingVideoSeekRef.current
-                      if (pendingSeek && Math.abs(event.currentTarget.currentTime - pendingSeek.targetSeconds) <= 0.002) {
-                        setPresentedVideoFrameId(pendingSeek.frameId)
-                      }
-                    }}
-                    playsInline
-                    preload="auto"
-                    ref={(element) => {
-                      sessionVideoRef.current = element
-                      selectedFrameMediaRef.current = element
-                    }}
-                    src={sessionVideoUrl}
-                  />
-                ) : null}
-                {frameImageLayers.map(({ frame, url }) => (
-                  <img
-                    alt="Selected session screenshot"
-                    className="session-frame-image-layer session-frame-image-layer--presented"
-                    data-frame-id={frame.frameId}
-                    key={frame.frameId}
-                    onLoad={syncSelectedFrameImageContentBounds}
-                    ref={(element) => {
-                      selectedFrameMediaRef.current = element
-                    }}
-                    src={url}
-                  />
-                ))}
-                {hasSelectedMediaPending ? (
-                  <div aria-label="Loading selected frame" className="session-frame-loading-indicator" role="status">
-                    <CircleNotch className="spin" aria-hidden="true" />
-                  </div>
-                ) : null}
-                {hasPresentedMedia ? (
-                  <>
-                    {isSelectedFramePresented && selectedFrameImageContentBounds?.frameId === selectedFrame.frameId ? (
-                      <div
-                        className="session-frame-image-overlay-layer"
-                        style={{
-                          height: selectedFrameImageContentBounds.height,
-                          left: selectedFrameImageContentBounds.left,
-                          top: selectedFrameImageContentBounds.top,
-                          width: selectedFrameImageContentBounds.width,
-                        }}
-                      >
-                        {visualTreeOverlay && selectedVisualTree && visualTreeOverlay.snapshotId === resolveVisualTreeSnapshotKey(selectedVisualTree) ? (
-                          <SessionFrameVisualTreeOverlay selection={visualTreeOverlay} />
-                        ) : null}
-                        <SessionFrameAnnotationOverlay
-                          annotations={annotations}
-                          frame={selectedFrame}
-                          selectedAnnotationId={resolvedSelectedAnnotationId}
-                        />
-                        {source.upsertAnnotation ? (
-                          <SessionFrameAnnotationAuthoringOverlay
-                            isEnabled={false}
-                            onBeginCapture={beginScreenshotAnnotationCapture}
-                            onCreate={openScreenshotAnnotationEditor}
-                          />
-                        ) : null}
-                        {showTouchLocations ? <SessionFrameTouchOverlay frame={selectedFrame} scrubAtMs={effectiveScrubAtMs} touches={activeTouches} gestures={touchGestures} /> : null}
-                      </div>
-                    ) : null}
-                  </>
-                ) : (
-                  <div className="session-frame-placeholder">
-                    {hasSelectedMediaPending ? (
-                      <EmptyState icon={<CircleNotch className="spin" aria-hidden="true" />} title="Loading replay" message="Preparing the selected frame." />
-                    ) : (
-                      <EmptyState icon={<ImageIcon aria-hidden="true" />} title="No screenshot available" message="This point in the session has no captured screenshot." />
-                    )}
-                  </div>
-                )}
+          {hasStandaloneReplayPanelToolbar ? (
+            replayViewControls ? (
+              <div className="session-replay-panel-heading">
+                {captureToolbar}
+                {replayViewControls}
               </div>
-            ) : (
-              <EmptyState icon={<ImageIcon aria-hidden="true" />} title="No screenshot available" message="This point in the session has no captured screenshot." />
-            )}
-          {isAppBackgroundedAtScrub ? (
-              <div className="session-frame-background-overlay" role="status">
-                <span>
-                  <WarningCircle aria-hidden="true" />
-                  The app was backgrounded
-                </span>
-              </div>
-            ) : null}
-          </div>
-          </>}
+            ) : captureToolbar
+          ) : null}
+          {replayPanelContent ?? playbackContent}
 
         </aside>
       </section>

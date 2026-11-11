@@ -514,12 +514,37 @@ export function LocalReplayApp() {
     : undefined
   const selectedSessionTest = readSessionUiTest(selectedSession?.customProperties)
   const liveCount = hostReachable ? sessions.filter((session) => session.isConnected).length : 0
-  const canSwitchLiveView = hostReachable && selectedSession?.isConnected === true
+  const canSwitchLiveView = hostReachable
+    && selectedSession?.isConnected === true
     && selectedSession.isSimulatorOrEmulator
     && !!selectedSession.runtimeDeviceIdentifier
   const liveViewMode = liveViewPreference.sessionId === selectedSessionId
     ? liveViewPreference.mode
     : 'simulator'
+  const liveViewControls = canSwitchLiveView ? (
+    <div aria-label="Live session view" className="local-live-view-toggle" role="group">
+      <button
+        aria-label="Simulator"
+        aria-pressed={liveViewMode === 'simulator'}
+        className={liveViewMode === 'simulator' ? 'local-banner-button local-banner-button--active' : 'local-banner-button'}
+        onClick={() => setLiveViewPreference({ mode: 'simulator', sessionId: selectedSessionId })}
+        title="View and control the live device"
+        type="button"
+      >
+        <DeviceMobile aria-hidden="true" />
+      </button>
+      <button
+        aria-label="Playback"
+        aria-pressed={liveViewMode === 'playback'}
+        className={liveViewMode === 'playback' ? 'local-banner-button local-banner-button--active' : 'local-banner-button'}
+        onClick={() => setLiveViewPreference({ mode: 'playback', sessionId: selectedSessionId })}
+        title="Replay captured session frames"
+        type="button"
+      >
+        <VideoCamera aria-hidden="true" />
+      </button>
+    </div>
+  ) : null
   const selectedLinkedTraceRun = bootstrap?.supportsTestHistory
     && linkedTraceRun?.sessionId === selectedSessionId
     ? linkedTraceRun
@@ -538,38 +563,38 @@ export function LocalReplayApp() {
     }
   }, [selectedSessionId])
   const replayPanelOverride = useMemo(() => {
-    if (!hostReachable || liveViewMode !== 'simulator'
-      || selectedSession?.isConnected !== true
-      || !selectedSession.isSimulatorOrEmulator
-      || !selectedSession.runtimeDeviceIdentifier) {
+    const deviceIdentifier = selectedSession?.runtimeDeviceIdentifier
+    if (!canSwitchLiveView || !deviceIdentifier) {
       return undefined
     }
 
-    const deviceIdentifier = selectedSession.runtimeDeviceIdentifier
     const platform = selectedSession.runtimePlatform
     const sessionId = selectedSession.sessionId
     const appName = selectedSession.name || selectedSession.clientName || selectedSession.appId
-    return ({ annotations, captureToolbar, frame, isAnnotationEditorOpen, onCreateAnnotation, onCaptureAnnotationVisualTree, selectedAnnotationId }: SessionReplayPanelContext) => (
+    return ({ annotations, captureToolbar, frame, isAnnotationEditorOpen, onCreateAnnotation, onCaptureAnnotationVisualTree, playbackContent, replayViewControls, selectedAnnotationId }: SessionReplayPanelContext) => (
       <SimulatorControlView
         annotations={annotations}
         captureToolbar={captureToolbar}
         deviceIdentifier={deviceIdentifier}
         frame={frame}
         isAnnotationEditorOpen={isAnnotationEditorOpen}
+        isPlayback={liveViewMode === 'playback'}
         key={sessionId}
         onCreateAnnotation={onCreateAnnotation}
         onCaptureAnnotationVisualTree={onCaptureAnnotationVisualTree}
         onOpenDeviceLocation={bootstrap?.supportsDeviceLocation ? openDeviceLocation : undefined}
         onOpenDeviceNetwork={() => setNetworkTarget(current => current ? { ...current, isOpen: true } : { sessionId, appName, isOpen: true })}
         platform={platform}
+        playbackContent={playbackContent}
+        replayViewControls={replayViewControls}
         selectedAnnotationId={selectedAnnotationId}
         sessionId={sessionId}
       />
     )
   }, [
     bootstrap?.supportsDeviceLocation,
+    canSwitchLiveView,
     liveViewMode,
-    hostReachable,
     openDeviceLocation,
     selectedSession?.isConnected,
     selectedSession?.isSimulatorOrEmulator,
@@ -1192,30 +1217,6 @@ export function LocalReplayApp() {
                   <span className="local-session-copy-feedback" role="status">{copiedSessionLinkId === selectedSession.sessionId ? 'Link copied' : ''}</span>
                 </span>
               </span>
-              {canSwitchLiveView ? (
-                <div aria-label="Live session view" className="local-live-view-toggle" role="group">
-                  <button
-                    aria-pressed={liveViewMode === 'simulator'}
-                    className={liveViewMode === 'simulator' ? 'local-banner-button local-banner-button--active' : 'local-banner-button'}
-                    onClick={() => setLiveViewPreference({ mode: 'simulator', sessionId: selectedSessionId })}
-                    data-tooltip="Simulator"
-                    type="button"
-                  >
-                    <DeviceMobile aria-hidden="true" />
-                    Simulator
-                  </button>
-                  <button
-                    aria-pressed={liveViewMode === 'playback'}
-                    className={liveViewMode === 'playback' ? 'local-banner-button local-banner-button--active' : 'local-banner-button'}
-                    onClick={() => setLiveViewPreference({ mode: 'playback', sessionId: selectedSessionId })}
-                    data-tooltip="Playback"
-                    type="button"
-                  >
-                    <VideoCamera aria-hidden="true" />
-                    Playback
-                  </button>
-                </div>
-              ) : null}
               {isAppGraphToolVisible && (bootstrap?.supportsAppGraphProgress || bootstrap?.supportsAppGraphRecording) ? (
                 <button
                   aria-pressed={activePanel === 'app_graph'}
@@ -1392,6 +1393,7 @@ export function LocalReplayApp() {
                 setSessionRefreshNonce((current) => current + 1)
               }}
               replayPanelOverride={replayPanelOverride}
+              replayViewControls={liveViewControls}
               refreshKey={refreshKey}
               sessionId={selectedSessionId}
               sessionInfoOpen={isSessionInfoOpen}

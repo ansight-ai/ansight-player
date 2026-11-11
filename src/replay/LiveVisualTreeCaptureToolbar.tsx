@@ -72,6 +72,7 @@ export function LiveVisualTreeCaptureToolbar({ sessionId, loadSources, capture }
         disabled={pending}
         onChange={(event) => setSelectedToolId(event.target.value)}
         onFocus={() => { setLoading(true); void refresh() }}
+        title="Choose which visual tree to capture from the live app"
         value={selectedToolId}
       >
         {sources.length === 0 ? <option value="">{loading ? 'Loading trees…' : 'No trees available'}</option> : null}
