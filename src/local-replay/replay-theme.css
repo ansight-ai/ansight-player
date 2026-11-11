@@ -2350,6 +2350,19 @@
 .local-header-status > i { position: absolute; right: 3px; bottom: 3px; width: 5px; height: 5px; background: currentColor; border-radius: 50%; }
 .local-header-status:focus-visible { outline: 2px solid var(--rp-text); outline-offset: 2px; }
 .local-companion-panel { width: min(460px, 100vw); }
+.local-companion-panel .local-admin-header { align-items: center; gap: 12px; }
+.local-companion-toggle { display: flex; flex: none; min-height: 32px; padding: 4px; }
+.local-companion-toggle:has(input:disabled) { cursor: default; opacity: 0.55; }
+.local-companion-toggle input:focus-visible + i { outline: 2px solid var(--accent); outline-offset: 3px; }
+.local-companion-status { display: flex; align-items: center; gap: 12px; font-size: 13px; }
+.local-companion-status > svg { flex: none; width: 22px; height: 22px; color: var(--accent); }
+.local-companion-status > div { display: grid; min-width: 0; gap: 4px; overflow-wrap: anywhere; }
+.local-companion-status strong { font-size: 14px; font-weight: 500; }
+.local-companion-status span, .local-companion-hint { color: var(--rp-muted); font-size: 13px; line-height: 1.5; }
+.local-companion-status > .local-companion-connected { color: var(--success); }
+.local-companion-status > .local-companion-warning { color: var(--warning); }
+.local-companion-hint { margin: 0; }
+.local-companion-sign-in { align-self: flex-start; }
 .local-companion-form { display: grid; gap: 18px; }
 .local-companion-remember { display: flex; align-items: center; gap: 10px; }
 
