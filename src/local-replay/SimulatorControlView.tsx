@@ -190,6 +190,16 @@ export function SimulatorControlView({
       }
     }
 
+    const keepAlive = window.setInterval(() => {
+      const sessionId = remoteSessionIdRef.current
+      if (sessionId) {
+        void fetch(`${apiRoot}/keepalive`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId }),
+        }).catch(() => undefined)
+      }
+    }, 30000)
+
     async function connect() {
       try {
         const offer = await peer.createOffer()
@@ -233,6 +243,7 @@ export function SimulatorControlView({
     void connect()
     return () => {
       isDisposed = true
+      window.clearInterval(keepAlive)
       const remoteSessionId = remoteSessionIdRef.current
       remoteSessionIdRef.current = null
       channelRef.current?.close()
