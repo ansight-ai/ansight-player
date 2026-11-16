@@ -1,6 +1,6 @@
 {
   "name": "@ansight/player",
-  "version": "0.1.28",
+  "version": "0.1.29",
   "type": "module",
   "scripts": {
     "dev": "vite --config vite.config.ts",
@@ -51,6 +51,8 @@
   "files": [
     "dist/library",
     "dist/local",
+    "scripts/build-fingerprint.mjs",
+    "scripts/verify-build.mjs",
     "LICENSE",
     "NOTICE",
     "README.md"
