@@ -2359,6 +2359,14 @@
 .local-companion-sign-in { align-self: flex-start; }
 .local-companion-form { display: grid; gap: 18px; }
 .local-companion-remember { display: flex; align-items: center; gap: 10px; }
+.local-companion-connections { display: grid; gap: 12px; }
+.local-companion-connections ul { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.local-companion-connections li { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--rp-line); border-radius: 8px; }
+.local-companion-connections li > div { display: grid; flex: 1 1 180px; min-width: 0; gap: 4px; overflow-wrap: anywhere; }
+.local-companion-connections li strong { font-size: 13px; font-weight: 500; }
+.local-companion-connections li span { color: var(--rp-muted); font-size: 12px; line-height: 1.5; }
+.local-companion-connections > button { justify-self: start; }
+.local-companion-connections button { display: inline-flex; align-items: center; gap: 6px; }
 
 /* Panels cover session chrome; only the main navigation stays accessible. */
 .local-replay-root .modal-backdrop,

@@ -1012,10 +1012,10 @@ export function LocalReplayApp() {
             <WifiHigh aria-hidden="true" />
           </button> : null}
           {bootstrap?.supportsAccountManagement ? <button
-            aria-label={`Companion access: ${companion?.access.isEnabled ? 'on' : companion ? 'off' : 'status unavailable'}`}
+            aria-label={`Companion access: ${companion?.access.isEnabled ? `on, ${companion.connections.length} connected devices` : companion ? 'off' : 'status unavailable'}`}
             aria-expanded={activePanel === 'companion'}
             className={`local-header-status ${activePanel === 'companion' ? 'local-header-status--active' : ''} ${companion?.access.isEnabled ? 'local-header-status--online' : ''}`}
-            data-tooltip={!companion ? 'Companion status unavailable · Click for details' : companion.access.isEnabled ? companion.access.status : 'Companion access is off · Click to enable'}
+            data-tooltip={!companion ? 'Companion status unavailable · Click for details' : companion.connections.length > 0 ? `${companion.connections.length} companion devices connected · Click to manage` : companion.access.isEnabled ? companion.access.status : 'Companion access is off · Click to enable'}
             onClick={() => toggleGlobalPanel('companion')}
             type="button"
           >

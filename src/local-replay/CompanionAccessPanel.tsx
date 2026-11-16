@@ -1,6 +1,6 @@
-import { CheckCircle, CircleNotch, WarningCircle, X } from '@phosphor-icons/react'
+import { CheckCircle, CircleNotch, PlugsConnected, WarningCircle, WifiSlash, X } from '@phosphor-icons/react'
 import { useEffect, useRef, useState } from 'react'
-import type { LocalAccountStatus, LocalCloudTeam, LocalCloudTeamQueryResult, LocalCompanionAccess, LocalCompanionAccessMode, LocalCompanionOverview, LocalCoreSettings, LocalOperationResult } from './types'
+import type { LocalAccountStatus, LocalCloudTeam, LocalCloudTeamQueryResult, LocalCompanionAccess, LocalCompanionAccessMode, LocalCompanionConnection, LocalCompanionOverview, LocalCoreSettings, LocalOperationResult } from './types'
 
 export function CompanionAccessPanel({ onClose, onOpenAccount, onChanged }: {
   onClose: () => void
@@ -8,6 +8,8 @@ export function CompanionAccessPanel({ onClose, onOpenAccount, onChanged }: {
   onChanged: () => void
 }) {
   const [access, setAccess] = useState<LocalCompanionAccess | null>(null)
+  const [connections, setConnections] = useState<LocalCompanionConnection[]>([])
+  const [disconnecting, setDisconnecting] = useState<string | null>(null)
   const [account, setAccount] = useState<LocalAccountStatus | null>(null)
   const [machineName, setMachineName] = useState('')
   const [teamId, setTeamId] = useState('')
@@ -36,6 +38,7 @@ export function CompanionAccessPanel({ onClose, onOpenAccount, onChanged }: {
         }
 
         setAccess(overview.access)
+        setConnections(overview.connections)
         setMachineName(settings.companionMachineName)
         setTeamId(settings.companionTeamId)
         setRemember(settings.companionAccessMode === 'always')
@@ -76,7 +79,7 @@ export function CompanionAccessPanel({ onClose, onOpenAccount, onChanged }: {
   }, [account?.isAuthenticated])
 
   useEffect(() => {
-    if (isSaving || isLoading) {
+    if (isSaving || isLoading || disconnecting !== null) {
       return
     }
 
@@ -91,6 +94,7 @@ export function CompanionAccessPanel({ onClose, onOpenAccount, onChanged }: {
           const overview = await response.json() as LocalCompanionOverview
           if (!controller.signal.aborted) {
             setAccess(overview.access)
+            setConnections(overview.connections)
           }
         })
         .catch(() => { /* Keep the last known status while reconnecting. */ })
@@ -99,7 +103,36 @@ export function CompanionAccessPanel({ onClose, onOpenAccount, onChanged }: {
       controller.abort()
       window.clearInterval(timer)
     }
-  }, [isSaving, isLoading])
+  }, [isSaving, isLoading, disconnecting])
+
+  async function disconnect(sessionId?: string) {
+    if (disconnecting !== null || isSaving) {
+      return
+    }
+
+    setDisconnecting(sessionId ?? 'all')
+    setMessage(null)
+    try {
+      const response = await fetch(sessionId ? 'api/companion/connections/disconnect' : 'api/companion/disconnect-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sessionId ? { sessionId } : {}),
+      })
+      const result = await response.json() as LocalOperationResult
+      if (!response.ok || !result.isSuccess) {
+        throw new Error(result.message || 'Unable to disconnect the companion device.')
+      }
+
+      const remaining = sessionId ? connections.filter(connection => connection.sessionId !== sessionId) : []
+      setConnections(remaining)
+      setAccess(current => current ? { ...current, connectionCount: remaining.length } : current)
+      onChanged()
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to disconnect the companion device.')
+    } finally {
+      setDisconnecting(null)
+    }
+  }
 
   async function changeAccess(mode: LocalCompanionAccessMode) {
     if (isSaving) {
@@ -129,6 +162,9 @@ export function CompanionAccessPanel({ onClose, onOpenAccount, onChanged }: {
       }
 
       setAccess(result.access)
+      if (!result.access.isEnabled) {
+        setConnections([])
+      }
       onChanged()
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to change companion access.')
@@ -151,6 +187,7 @@ export function CompanionAccessPanel({ onClose, onOpenAccount, onChanged }: {
   const cannotEnable = !access?.isEnabled && !access?.isAvailable
   const isToggleDisabled = isLoading
     || isSaving
+    || disconnecting !== null
     || !access
     || cannotEnable
   const hostStatus = access?.status ?? ''
@@ -206,6 +243,29 @@ export function CompanionAccessPanel({ onClose, onOpenAccount, onChanged }: {
               <div><strong>{machineName || 'This computer'}</strong><span>{connectionStatus}</span></div>
             </div>
             {isWaiting && !isSaving ? <p className="local-companion-hint">Open Ansight on your phone and select this computer.</p> : null}
+            <section className="local-companion-connections" aria-label="Connected companion devices">
+              <div className="local-admin-section-heading">
+                <div><PlugsConnected aria-hidden="true" /><strong>Connected devices</strong></div>
+                <span>{connections.length}</span>
+              </div>
+              {connections.length === 0 ? <p className="local-companion-hint">No companion devices are connected.</p> : <ul>
+                {connections.map(connection => <li key={connection.sessionId}>
+                  <div>
+                    <strong>{connection.deviceName || 'Companion device'}</strong>
+                    <span>{[connection.platform, connection.model].filter(Boolean).join(' · ') || 'Companion app'}</span>
+                    <span>Connected <time dateTime={connection.connectedAtUtc}>{new Date(connection.connectedAtUtc).toLocaleString()}</time></span>
+                  </div>
+                  <button className="button" type="button" disabled={isSaving || disconnecting !== null}
+                    aria-label={`Disconnect ${connection.deviceName || 'companion device'}`} onClick={() => void disconnect(connection.sessionId)}>
+                    {disconnecting === connection.sessionId ? <CircleNotch aria-hidden="true" className="spin" /> : <WifiSlash aria-hidden="true" />}
+                    Disconnect
+                  </button>
+                </li>)}
+              </ul>}
+              {connections.length > 1 ? <button className="button" type="button" disabled={isSaving || disconnecting !== null} onClick={() => void disconnect()}>
+                {disconnecting === 'all' ? 'Disconnecting…' : 'Disconnect all'}
+              </button> : null}
+            </section>
           </> : !access.isAvailable ? <p className="local-companion-hint">{access.status}</p>
           : !account?.isAuthenticated ? <>
             <p className="local-companion-hint">Sign in to connect from the Ansight app on your phone.</p>
