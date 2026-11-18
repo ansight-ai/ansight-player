@@ -2268,7 +2268,8 @@
 /* Model-aware hardware; the captured display keeps its original aspect ratio. */
 .local-replay-root .session-viewer-dashboard .device-shell:where(:not(.device-shell--desktop)) {
   --shell-radius: 42px; --screen-radius: 35px; --shell-bezel: 7px;
-  position: relative; overflow: visible; padding: var(--shell-bezel);
+  position: relative; overflow: visible; --shell-padding-x: var(--shell-bezel); --shell-padding-y: var(--shell-bezel);
+  padding: var(--shell-padding-y) var(--shell-padding-x) var(--shell-padding-bottom, var(--shell-padding-y));
   border: 2px solid #777571; border-radius: var(--shell-radius); background: #08090b;
   box-shadow: 0 0 0 1px #252629, inset 0 0 0 1px #b5b1aa, inset 0 0 0 3px #363638, 0 18px 28px -16px #0008, 0 5px 9px -5px #0006;
 }
@@ -2287,7 +2288,7 @@
 .device-shell--iphone-island .device-screen-cutout::after { content: ''; position: absolute; right: 8%; top: 24%; height: 52%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #142034, #07090e 65%); box-shadow: inset 0 0 1px #263047; }
 .device-shell--iphone-notch .device-screen-cutout { display: block; top: 0; left: 25%; width: 50%; height: 3.8%; border-radius: 0 0 15px 15px; }
 .local-replay-root .session-viewer-dashboard .device-shell--iphone-home,
-.local-replay-root .session-viewer-dashboard .device-shell--ipad-home { --shell-radius: 28px; --screen-radius: 2px; padding: 44px 9px; }
+.local-replay-root .session-viewer-dashboard .device-shell--ipad-home { --shell-radius: 28px; --screen-radius: 2px; --shell-padding-x: 9px; --shell-padding-y: 44px; }
 .device-shell--iphone-home .device-shell-home, .device-shell--ipad-home .device-shell-home { display: block; bottom: 8px; left: calc(50% - 14px); width: 28px; height: 28px; border: 2px solid #676767; border-radius: 50%; background: #101114; }
 .device-shell--iphone-home .device-shell-speaker { display: block; top: 20px; left: 42%; width: 16%; height: 4px; background: #28292c; }
 .device-shell--iphone-home .device-shell-camera { display: block; top: 19px; left: 34%; width: 6px; height: 6px; border-radius: 50%; background: #17202d; }
@@ -2295,7 +2296,7 @@
 .device-shell--ipad .device-shell-camera, .device-shell--ipad-home .device-shell-camera { display: block; top: 5px; left: calc(50% - 2px); width: 4px; height: 4px; border-radius: 50%; background: #1b2739; }
 .device-shell--ipad .device-shell-action, .device-shell--ipad-home .device-shell-action { display: none; }
 .local-replay-root .session-viewer-dashboard .device-shell--android,
-.local-replay-root .session-viewer-dashboard .device-shell--android-tablet { --shell-radius: 26px; --screen-radius: 20px; --shell-bezel: 6px; border-color: #5f6369; padding-bottom: 10px; }
+.local-replay-root .session-viewer-dashboard .device-shell--android-tablet { --shell-radius: 26px; --screen-radius: 20px; --shell-bezel: 6px; border-color: #5f6369; --shell-padding-bottom: 10px; }
 .device-shell--android .device-shell-action, .device-shell--android-tablet .device-shell-action { display: none; }
 .device-shell--android .device-shell-volume-up, .device-shell--android-tablet .device-shell-volume-up { left: auto; right: -5px; top: 12%; height: 10%; }
 .device-shell--android .device-shell-volume-down, .device-shell--android-tablet .device-shell-volume-down { display: none; }
@@ -2304,7 +2305,7 @@
 .device-shell--landscape.device-shell--iphone-island .device-screen-cutout { top: 34%; left: 1.3%; width: 3.8%; height: 32%; }
 .device-shell--landscape.device-shell--iphone-notch .device-screen-cutout { top: 25%; left: 0; width: 3.8%; height: 50%; border-radius: 0 15px 15px 0; }
 .local-replay-root .session-viewer-dashboard .device-shell--landscape.device-shell--iphone-home,
-.local-replay-root .session-viewer-dashboard .device-shell--landscape.device-shell--ipad-home { padding: 9px 44px; }
+.local-replay-root .session-viewer-dashboard .device-shell--landscape.device-shell--ipad-home { --shell-padding-x: 44px; --shell-padding-y: 9px; }
 .device-shell--landscape .device-shell-home { left: auto; right: 8px; bottom: calc(50% - 14px); }
 /* Rotate hardware placement with landscape captures, without rotating pixels. */
 .device-shell--landscape .device-shell-power { right: auto; left: 24%; top: -5px; width: 11%; height: 3px; }

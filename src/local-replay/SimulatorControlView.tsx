@@ -1,3 +1,5 @@
+import { deviceShellClassName, resolveDeviceFrame, type DeviceFrame } from '../replay/deviceFrame'
+import { DeviceShellHardware } from '../replay/components/DeviceShellHardware'
 import {
   ArrowCounterClockwise,
   CircleNotch,
@@ -60,6 +62,7 @@ export function SimulatorControlView({
   annotations,
   captureToolbar,
   deviceIdentifier,
+  deviceFrame,
   frame,
   isAnnotationEditorOpen,
   isPlayback = false,
@@ -75,6 +78,7 @@ export function SimulatorControlView({
 }: {
   annotations: SessionAnnotation[]
   captureToolbar?: ReactNode
+  deviceFrame?: DeviceFrame
   deviceIdentifier: string
   frame: SessionImageFrame | null
   isAnnotationEditorOpen: boolean
@@ -605,9 +609,13 @@ export function SimulatorControlView({
     `local-simulator-stage--${viewportKind}`,
     isAnnotating ? 'local-simulator-stage--annotating' : '',
   ].filter(Boolean).join(' ')
+  const resolvedDeviceFrame = deviceFrame ?? resolveDeviceFrame([platform ?? ''], viewportKind)
+  const shellStyle = {
+    '--simulator-aspect-ratio': resolvedMediaAspectRatio,
+  } as CSSProperties
   const stageStyle = {
     aspectRatio: `${resolvedMediaAspectRatio}`,
-    width: `min(100cqw, ${resolvedMediaAspectRatio * 100}cqh)`,
+    width: '100%',
   } satisfies CSSProperties
   const displayError = phase === 'fallback' ? fallbackFrameError ?? error : error
 
@@ -619,70 +627,74 @@ export function SimulatorControlView({
       </div>
 
       <div className="local-simulator-stage-shell">
-        {isPlayback ? (
-          <div className={`${stageClassName} local-simulator-playback-stage`} style={stageStyle}>
-            {playbackContent}
-          </div>
-        ) : null}
-        <div
-          aria-describedby="local-simulator-input-help"
-          aria-label={`Live ${platform || 'mobile'} simulator control. Click to focus, then type into the app.`}
-          className={stageClassName}
-          hidden={isPlayback}
-          inert={isPlayback}
-          onBlur={releasePressedKeys}
-          onKeyDown={(event) => handleKey(event, 'down')}
-          onKeyUp={(event) => handleKey(event, 'up')}
-          onPaste={handlePaste}
-          ref={stageRef}
-          role="application"
-          style={stageStyle}
-          tabIndex={0}
-        >
-          <video
-            {...pointerHandlers}
-            aria-hidden="true"
-            autoPlay
-            muted
-            onLoadedMetadata={syncMediaBounds}
-            onResize={syncMediaBounds}
-            playsInline
-            ref={videoRef}
-          />
-          {phase === 'fallback' && fallbackFrameUrl ? (
-            <img
+        <div className={`local-simulator-device ${deviceShellClassName(resolvedDeviceFrame, resolvedMediaAspectRatio > 1)}`} style={shellStyle} title={resolvedDeviceFrame.name}>
+          {resolvedDeviceFrame.kind !== 'desktop' ? <DeviceShellHardware /> : null}
+          {isPlayback ? (
+            <div className={`${stageClassName} local-simulator-playback-stage`} style={stageStyle}>
+              {playbackContent}
+            </div>
+          ) : null}
+          <div
+            aria-describedby="local-simulator-input-help"
+            aria-label={`Live ${platform || 'mobile'} simulator control. Click to focus, then type into the app.`}
+            className={stageClassName}
+            hidden={isPlayback}
+            inert={isPlayback}
+            onBlur={releasePressedKeys}
+            onKeyDown={(event) => handleKey(event, 'down')}
+            onKeyUp={(event) => handleKey(event, 'up')}
+            onPaste={handlePaste}
+            ref={stageRef}
+            role="application"
+            style={stageStyle}
+            tabIndex={0}
+          >
+            <span aria-hidden="true" className="device-screen-cutout" />
+            <video
               {...pointerHandlers}
-              alt=""
               aria-hidden="true"
-              draggable={false}
-              onLoad={syncMediaBounds}
-              ref={fallbackImageRef}
-              src={fallbackFrameUrl}
+              autoPlay
+              muted
+              onLoadedMetadata={syncMediaBounds}
+              onResize={syncMediaBounds}
+              playsInline
+              ref={videoRef}
             />
-          ) : null}
-          {overlayStyle ? (
-            <div className="local-simulator-media-overlay" style={overlayStyle}>
-              <LiveAnnotationOverlay
-                annotations={annotations}
-                draft={annotationDraft}
-                frame={frame}
-                selectedAnnotationId={selectedAnnotationId}
+            {phase === 'fallback' && fallbackFrameUrl ? (
+              <img
+                {...pointerHandlers}
+                alt=""
+                aria-hidden="true"
+                draggable={false}
+                onLoad={syncMediaBounds}
+                ref={fallbackImageRef}
+                src={fallbackFrameUrl}
               />
-              {multiTouchPreview ? <MultiTouchOverlay {...multiTouchPreview} /> : null}
-            </div>
-          ) : null}
-          {phase === 'negotiating' || phase === 'connecting' ? (
-            <div className="local-simulator-overlay">
-              <CircleNotch className="spin" aria-hidden="true" />
-              <strong>Connecting live control</strong>
-            </div>
-          ) : null}
-          {phase === 'fallback' && (fallbackFrameError || !fallbackFrameUrl) ? (
-            <div className="local-simulator-overlay" role="status">
-              {fallbackFrameError ? <WarningCircle aria-hidden="true" /> : <CircleNotch className="spin" aria-hidden="true" />}
-              <strong>{fallbackFrameError ? 'Screenshot unavailable' : 'Loading screenshot'}</strong>
-            </div>
-          ) : null}
+            ) : null}
+            {overlayStyle ? (
+              <div className="local-simulator-media-overlay" style={overlayStyle}>
+                <LiveAnnotationOverlay
+                  annotations={annotations}
+                  draft={annotationDraft}
+                  frame={frame}
+                  selectedAnnotationId={selectedAnnotationId}
+                />
+                {multiTouchPreview ? <MultiTouchOverlay {...multiTouchPreview} /> : null}
+              </div>
+            ) : null}
+            {phase === 'negotiating' || phase === 'connecting' ? (
+              <div className="local-simulator-overlay">
+                <CircleNotch className="spin" aria-hidden="true" />
+                <strong>Connecting live control</strong>
+              </div>
+            ) : null}
+            {phase === 'fallback' && (fallbackFrameError || !fallbackFrameUrl) ? (
+              <div className="local-simulator-overlay" role="status">
+                {fallbackFrameError ? <WarningCircle aria-hidden="true" /> : <CircleNotch className="spin" aria-hidden="true" />}
+                <strong>{fallbackFrameError ? 'Screenshot unavailable' : 'Loading screenshot'}</strong>
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
 

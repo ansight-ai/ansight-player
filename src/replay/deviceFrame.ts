@@ -115,3 +115,7 @@ export function resolveDeviceFrame(descriptors: readonly string[], fallbackKind:
   const style = kind === 'desktop' ? 'desktop' : apple ? (kind === 'tablet' ? 'ipad' : 'iphone-unknown') : (kind === 'tablet' ? 'android-tablet' : 'android')
   return { name: descriptors.find(value => /iphone|ipad/i.test(value)) ?? (apple ? (kind === 'tablet' ? 'iPad' : 'iPhone') : kind === 'tablet' ? 'Android tablet' : kind === 'phone' ? 'Android device' : 'Display'), style, kind, cameraControl: false }
 }
+
+export function deviceShellClassName(frame: DeviceFrame, landscape: boolean): string {
+  return `device-shell device-shell--${frame.style}${landscape ? ' device-shell--landscape' : ''}${frame.cameraControl ? ' device-shell--camera-control' : ''}${/iPad \((10th generation|A16)\)|iPad Air.*\(M[234]\)|iPad Pro.*\(M[45]\)/.test(frame.name) ? ' device-shell--camera-long-edge' : ''}`
+}

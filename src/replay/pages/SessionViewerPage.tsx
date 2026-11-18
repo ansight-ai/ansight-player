@@ -8,7 +8,8 @@ import { SessionUiTestBadge } from '../components/SessionUiTestBadge'
 import { connectivityFromEvents, type ConnectivityWindow } from '../connectivity'
 import { loadSessionConnectivity, loadSessionNetworkRequests } from '../sessionViewerData'
 import { NetworkPerformancePanel, NetworkPerformanceDetails } from '../NetworkPerformancePanel'
-import { resolveDeviceFrame } from '../deviceFrame'
+import { deviceShellClassName, resolveDeviceFrame, type DeviceFrame } from '../deviceFrame'
+import { DeviceShellHardware } from '../components/DeviceShellHardware'
 import { buildSessionTouchGestures } from '../sessionTouchReplay'
 import { touchFadeMs, visibleTouches, type Gesture } from '../touchReplay'
 import { RecordedTouchOverlay } from '../components/RecordedTouchOverlay'
@@ -70,7 +71,7 @@ import {
 } from '@phosphor-icons/react'
 import { SdkCapabilityNotice, SdkTouchCaptureNotice, type SdkCapabilityFeature } from '../components/SdkCapabilityNotice'
 import type { CSSProperties, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent, ReactNode, Ref, RefObject } from 'react'
-import { memo, startTransition, useCallback, useEffect, useEffectEvent, useId, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { memo, startTransition, useCallback, useEffect, useEffectEvent, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { VirtualizedLogList } from '../components/VirtualizedLogList'
 import type { SessionOperationProgress } from '../../local-replay/sessionOperationStream'
 import ReactMarkdown from 'react-markdown'
@@ -540,6 +541,7 @@ export type ScreenshotAnnotationGeometryDraft = {
 }
 
 export type SessionReplayPanelContext = {
+  deviceFrame: DeviceFrame
   playbackContent: ReactNode
   captureToolbar?: ReactNode
   replayViewControls?: ReactNode
@@ -755,7 +757,14 @@ export function SessionViewerPage({
   const [isPlaybackRunning, setIsPlaybackRunning] = useState(false)
   const [failedRecordingId, setFailedRecordingId] = useState<string | null>(null)
   const playbackAtRef = useRef(0)
-  useEffect(() => { setIsPlaybackRunning(false); setFailedRecordingId(null) }, [sessionId])
+  const [playbackSessionId, setPlaybackSessionId] = useState(sessionId)
+  // Reset before committing a different session so its first frame cannot play
+  // with the previous session's running or failed-recording state.
+  if (playbackSessionId !== sessionId) {
+    setPlaybackSessionId(sessionId)
+    setIsPlaybackRunning(false)
+    setFailedRecordingId(null)
+  }
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({})
   const [sessionVideoLoadState, setSessionVideoLoadState] = useState<{
     storagePath: string
@@ -1403,7 +1412,7 @@ export function SessionViewerPage({
       .then(requests => { if (!cancelled) setRemoteNetwork({ sessionId, requests }) })
       .catch((error: unknown) => { if (!cancelled) setRemoteNetwork({ sessionId, error: error instanceof Error ? error.message : 'Download failed' }) })
     return () => { cancelled = true }
-  }, [payload, source.loadNetworkRequests, shouldLoadNetwork, sessionId])
+  }, [payload, source, shouldLoadNetwork, sessionId])
   const networkRequests = useMemo(() => sortNetworkRequests(remoteNetworkForSession?.requests ?? captureSession?.networkRequests ?? []), [remoteNetworkForSession?.requests, captureSession?.networkRequests])
   const networkLoading = Boolean(source.loadNetworkRequests && !remoteNetworkForSession)
   const metrics = useMemo(() => sortMetrics(captureSession?.metrics ?? []), [captureSession?.metrics])
@@ -1452,7 +1461,9 @@ export function SessionViewerPage({
   }, [isLoading, onReplayRangeChange, payload?.session.id, payload?.session.session_id, sessionId, timelineRange.endMs, timelineRange.initialMs, timelineRange.startMs])
   const effectiveSessionDurationMs = resolveEffectiveSessionDurationMs(payload?.session.duration_ms ?? null, timelineRange)
   const effectiveScrubAtMs = resolveEffectiveScrubAt(scrubAtMs, timelineRange, isLiveSession)
-  playbackAtRef.current = effectiveScrubAtMs
+  useLayoutEffect(() => {
+    playbackAtRef.current = effectiveScrubAtMs
+  }, [effectiveScrubAtMs])
   const evidenceBucket = Math.floor(effectiveScrubAtMs / 15_000)
   const chunkedReplay = payload?.manifest.schema === 'ansight.offline-capture.v2'
   const offlineChunkState = (payload?.session.metadata as {
@@ -1479,7 +1490,7 @@ export function SessionViewerPage({
       }
     }, 5000)
     return () => { cancelled = true; window.clearInterval(timer) }
-  }, [chunkedReplay, offlineCaptureStatus, sessionId, source.loadPayload, superAdminMode])
+  }, [chunkedReplay, offlineCaptureStatus, sessionId, source, superAdminMode])
   useEffect(() => {
     if (!payload || !chunkedReplay || !source.loadEvidenceWindow) return
     let cancelled = false
@@ -1789,7 +1800,7 @@ export function SessionViewerPage({
       resizeObserver.disconnect()
     }
   }, [hasPresentedMedia, presentedFrame?.frameId, syncSelectedFrameImageContentBounds])
-  const selectedFrameStageClassName = `session-frame-stage session-frame-stage--right session-frame-stage--${selectedDeviceFrame.kind}${isLocalReplay ? ` device-shell device-shell--${selectedDeviceFrame.style}${frameLandscape ? ' device-shell--landscape' : ''}${selectedDeviceFrame.cameraControl ? ' device-shell--camera-control' : ''}${/iPad \((10th generation|A16)\)|iPad Air.*\(M[234]\)|iPad Pro.*\(M[45]\)/.test(selectedDeviceFrame.name) ? ' device-shell--camera-long-edge' : ''}` : ''}`
+  const selectedFrameStageClassName = `session-frame-stage session-frame-stage--right session-frame-stage--${selectedDeviceFrame.kind}${isLocalReplay ? ` ${deviceShellClassName(selectedDeviceFrame, frameLandscape)}` : ''}`
   const activeTouches = useMemo(
     () => selectTouchesForTimestamp(timelineReplayIndex.touches, effectiveScrubAtMs),
     [effectiveScrubAtMs, timelineReplayIndex],
@@ -2698,12 +2709,7 @@ export function SessionViewerPage({
   ) : null
   const playbackContent = (
     <div className={selectedFrameStageClassName} aria-label={isLocalReplay ? `${selectedDeviceFrame.name} frame` : undefined} title={isLocalReplay ? selectedDeviceFrame.name : undefined}>
-      {isLocalReplay && selectedFrame && selectedDeviceFrame.kind !== 'desktop' ? <div className="device-shell-hardware" aria-hidden="true">
-        <span className="device-shell-power" /><span className="device-shell-volume-up" />
-        <span className="device-shell-volume-down" /><span className="device-shell-action" />
-        <span className="device-shell-camera-control" /><span className="device-shell-home" />
-        <span className="device-shell-speaker" /><span className="device-shell-camera" />
-      </div> : null}
+      {isLocalReplay && selectedFrame && selectedDeviceFrame.kind !== 'desktop' ? <DeviceShellHardware /> : null}
       {selectedFrame ? (
         <div className="session-frame-viewport" ref={selectedFrameViewportRef} style={selectedFrameViewportStyle}>
           {isLocalReplay ? <span aria-hidden="true" className="device-screen-cutout" /> : null}
@@ -2822,6 +2828,7 @@ export function SessionViewerPage({
   const hasStandaloneReplayPanelToolbar = hasReplayPanelToolbar && !hasInlineCaptureToolbar
   const replayPanelContent = typeof replayPanelOverride === 'function'
     ? replayPanelOverride({
+        deviceFrame: selectedDeviceFrame,
         playbackContent,
         captureToolbar,
         replayViewControls,

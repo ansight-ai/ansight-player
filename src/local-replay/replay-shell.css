@@ -2775,9 +2775,6 @@ button.local-runner-status:hover {
 }
 
 .local-simulator-stage {
-  --simulator-bezel: 5px;
-  --simulator-screen-radius: 13px;
-  --simulator-bezel-color: #0b0c0f;
   position: relative;
   display: grid;
   align-self: center;
@@ -2790,15 +2787,18 @@ button.local-runner-status:hover {
   overflow: hidden;
   background: #07080b;
   border: 0;
-  border-radius: var(--simulator-screen-radius);
+  border-radius: var(--screen-radius, 8px);
   outline: none;
-  /* Draw the bezel outside the captured screen without obscuring its edges. */
-  box-shadow: 0 0 0 var(--simulator-bezel) var(--simulator-bezel-color);
+  box-shadow: none;
 }
 
-.local-simulator-stage--phone {
-  --simulator-bezel: 7px;
-  --simulator-screen-radius: 21px;
+.local-replay-root .session-viewer-dashboard .local-simulator-device.device-shell {
+  box-sizing: content-box;
+  width: min(
+    calc(100cqw - 2 * var(--shell-padding-x, 0px) - 4px),
+    calc((100cqh - var(--shell-padding-y, 0px) - var(--shell-padding-bottom, var(--shell-padding-y, 0px)) - 4px) * var(--simulator-aspect-ratio))
+  );
+  min-width: 0;
 }
 
 .local-simulator-stage[hidden] {
@@ -2830,19 +2830,18 @@ button.local-runner-status:hover {
   border-radius: inherit;
 }
 
-.local-simulator-playback-stage .device-shell-hardware,
-.local-simulator-playback-stage .device-screen-cutout {
+.local-simulator-playback-stage .device-shell-hardware {
   display: none;
 }
 
 .local-simulator-stage:focus-visible {
-  box-shadow:
-    0 0 0 var(--simulator-bezel) var(--simulator-bezel-color),
-    0 0 0 calc(var(--simulator-bezel) + 2px) var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .local-simulator-stage--annotating {
-  --simulator-bezel-color: color-mix(in srgb, var(--danger) 72%, #0b0c0f);
+  outline: 2px solid var(--danger);
+  outline-offset: 2px;
 }
 
 .local-simulator-stage video,

@@ -571,10 +571,11 @@ export function LocalReplayApp() {
     const platform = selectedSession.runtimePlatform
     const sessionId = selectedSession.sessionId
     const appName = selectedSession.name || selectedSession.clientName || selectedSession.appId
-    return ({ annotations, captureToolbar, frame, isAnnotationEditorOpen, onCreateAnnotation, onCaptureAnnotationVisualTree, playbackContent, replayViewControls, selectedAnnotationId }: SessionReplayPanelContext) => (
+    return ({ annotations, captureToolbar, deviceFrame, frame, isAnnotationEditorOpen, onCreateAnnotation, onCaptureAnnotationVisualTree, playbackContent, replayViewControls, selectedAnnotationId }: SessionReplayPanelContext) => (
       <SimulatorControlView
         annotations={annotations}
         captureToolbar={captureToolbar}
+        deviceFrame={deviceFrame}
         deviceIdentifier={deviceIdentifier}
         frame={frame}
         isAnnotationEditorOpen={isAnnotationEditorOpen}
@@ -596,8 +597,6 @@ export function LocalReplayApp() {
     canSwitchLiveView,
     liveViewMode,
     openDeviceLocation,
-    selectedSession?.isConnected,
-    selectedSession?.isSimulatorOrEmulator,
     selectedSession?.runtimeDeviceIdentifier,
     selectedSession?.runtimePlatform,
     selectedSession?.sessionId,
