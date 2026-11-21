@@ -1,4 +1,4 @@
-import { ArrowClockwise, ArrowSquareOut, CheckCircle, CircleNotch, DeviceMobile, ListChecks, Play, Stop, TestTube, WarningCircle, X, XCircle } from '@phosphor-icons/react'
+import { ArrowClockwise, ArrowSquareOut, CheckCircle, CircleNotch, DeviceMobile, ListChecks, Play, Stop, TestTube, WarningCircle, X, XCircle } from '../icons'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { agentReasoningModes, defaultAgentReasoning, type AgentReasoning } from '../agentReasoning'
 import type { LocalDeviceInventory, LocalOperationResult, LocalRegisteredApp, LocalRepositoryWorkspaceCatalog, LocalTestExecution, LocalWorkspaceTest } from './types'

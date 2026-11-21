@@ -1,4 +1,4 @@
-import { CornersOut, Minus, Plus } from '@phosphor-icons/react'
+import { CornersOut, Minus, Plus } from '../../icons'
 import { useMemo, useRef, useState } from 'react'
 import type {
   PointerEvent as ReactPointerEvent,

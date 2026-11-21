@@ -1,4 +1,4 @@
-import { BoundingBox, CaretDown, CaretRight, Funnel, Info, MagnifyingGlass, TreeStructure } from '@phosphor-icons/react'
+import { BoundingBox, CaretDown, CaretRight, Funnel, Info, MagnifyingGlass, TreeStructure } from '../../icons'
 import { type CSSProperties, type ReactNode, useId, useMemo, useState } from 'react'
 import type { SessionVisualTreeSnapshot } from '../sessionViewerData'
 

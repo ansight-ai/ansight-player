@@ -1,3 +1,4 @@
+import { useExplorationRecorder } from './useExplorationRecorder'
 import { deviceShellClassName, resolveDeviceFrame, type DeviceFrame } from '../replay/deviceFrame'
 import { DeviceShellHardware } from '../replay/components/DeviceShellHardware'
 import {
@@ -9,7 +10,7 @@ import {
   PencilSimpleLine,
   WarningCircle,
   WifiHigh,
-} from '@phosphor-icons/react'
+} from '../icons'
 import {
   useCallback,
   useEffect,
@@ -67,6 +68,7 @@ export function SimulatorControlView({
   isAnnotationEditorOpen,
   isPlayback = false,
   onCreateAnnotation,
+  onRecordAnnotation,
   onCaptureAnnotationVisualTree,
   onOpenDeviceLocation,
   onOpenDeviceNetwork,
@@ -84,6 +86,7 @@ export function SimulatorControlView({
   isAnnotationEditorOpen: boolean
   isPlayback?: boolean
   onCreateAnnotation?: (geometry: ScreenshotAnnotationGeometryDraft, capture?: ScreenshotAnnotationCapture) => void
+  onRecordAnnotation?: (annotation: SessionAnnotation) => Promise<void>
   onCaptureAnnotationVisualTree?: () => Promise<AnnotationVisualTreeCaptureResult>
   onOpenDeviceLocation?: () => void
   onOpenDeviceNetwork?: () => void
@@ -93,6 +96,13 @@ export function SimulatorControlView({
   selectedAnnotationId: string | null
   sessionId: string
 }) {
+  const exploration = useExplorationRecorder({ sessionId, enabled: !isPlayback && !!onRecordAnnotation, onSave: onRecordAnnotation })
+  const [temporaryMarks, setTemporaryMarks] = useState<{ id: string; geometry: ScreenshotAnnotationGeometryDraft }[]>([])
+  const markTimers = useRef(new Set<number>())
+  useEffect(() => {
+    const timers = markTimers.current
+    return () => { for (const timer of timers) window.clearTimeout(timer) }
+  }, [])
   const stageRef = useRef<HTMLDivElement | null>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const fallbackImageRef = useRef<HTMLImageElement | null>(null)
@@ -401,7 +411,7 @@ export function SimulatorControlView({
       return
     }
 
-    if (pointerPhase === 'down' && event.button === 0 && onCreateAnnotation && !event.altKey && (annotationMode || event.shiftKey)) {
+    if (pointerPhase === 'down' && event.button === 0 && (onCreateAnnotation || exploration.recording) && !event.altKey && (annotationMode || event.shiftKey)) {
       event.preventDefault()
       event.stopPropagation()
       annotationDragRef.current = {
@@ -415,7 +425,7 @@ export function SimulatorControlView({
       }
       event.currentTarget.setPointerCapture(event.pointerId)
       setAnnotationDraft({ kind: 0, x: point.x, y: point.y })
-      videoRef.current?.pause()
+      if (!exploration.recording) videoRef.current?.pause()
       return
     }
 
@@ -528,7 +538,18 @@ export function SimulatorControlView({
     }
     setAnnotationDraft(null)
     setAnnotationMode(false)
-    onCreateAnnotation?.(nextDraft, drag.capture)
+    if (exploration.mark(nextDraft, frame, drag.capture)) {
+      const id = crypto.randomUUID()
+      setTemporaryMarks(current => [...current, { id, geometry: nextDraft }])
+      const timer = window.setTimeout(() => {
+        setTemporaryMarks(current => current.filter(mark => mark.id !== id))
+        markTimers.current.delete(timer)
+      }, 1000)
+      markTimers.current.add(timer)
+      void videoRef.current?.play().catch(() => undefined)
+    } else {
+      onCreateAnnotation?.(nextDraft, drag.capture)
+    }
   }
 
   function handleKey(event: ReactKeyboardEvent<HTMLDivElement>, keyPhase: 'down' | 'up') {
@@ -598,7 +619,7 @@ export function SimulatorControlView({
         width: mediaBounds.width,
       } satisfies CSSProperties
     : undefined
-  const canAnnotate = !!onCreateAnnotation && !!frame
+  const canAnnotate = exploration.recording || (!!onCreateAnnotation && !!frame)
   const isAnnotating = canAnnotate
     && annotationMode
     && !isPlayback
@@ -621,9 +642,11 @@ export function SimulatorControlView({
 
   return (
     <div className={isPlayback ? 'local-simulator-control local-simulator-control--playback' : 'local-simulator-control'}>
-      <div className="panel-heading local-simulator-heading">
-        {captureToolbar}
-        {replayViewControls}
+      <div className="local-simulator-toolbar">
+        <div className="panel-heading local-simulator-heading">
+          {captureToolbar}
+          {replayViewControls}
+        </div>
       </div>
 
       <div className="local-simulator-stage-shell">
@@ -674,11 +697,12 @@ export function SimulatorControlView({
             {overlayStyle ? (
               <div className="local-simulator-media-overlay" style={overlayStyle}>
                 <LiveAnnotationOverlay
-                  annotations={annotations}
+                  annotations={annotations.filter(annotation => annotation.source !== 'localPortal.exploration')}
                   draft={annotationDraft}
                   frame={frame}
                   selectedAnnotationId={selectedAnnotationId}
                 />
+                {temporaryMarks.map(mark => <LiveAnnotationOverlay key={mark.id} annotations={[]} draft={mark.geometry} frame={frame} selectedAnnotationId={null} />)}
                 {multiTouchPreview ? <MultiTouchOverlay {...multiTouchPreview} /> : null}
               </div>
             ) : null}
@@ -697,6 +721,8 @@ export function SimulatorControlView({
           </div>
         </div>
       </div>
+
+      {onRecordAnnotation ? exploration.controls : null}
 
       <div className="local-simulator-controls" aria-label="Simulator controls" aria-hidden={isPlayback} inert={isPlayback}>
         <button aria-label="Home" data-tooltip="Go to the home screen" onClick={() => void sendCommand('button', { button: 'home' }).catch(showCommandError)} type="button">
@@ -733,13 +759,13 @@ export function SimulatorControlView({
         ) : null}
       </div>
 
-      <p className="local-simulator-input-help" id="local-simulator-input-help" aria-hidden={isPlayback}>
-        Click the simulator, then type
+      <p className="local-simulator-input-help" id="local-simulator-input-help" title="Click the simulator to type. Option-drag to pinch; Shift-Option-drag to pan; Shift-drag to annotate." aria-hidden={isPlayback}>
+        Click to type
         <span aria-hidden="true">·</span>
-        <kbd>⌥</kbd> drag to pinch
+        <kbd>⌥</kbd> pinch
         <span aria-hidden="true">·</span>
-        <kbd>⇧⌥</kbd> drag to pan
-        {canAnnotate ? <><span aria-hidden="true">·</span><kbd>⇧</kbd> drag to annotate</> : null}
+        <kbd>⇧⌥</kbd> pan
+        {canAnnotate ? <><span aria-hidden="true">·</span><kbd>⇧</kbd> annotate</> : null}
       </p>
 
       {displayError ? (

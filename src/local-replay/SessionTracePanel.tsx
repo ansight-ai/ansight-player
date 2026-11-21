@@ -1,4 +1,4 @@
-import { CircleNotch, FlowArrow, X } from '@phosphor-icons/react'
+import { CircleNotch, FlowArrow, X } from '../icons'
 import { useEffect, useState, type ReactNode } from 'react'
 import { SessionActivityPanel } from '../replay/components/SessionActivityPanel'
 import type { SessionActivitySource } from '../replay/sessionActivity'

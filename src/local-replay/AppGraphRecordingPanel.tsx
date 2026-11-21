@@ -9,7 +9,7 @@ import {
   Stop,
   WarningCircle,
   X,
-} from '@phosphor-icons/react'
+} from '../icons'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AppGraphCanvas } from '../replay/components/AppGraphCanvas'
 import type { AppGraphDestinationKind } from '../types'

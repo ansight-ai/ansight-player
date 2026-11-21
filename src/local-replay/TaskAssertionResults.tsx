@@ -1,4 +1,4 @@
-import { CheckCircle, XCircle } from '@phosphor-icons/react'
+import { CheckCircle, XCircle } from '../icons'
 import type { TaskAssertionTrace } from './taskCallTrace'
 
 export function TaskAssertionResults({ trace }: { trace: TaskAssertionTrace }) {

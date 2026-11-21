@@ -7,7 +7,7 @@ import {
   Pulse,
   TerminalWindow,
   X,
-} from '@phosphor-icons/react'
+} from '../icons'
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import type {
   LocalCoreSettings,

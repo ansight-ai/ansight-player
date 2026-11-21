@@ -1,4 +1,4 @@
-import { CaretDown } from '@phosphor-icons/react'
+import { CaretDown } from '../../icons'
 import type { MetricGroup } from '../metricGroups'
 import './TimelineMetricGroups.css'
 

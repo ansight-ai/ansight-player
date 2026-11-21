@@ -1,4 +1,4 @@
-import { CheckCircle, CircleNotch, PlugsConnected, WarningCircle, WifiSlash, X } from '@phosphor-icons/react'
+import { CheckCircle, CircleNotch, PlugsConnected, WarningCircle, WifiSlash, X } from '../icons'
 import { useEffect, useRef, useState } from 'react'
 import type { LocalAccountStatus, LocalCloudTeam, LocalCloudTeamQueryResult, LocalCompanionAccess, LocalCompanionAccessMode, LocalCompanionConnection, LocalCompanionOverview, LocalCoreSettings, LocalOperationResult } from './types'
 

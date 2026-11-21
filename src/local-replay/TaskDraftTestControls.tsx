@@ -1,4 +1,4 @@
-import { CircleNotch, Play, Stop, X } from '@phosphor-icons/react'
+import { CircleNotch, Play, Stop, X } from '../icons'
 
 export function TaskDraftTestControls({ status, canTest, hasResult, isUpdating, onTest, onCancel, onClear }: {
   status: string

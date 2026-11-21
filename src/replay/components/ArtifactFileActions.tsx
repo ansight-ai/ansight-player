@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom'
-import { ArrowSquareOut, CircleNotch, Desktop, FolderOpen, DotsThree, X } from '@phosphor-icons/react'
+import { ArrowSquareOut, CircleNotch, Desktop, FolderOpen, DotsThree, X } from '../../icons'
 import { useId, useRef, useState } from 'react'
 import './ArtifactFileActions.css'
 

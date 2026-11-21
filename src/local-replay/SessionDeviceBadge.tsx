@@ -1,4 +1,4 @@
-import { Desktop, DeviceMobile } from '@phosphor-icons/react'
+import { Laptop, DeviceMobile } from '../icons'
 
 export function SessionDeviceBadge({
   isSimulatorOrEmulator,
@@ -8,15 +8,15 @@ export function SessionDeviceBadge({
   platform?: string | null
 }) {
   const label = isSimulatorOrEmulator
-    ? platform?.trim().toLowerCase() === 'android' ? 'Emulator' : 'Simulator'
-    : 'Device'
+    ? platform?.trim().toLowerCase() === 'android' ? 'Emu' : 'Sim'
+    : 'Dev'
   const description = isSimulatorOrEmulator
-    ? `Captured on ${label === 'Emulator' ? 'an emulator' : 'a simulator'}`
+    ? `Captured on ${label === 'Emu' ? 'an emulator' : 'a simulator'}`
     : 'Captured on a physical device'
 
   return (
     <span aria-label={description} className="local-session-device-badge" role="img" title={description}>
-      {isSimulatorOrEmulator ? <Desktop aria-hidden="true" /> : <DeviceMobile aria-hidden="true" />}
+      {isSimulatorOrEmulator ? <Laptop aria-hidden="true" /> : <DeviceMobile aria-hidden="true" />}
       {label}
     </span>
   )

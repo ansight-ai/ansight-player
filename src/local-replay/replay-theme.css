@@ -459,13 +459,13 @@
 }
 
 .local-replay-root .local-session-icon {
-  background: linear-gradient(150deg, #f4a58e, var(--accent));
+  background: transparent;
   border: 0;
   border-radius: 7px;
 }
 
 .local-replay-root .local-session-icon > svg {
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-muted);
 }
 
 /* Platform mark: a bare black glyph on the icon corner, no box. A faint white
@@ -534,11 +534,11 @@
    formula mirrors --session-replay-panel-effective-width plus the shell and
    viewer padding. */
 .local-replay-root .local-session-context-toolbar {
-  padding-right: calc(min(var(--session-replay-panel-width, 384px), calc(100vw - var(--local-explorer-width) - 620px)) + 22px + 16px);
+  padding-right: calc(max(300px, min(var(--session-replay-panel-width, 384px), calc(100vw - var(--local-explorer-width) - 620px))) + 22px + 16px);
 }
 
 .local-replay-root.local-replay-root--collapsed .local-session-context-toolbar {
-  padding-right: calc(min(var(--session-replay-panel-width, 384px), calc(100vw - 620px)) + 22px + 16px);
+  padding-right: calc(max(300px, min(var(--session-replay-panel-width, 384px), calc(100vw - 620px))) + 22px + 16px);
 }
 
 /* Session actions are icon-only ghost buttons; their text stays for assistive tech. */
@@ -640,7 +640,7 @@
 .local-replay-root .session-viewer-dashboard > .panel {
   padding: 14px;
   background: var(--rp-panel);
-  border: 1px solid var(--rp-line);
+  border: 0;
   border-radius: 10px;
   box-shadow: none;
 }
@@ -668,7 +668,7 @@
   padding: 0 9px;
   color: var(--rp-text);
   background: var(--rp-bg);
-  border: 1px solid var(--rp-line);
+  border: 0;
   border-radius: 6px;
   box-shadow: none;
   font-family: var(--font-mono);
@@ -683,12 +683,10 @@
 .local-replay-root .session-viewer-dashboard .timeline-chart-actions .timeline-edit-button:hover,
 .local-replay-root .session-viewer-dashboard .timeline-chart-actions .timeline-edit-button--active {
   color: var(--accent);
-  border-color: rgba(250, 68, 31, 0.5);
 }
 
 .local-replay-root .session-viewer-dashboard .timeline-chart-actions .timeline-edit-button:hover,
 .local-replay-root .session-viewer-dashboard .timeline-chart-actions .timeline-edit-button--active {
-  border-color: var(--accent);
   background: var(--rp-accent-soft);
 }
 
@@ -1114,14 +1112,15 @@
 /* ---------- Device column ---------- */
 
 .local-replay-root .session-viewer-dashboard .session-screenshot-panel {
-  top: calc(var(--local-workspace-top) + 1px);
+  top: calc(var(--local-banner-height) + 1px);
+  z-index: 10;
   right: 0;
   bottom: 0;
   height: auto;
   /* The base sheet pins this fixed column to the top at content height; stretch it so
      the phone (align-self: center) sits in the middle of the column. */
   align-self: stretch;
-  padding: 16px 16px 16px 10px;
+  padding: 8px 16px 4px 10px;
   background: transparent;
   border: 0;
   border-radius: 0;
@@ -2271,7 +2270,7 @@
   position: relative; overflow: visible; --shell-padding-x: var(--shell-bezel); --shell-padding-y: var(--shell-bezel);
   padding: var(--shell-padding-y) var(--shell-padding-x) var(--shell-padding-bottom, var(--shell-padding-y));
   border: 2px solid #777571; border-radius: var(--shell-radius); background: #08090b;
-  box-shadow: 0 0 0 1px #252629, inset 0 0 0 1px #b5b1aa, inset 0 0 0 3px #363638, 0 18px 28px -16px #0008, 0 5px 9px -5px #0006;
+  box-shadow: 0 0 0 1px #252629, inset 0 0 0 1px #b5b1aa, inset 0 0 0 3px #363638;
 }
 .local-replay-root .session-viewer-dashboard .device-shell .session-frame-viewport { border-radius: var(--screen-radius, 8px); background: #08090b; isolation: isolate; }
 .device-shell-hardware { position: absolute; inset: 0; pointer-events: none; }
@@ -2391,3 +2390,409 @@
     font-size: 0;
   }
 }
+
+/* Native select semantics with an iOS-style trigger and popover. */
+.local-replay-root select:not([multiple]):not([size]) {
+  min-height: 32px;
+  padding: 6px 12px;
+  border: 0 !important;
+  border-radius: 10px;
+  background-color: var(--surface-muted);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.local-replay-root .session-replay-capture-toolbar select {
+  min-width: 110px;
+  max-width: min(240px, 100%);
+}
+
+.local-replay-root select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@supports (appearance: base-select) {
+  .local-replay-root select:not([multiple]):not([size]),
+  .local-replay-root select:not([multiple]):not([size])::picker(select) {
+    appearance: base-select;
+  }
+
+  .local-replay-root select::picker-icon {
+    color: var(--text-muted);
+    margin-left: 12px;
+    font-size: 10px;
+  }
+
+  .local-replay-root select::picker(select) {
+    min-width: max(200px, anchor-size(width));
+    max-width: calc(100vw - 24px);
+    max-height: min(360px, 60vh);
+    margin-block: 6px;
+    padding: 6px;
+    overflow: auto;
+    border: 0;
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--bg-primary) 94%, transparent);
+    color: var(--text-primary);
+    box-shadow: 0 10px 40px rgb(0 0 0 / 16%);
+    backdrop-filter: blur(24px) saturate(160%);
+    font: 500 13px/1.4 var(--font-body, system-ui);
+  }
+
+  .local-replay-root select option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 38px;
+    padding: 9px 12px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  .local-replay-root select option:checked {
+    background: var(--surface-muted);
+    font-weight: 600;
+  }
+
+  .local-replay-root select option:hover,
+  .local-replay-root select option:focus-visible {
+    background: var(--accent-soft);
+    outline: none;
+  }
+
+  .local-replay-root select option::checkmark {
+    order: 1;
+    margin-left: auto;
+    color: var(--accent);
+  }
+
+  .local-replay-root select option:disabled {
+    color: var(--text-muted);
+    cursor: default;
+  }
+}
+
+/* One compact tree-capture control with a clear, separate action. */
+.local-replay-root .session-replay-capture-actions {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--surface-muted);
+}
+
+.local-replay-root .session-replay-capture-actions select {
+  min-width: 0;
+  max-width: 150px;
+  min-height: 30px;
+  height: 30px;
+  padding: 5px 9px;
+  border-radius: 9px;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.local-replay-root .session-replay-capture-actions select::picker-icon {
+  margin-left: 8px;
+}
+
+.local-replay-root .session-replay-capture-button--labelled {
+  display: inline-flex;
+  gap: 5px;
+  width: auto;
+  min-height: 30px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 9px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font: 500 12px/1 var(--font-body, system-ui);
+  white-space: nowrap;
+}
+
+.local-replay-root .session-replay-capture-button--labelled:hover:not(:disabled) {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* Annotation metadata is a compact toolbar, not two padded form sections. */
+.local-replay-root .annotation-editor-body {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 16px;
+  padding-top: 8px;
+}
+
+.local-replay-root .annotation-status-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.local-replay-root .annotation-status-field input {
+  width: 130px;
+  min-height: 28px;
+  height: 28px;
+}
+
+.local-replay-root .annotation-editor-modal .annotation-summary {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  gap: 6px;
+}
+
+.local-replay-root .annotation-summary-controls {
+  align-items: center;
+  gap: 10px;
+}
+
+.local-replay-root .annotation-summary-controls label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.local-replay-root .annotation-editor-modal .annotation-summary-controls select {
+  min-width: 92px;
+  min-height: 28px;
+  height: 28px;
+  padding: 4px 8px;
+}
+
+.local-replay-root .annotation-editor-modal .annotation-summary-action {
+  min-height: 28px;
+  padding: 5px 10px;
+}
+
+@media (max-width: 600px) {
+  .local-replay-root .annotation-editor-body { grid-template-columns: minmax(0, 1fr); }
+  .local-replay-root .annotation-status-field { grid-column: 1; grid-row: auto; }
+}
+
+/* Keep the annotation editor free of divider lines and control borders. */
+.local-replay-root .annotation-editor-modal,
+.local-replay-root .annotation-editor-modal .modal-heading,
+.local-replay-root .annotation-editor-modal .annotation-agent-delivery,
+.local-replay-root .annotation-editor-modal .annotation-editor-actions,
+.local-replay-root .annotation-editor-modal :is(input, textarea, select, button) {
+  border: 0;
+}
+
+.local-replay-root .annotation-editor-modal :is(input, textarea, select, button) {
+  box-shadow: none;
+}
+
+.local-replay-root .annotation-editor-modal :is(input, textarea):focus {
+  outline: none;
+  box-shadow: none;
+  background-color: var(--surface-muted);
+}
+
+.local-replay-root .session-info-modal.annotation-editor-modal {
+  width: min(680px, calc(100vw - 32px));
+}
+
+.local-replay-root .annotation-editor-modal .modal-heading {
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.local-replay-root .annotation-editor-modal .annotation-editor-body {
+  padding-top: 4px;
+}
+
+.local-replay-root .annotation-editor-actions .annotation-agent-queue {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+}
+.local-replay-root .annotation-agent-queue input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.local-replay-root .annotation-agent-queue:has(input:disabled) { opacity: .5; cursor: default; }
+
+/* Keep session pins borderless in their idle, hover and pinned states. */
+.local-replay-root .local-session-pin-button {
+  border: 0;
+  box-shadow: none;
+}
+
+@media (max-width: 940px) {
+  .local-replay-root .local-session-context-toolbar,
+  .local-replay-root.local-replay-root--collapsed .local-session-context-toolbar {
+    padding-right: 16px;
+  }
+
+  .local-replay-root .session-viewer-dashboard .session-screenshot-panel {
+    position: static;
+    width: 100%;
+    min-width: 0;
+    padding: 16px 0;
+    max-height: 700px;
+  }
+}
+
+/* Local keeps the full chart in document flow, including below the two-column breakpoint. */
+@media (max-width: 940px) {
+  .local-replay-root .session-viewer-dashboard {
+    padding-bottom: 0;
+  }
+
+  .local-replay-root .session-viewer-dashboard .timeline-panel {
+    inset: auto;
+  }
+
+  .local-replay-root .session-viewer-dashboard .timeline-chart {
+    width: calc(100% + var(--timeline-chart-bleed) * 2);
+    margin-inline: calc(-1 * var(--timeline-chart-bleed));
+    height: 220px;
+  }
+
+  .local-replay-root .session-viewer-dashboard .timeline-axis-label,
+  .local-replay-root .session-viewer-dashboard .timeline-axis-title,
+  .local-replay-root .session-viewer-dashboard .timeline-grid-line text {
+    display: initial;
+  }
+
+  .local-replay-root .session-viewer-dashboard .timeline-legend {
+    display: flex;
+  }
+
+  .local-replay-root .session-viewer-dashboard .timeline-chart-topline {
+    flex-wrap: wrap;
+  }
+}
+
+/* Respond to the evidence panel width, including changes from resizing the device. */
+.local-replay-root .session-viewer-dashboard > .panel {
+  container-type: inline-size;
+  container-name: local-evidence;
+}
+
+.local-replay-root .session-viewer-dashboard .viewer-tabs {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+.local-replay-root .session-viewer-dashboard .viewer-tab {
+  flex-shrink: 0;
+}
+
+@container local-evidence (max-width: 860px) {
+  .local-replay-root .session-viewer-dashboard .viewer-tabs {
+    gap: 0;
+  }
+
+  .local-replay-root .session-viewer-dashboard .viewer-tab {
+    flex: 1 0 32px;
+    justify-content: center;
+    min-width: 32px;
+    min-height: 32px;
+    padding: 6px 8px;
+  }
+
+  .local-replay-root .session-viewer-dashboard .viewer-tab-label,
+  .local-replay-root .session-viewer-dashboard .viewer-tab-badge {
+    display: none;
+  }
+}
+
+.local-replay-root .annotation-comment-field { position: relative; }
+.local-replay-root .annotation-comment-field > label { font-size: 11px; font-weight: 600; }
+.local-replay-root .annotation-comment-field > label strong { color: var(--accent); }
+.local-replay-root .annotation-comment-field:has(.annotation-voice) textarea { padding-bottom: 42px; }
+.local-replay-root .annotation-voice-controls { position: relative; min-height: 28px; margin: -36px 8px 8px; display: flex; justify-content: flex-end; align-items: center; gap: 8px; color: var(--text-muted); font-size: 11px; }
+.local-replay-root .annotation-voice-controls button { display: grid; place-items: center; width: 28px; height: 28px; padding: 5px; border: 0; border-radius: 7px; background: transparent; color: inherit; }
+.local-replay-root .annotation-voice-controls button:hover:not(:disabled) { color: var(--accent); background: var(--surface-muted); }
+.local-replay-root .annotation-voice-controls svg { width: 16px; height: 16px; }
+.local-replay-root .annotation-voice p { margin: 4px 0 0; color: var(--danger); font-size: 11px; }
+
+.exploration-recording-controls {
+  position: relative;
+  justify-self: center;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 30px;
+  margin: 0;
+  font-size: 12px;
+}
+.exploration-recording-controls button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  box-shadow: none;
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: var(--surface-muted, #f3f3f0);
+  color: inherit;
+  cursor: pointer;
+}
+.exploration-recording-controls button:disabled { opacity: .45; cursor: default; }
+.exploration-recording-controls [role="status"] { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.exploration-recording-dot { width: 7px; height: 7px; border-radius: 50%; background: #ff453a; }
+.exploration-recording-controls small { opacity: .65; }
+.exploration-recording-controls p { flex-basis: 100%; margin: 0; font-size: 11px; }
+
+.local-replay-root .exploration-recording-controls .exploration-comments-button {
+  border-radius: 999px;
+  background: var(--accent, #ff4b23);
+  color: #fff;
+  padding: 6px 12px;
+  min-height: 28px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.annotation-recording-tracks { min-width: 0; display: grid; gap: 10px; }
+.annotation-tracks-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11px; }
+.annotation-tracks-toolbar label { display: flex; align-items: center; gap: 6px; }
+.annotation-tracks-toolbar select, .annotation-tracks-toolbar button, .annotation-recording-delivery-heading button { border: 0; border-radius: 7px; padding: 6px 8px; background: var(--surface, white); color: inherit; }
+.annotation-tracks-toolbar button:disabled { opacity: .45; }
+.annotation-tracks-zoom { display: flex; gap: 3px; }
+.annotation-tracks-send { margin-left: auto; display: inline-flex; gap: 6px; align-items: center; color: var(--accent) !important; }
+.annotation-tracks-scroll { overflow-x: auto; padding: 4px 0 10px; }
+.annotation-tracks-grid { display: grid; grid-template-columns: 76px minmax(0, 1fr); padding-right: 28px; box-sizing: border-box; }
+.annotation-track-row { display: contents; }
+.annotation-track-label { position: sticky; left: 0; z-index: 3; display: flex; align-items: center; gap: 5px; background: var(--rp-panel, #f3f3f0); font-size: 10px; padding-right: 6px; }
+.annotation-track-label svg { width: 13px; height: 13px; }
+.annotation-track-ruler { position: relative; height: 24px; font-size: 9px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.annotation-track-ruler span { position: absolute; transform: translateX(-50%); }
+.annotation-track-ruler span:first-child { transform: none; }
+.annotation-track-ruler span:last-child { transform: translateX(-100%); }
+.annotation-track-canvas { position: relative; min-width: 0; background: color-mix(in srgb, var(--surface, white) 65%, transparent); margin-bottom: 5px; border-radius: 6px; }
+.annotation-track-gridline { position: absolute; top: 0; bottom: 0; width: 1px; background: color-mix(in srgb, var(--text-muted) 12%, transparent); pointer-events: none; }
+.annotation-track-clip { position: absolute; min-width: 5px; height: 30px; padding: 4px 6px; border: 0; border-radius: 5px; background: #ffe0d7; color: #893b20; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; font-size: 11px; cursor: pointer; }
+.annotation-track-canvas--speech .annotation-track-clip { background: #dbeafd; color: #214e85; }
+.annotation-track-clip--selected { outline: 2px solid var(--accent); outline-offset: -2px; }
+.annotation-track-playhead { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--accent); z-index: 2; pointer-events: none; }
+.annotation-recording-delivery { padding: 12px; border-radius: 10px; background: var(--surface, white); }
+.annotation-recording-delivery-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; font-size: 12px; }

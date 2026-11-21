@@ -17,7 +17,7 @@ import {
   Table,
   WarningCircle,
   X,
-} from '@phosphor-icons/react'
+} from '../../icons'
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'

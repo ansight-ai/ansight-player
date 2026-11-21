@@ -1,4 +1,4 @@
-import { MapPin } from '@phosphor-icons/react'
+import { MapPin } from '../icons'
 import { useEffect, useRef, useState } from 'react'
 import type { DeviceLocationPoint } from './types'
 import { geoCoordinates, type ArtifactGeoData } from '../replay/components/artifactGeography'

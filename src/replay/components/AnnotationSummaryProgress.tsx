@@ -1,4 +1,4 @@
-import { Check, CheckCircle, Sparkle } from '@phosphor-icons/react'
+import { Check, CheckCircle, Sparkle } from '../../icons'
 import { agentReasoningModes, type AgentReasoning } from '../../agentReasoning'
 import type { SessionOperationProgress } from '../../local-replay/sessionOperationStream'
 

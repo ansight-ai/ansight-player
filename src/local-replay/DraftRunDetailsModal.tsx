@@ -1,5 +1,5 @@
 import { isAgentBatch } from './agentBatch'
-import { ChartBar, CircleNotch, Stop, X } from '@phosphor-icons/react'
+import { ChartBar, CircleNotch, Stop, X } from '../icons'
 import { useCallback, useLayoutEffect, useRef } from 'react'
 import type { LocalTestExecution, LocalTestExecutionProgress } from './types'
 

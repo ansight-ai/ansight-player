@@ -1,4 +1,4 @@
-import { ShieldCheck, X } from '@phosphor-icons/react'
+import { ShieldCheck, X } from '../icons'
 import { useRef, useState } from 'react'
 
 const dismissalKey = 'ansight.local-analytics-notice-dismissed'

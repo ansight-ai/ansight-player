@@ -1,4 +1,4 @@
-import { ArrowClockwise, Bug, ChartBar, CheckCircle, CircleNotch, Code, FloppyDisk, Info, Play, Robot, Stop, TestTube, Trash, WarningCircle, X, XCircle } from '@phosphor-icons/react'
+import { ArrowClockwise, Bug, ChartBar, CheckCircle, CircleNotch, Code, FloppyDisk, Info, Play, Robot, Stop, TestTube, Trash, WarningCircle, X, XCircle } from '../icons'
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { TaskExtractionTraceViewer } from './TaskExtractionTraceViewer'
 import { TaskDraftTestControls } from './TaskDraftTestControls'

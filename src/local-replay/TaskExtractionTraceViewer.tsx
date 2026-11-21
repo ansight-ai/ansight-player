@@ -1,4 +1,4 @@
-import { ChartBar, Coins, X } from '@phosphor-icons/react'
+import { ChartBar, Coins, X } from '../icons'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { LocalTaskExtractionModelPassTrace, LocalTaskExtractionToolCallTrace, LocalTaskExtractionTrace, LocalTaskExtractionTracePayload } from './types'
 

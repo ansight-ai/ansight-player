@@ -1,4 +1,4 @@
-import { MusicNotes, WarningCircle } from '@phosphor-icons/react'
+import { MusicNotes, WarningCircle } from '../../icons'
 import { useEffect, useRef, useState } from 'react'
 import './MediaFilePreview.css'
 

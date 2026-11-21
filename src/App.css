@@ -8623,10 +8623,10 @@ body.session-replay-resizing {
 }
 
 .session-viewer-dashboard .session-frame-annotation-draft {
-  fill: rgba(250, 68, 31, 0.2);
-  stroke: var(--accent);
-  stroke-width: 3;
-  stroke-dasharray: 5 4;
+  fill: rgba(250, 68, 31, 0.04);
+  stroke: rgba(250, 68, 31, 0.65);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
   vector-effect: non-scaling-stroke;
 }
 
@@ -8704,16 +8704,16 @@ body.session-replay-resizing {
 }
 
 .session-viewer-dashboard .session-frame-annotation-shape {
-  fill: rgba(250, 68, 31, 0.16);
-  stroke: rgba(250, 68, 31, 0.86);
-  stroke-width: 2;
+  fill: rgba(250, 68, 31, 0.04);
+  stroke: rgba(250, 68, 31, 0.65);
+  stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
 
 .session-viewer-dashboard .session-frame-annotation-shape--selected {
-  fill: rgba(34, 197, 94, 0.18);
-  stroke: #22c55e;
-  stroke-width: 3;
+  fill: rgba(34, 197, 94, 0.06);
+  stroke: rgba(34, 197, 94, 0.75);
+  stroke-width: 1;
 }
 
 .session-viewer-dashboard .live-log-list {
@@ -15675,3 +15675,44 @@ button.token-ledger-row {
 .connectivity-quality circle.connectivity-quality-point--good { fill: #368b79; }
 .connectivity-quality circle.connectivity-quality-point--moderate { fill: #b78a20; }
 .connectivity-quality circle.connectivity-quality-point--minimal { fill: #cb664c; }
+
+.annotation-editor-modal {
+  width: min(720px, calc(100vw - 32px));
+  padding: 16px 20px;
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+}
+.annotation-editor-modal .modal-heading { margin-bottom: 0; padding-bottom: 10px; }
+.annotation-editor-modal .modal-heading h2 { font-size: 19px; }
+.annotation-editor-heading-actions { display: flex; align-items: center; gap: 6px; }
+.annotation-editor-modal .annotation-editor-close { width: 28px; height: 28px; }
+.annotation-editor-body { grid-template-columns: minmax(0, 1fr) 150px; gap: 10px 16px; padding-top: 10px; }
+.annotation-editor-time { grid-column: 1; grid-row: 1; font-size: 10px; }
+.annotation-status-field { grid-column: 2; grid-row: 1; gap: 3px; font-size: 11px; }
+.annotation-comment-field, .annotation-editor-body > .annotation-summary, .annotation-editor-body > p:not(.annotation-editor-time) { grid-column: 1 / -1; }
+.annotation-comment-field > span { display: block; margin-bottom: 4px; font-size: 11px; }
+.annotation-comment-field textarea { min-height: 72px; height: clamp(72px, 13vh, 110px); resize: none; padding: 8px 10px; font-size: 12px; line-height: 1.4; }
+.annotation-status-field input { height: 30px; padding: 5px 8px; font-size: 12px; }
+.annotation-agent-delivery { border-top: 1px solid var(--border); padding: 10px 0 0; margin-top: 10px; }
+.annotation-agent-fields { display: grid; gap: 8px; }
+.annotation-agent-fields label { display: grid; gap: 3px; min-width: 0; font-size: 11px; font-weight: 600; }
+.annotation-agent-fields select, .annotation-agent-fields input { width: 100%; min-width: 0; height: 32px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); color: var(--text-primary); background: var(--surface-muted); font: inherit; font-size: 12px; font-weight: 400; }
+.annotation-agent-destination { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 12px; }
+.annotation-agent-chat-label { display: flex; justify-content: space-between; align-items: center; height: 16px; }
+.annotation-agent-refresh { display: inline-flex; align-items: center; justify-content: center; padding: 0; width: 20px; height: 18px; background: none; border: 0; color: var(--text-secondary); cursor: pointer; }
+.annotation-agent-refresh:disabled { opacity: .4; cursor: default; }
+.annotation-agent-controls { display: flex; flex-wrap: wrap; gap: 6px; }
+.annotation-agent-result { padding: 6px 8px; border-radius: 6px; background: var(--surface-muted); overflow-wrap: anywhere; font-size: 11px; }
+.annotation-agent-result p { margin: 3px 0; }
+.annotation-agent-fields .inline-message { margin: 0; font-size: 11px; }
+.annotation-editor-modal .annotation-editor-actions { margin-top: 10px; padding-top: 10px; }
+.annotation-editor-actions.annotation-editor-actions--right { justify-content: flex-end; gap: 8px; }
+.annotation-editor-modal .button { min-height: 30px; padding: 7px 12px; font-size: 10px; }
+.annotation-editor-modal .annotation-summary { padding: 8px; gap: 6px; }
+.annotation-editor-modal .annotation-summary-controls select { min-height: 30px; padding: 4px 8px; }
+@media (max-height: 650px) {
+  .annotation-editor-modal { padding: 12px 16px; }
+  .annotation-comment-field textarea { height: 64px; min-height: 64px; }
+  .annotation-editor-body { gap: 7px 12px; padding-top: 7px; }
+  .annotation-agent-delivery { margin-top: 7px; padding-top: 7px; }
+}

@@ -1,4 +1,4 @@
-import { CircleNotch, NotePencil, Robot } from '@phosphor-icons/react'
+import { CircleNotch, NotePencil, Robot } from '../icons'
 import type { SessionAnnotation } from '../replay/sessionViewerData'
 import type { LocalTaskExtraction } from './types'
 

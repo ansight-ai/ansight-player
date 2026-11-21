@@ -311,7 +311,7 @@
 .local-session-context-name .local-session-device-badge {
   padding: 2px 5px;
   background: var(--surface-muted);
-  border: 1px solid var(--border);
+  border: 0;
   border-radius: 5px;
 }
 
@@ -2461,6 +2461,17 @@ button.local-runner-status:hover {
 
 .local-session-card-meta:has(.session-ui-test-badge) { flex-wrap: wrap; }
 
+.local-session-live-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  pointer-events: none;
+}
+
 .local-live-badge {
   flex: none;
   gap: 4px;
@@ -2745,6 +2756,13 @@ button.local-runner-status:hover {
   padding-right: 20px;
 }
 
+.local-replay-root .local-simulator-control button,
+.local-replay-root .local-simulator-control select,
+.local-replay-root .local-simulator-control .local-live-view-toggle {
+  border: 0;
+  box-shadow: none;
+}
+
 .local-simulator-heading {
   display: flex;
   align-items: center;
@@ -2884,20 +2902,20 @@ button.local-runner-status:hover {
 
 .local-simulator-annotation-shape,
 .local-simulator-annotation-draft {
-  fill: rgba(250, 68, 31, 0.16);
-  stroke: #fa441f;
-  stroke-width: 3px;
+  fill: rgba(250, 68, 31, 0.04);
+  stroke: rgba(250, 68, 31, 0.65);
+  stroke-width: 1px;
 }
 
 .local-simulator-annotation-shape--selected {
-  fill: rgba(250, 68, 31, 0.22);
-  stroke: #fa441f;
-  stroke-width: 4px;
+  fill: rgba(250, 68, 31, 0.06);
+  stroke: rgba(250, 68, 31, 0.75);
+  stroke-width: 1px;
 }
 
 .local-simulator-annotation-draft {
-  fill: rgba(250, 68, 31, 0.18);
-  stroke-dasharray: 7 5;
+  fill: rgba(250, 68, 31, 0.04);
+  stroke-dasharray: 4 3;
 }
 
 .local-simulator-multitouch-overlay line {
@@ -2939,11 +2957,14 @@ button.local-runner-status:hover {
 .local-simulator-controls {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-columns: 34px;
+  justify-content: center;
   gap: 7px;
 }
 
 .local-simulator-controls button {
+  width: 34px;
+  height: 34px;
   padding: 0;
 }
 
@@ -2998,8 +3019,10 @@ button.local-runner-status:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  overflow-x: auto;
+  gap: 4px;
   min-height: 22px;
   margin: 0;
   color: var(--text-muted);
@@ -3013,7 +3036,7 @@ button.local-runner-status:hover {
   padding: 1px 4px;
   color: var(--text-secondary);
   background: var(--surface-muted);
-  border: 1px solid var(--border);
+  border: 0;
   border-bottom-color: var(--border-strong);
   border-radius: 4px;
   font: inherit;
@@ -3053,11 +3076,11 @@ button.local-runner-status:hover {
 }
 
 .local-replay-root .session-viewer-dashboard {
-  --session-replay-panel-effective-width: min(var(--session-replay-panel-width, 384px), calc(100vw - var(--local-explorer-width) - 620px));
+  --session-replay-panel-effective-width: max(300px, min(var(--session-replay-panel-width, 384px), calc(100vw - var(--local-explorer-width) - 620px)));
 }
 
 .local-replay-root--collapsed .session-viewer-dashboard {
-  --session-replay-panel-effective-width: min(var(--session-replay-panel-width, 384px), calc(100vw - 620px));
+  --session-replay-panel-effective-width: max(300px, min(var(--session-replay-panel-width, 384px), calc(100vw - 620px)));
 }
 
 .local-replay-root .session-viewer-dashboard .session-heading-row,

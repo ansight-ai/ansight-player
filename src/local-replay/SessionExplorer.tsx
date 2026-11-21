@@ -1,4 +1,4 @@
-import { CircleNotch, Clock, Funnel, MagnifyingGlass, MonitorPlay, PushPin, Trash } from '@phosphor-icons/react'
+import { CircleNotch, Clock, Funnel, MagnifyingGlass, MonitorPlay, PushPin, Trash } from '../icons'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { SessionFilterModal } from './SessionFilterModal'
@@ -268,7 +268,7 @@ export function SessionExplorer({
                           <span className="local-session-card-title">
                             <strong title={sessionTitle}>{sessionTitle}</strong>
                             {session.isConnected && hostReachable ? (
-                              <span className="local-live-badge"><i />Live</span>
+                              <span className="local-session-live-dot" role="img" aria-label="Live" title="Live" />
                             ) : session.isConnected ? <span>Connection unknown</span>
                               : /connecting|awaiting|paired|websocket open|^connected$/i.test(session.status) ? <span>Connecting…</span> : null}
                           </span>

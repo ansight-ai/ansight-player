@@ -1,4 +1,4 @@
-import { CircleNotch, Info, X } from '@phosphor-icons/react'
+import { CircleNotch, Info, X } from '../icons'
 import { useEffect, useState } from 'react'
 import type { LocalHostHealth } from './types'
 

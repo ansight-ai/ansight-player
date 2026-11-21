@@ -1,4 +1,4 @@
-import { CircleNotch, MagnifyingGlass, Pulse, X } from '@phosphor-icons/react'
+import { CircleNotch, MagnifyingGlass, Pulse, X } from '../icons'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import type { LocalRegisteredApp } from './types'
 

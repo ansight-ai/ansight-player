@@ -1,4 +1,4 @@
-import { ArrowClockwise, CheckCircle, CircleNotch, FileText, Pulse, WarningCircle, X, XCircle } from '@phosphor-icons/react'
+import { ArrowClockwise, CheckCircle, CircleNotch, FileText, Pulse, WarningCircle, X, XCircle } from '../icons'
 import { useCallback, useEffect, useState } from 'react'
 import type { LocalHostHealth, LocalHostLogFile } from './types'
 

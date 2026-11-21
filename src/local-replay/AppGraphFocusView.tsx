@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowRight } from '@phosphor-icons/react'
+import { ArrowDown, ArrowRight } from '../icons'
 import type { AppGraphDefinition, AppGraphEdge } from '../types'
 import { readAppGraphFocus } from '../replay/appGraphFocus'
 import type { AppGraphConnection } from '../replay/appGraphFocus'

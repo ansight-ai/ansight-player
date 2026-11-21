@@ -1,5 +1,5 @@
 import { useEffect, useState, type ComponentType } from 'react'
-import { CircleNotch, X } from '@phosphor-icons/react'
+import { CircleNotch, X } from '../icons'
 import { loadOptionalPlayerFeature } from './loadOptionalPlayerFeature'
 
 export function OptionalPlayerPanel({ component, panelProps }: {

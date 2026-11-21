@@ -1,4 +1,4 @@
-import { CheckCircle, CircleNotch, MinusCircle, TestTube, XCircle } from '@phosphor-icons/react'
+import { CheckCircle, CircleNotch, MinusCircle, TestTube, XCircle } from '../../icons'
 import type { SessionUiTest } from '../sessionUiTest'
 import './SessionUiTestBadge.css'
 

@@ -1,4 +1,4 @@
-import { CircleNotch, WifiHigh, X } from '@phosphor-icons/react'
+import { CircleNotch, WifiHigh, X } from '../icons'
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { networkPorts, networkPresets, networkProfilePreset, networkRateFromSlider, networkRateSliderPosition, networkRequest, type NetworkCapabilities, type NetworkLease, type NetworkProfile } from './networkConditioning'
 

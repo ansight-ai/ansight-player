@@ -1,3 +1,4 @@
+import { localAnnotationAgents } from './annotationAgentDelivery'
 import { recordingFile } from '../replay/sessionRecordings'
 import { artifactTimelineHref } from './artifactLinks'
 import { summariseLocalAnnotation } from './annotationSummary'
@@ -47,6 +48,7 @@ const artifactComparison: ArtifactComparisonSource = {
 
 export const localReplaySource: SessionViewerSource = {
   mode: 'local',
+  annotationAgents: localAnnotationAgents,
   activity: {
     load: async (sessionId, cursor) => {
       const query = new URLSearchParams({ limit: '200' })

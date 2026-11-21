@@ -1,4 +1,4 @@
-import { ArrowSquareOut, WarningCircle } from '@phosphor-icons/react'
+import { ArrowSquareOut, WarningCircle } from '../../icons'
 
 export function AiOperationMessage({ message, role }: { message: string; role?: 'alert' | 'status' }) {
   const allowanceReached = /no AI billing allowance remaining|no (?:billable AI credit|AI tokens) remaining|insufficient available AI credits/i.test(message)

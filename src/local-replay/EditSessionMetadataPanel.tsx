@@ -1,4 +1,4 @@
-import { CircleNotch, FloppyDisk, X } from '@phosphor-icons/react'
+import { CircleNotch, FloppyDisk, X } from '../icons'
 import { useEffect, useState, type FormEvent } from 'react'
 import type { LocalOperationResult } from './types'
 

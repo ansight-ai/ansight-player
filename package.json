@@ -11,12 +11,12 @@
     "prepack": "node scripts/check-package.mjs",
     "build:library": "tsc -b && node scripts/clean-library.mjs && tsc -p tsconfig.library.json && node scripts/finalize-library.mjs",
     "build:local": "vite build --config vite.config.ts && node scripts/build-chat-replay.mjs && node scripts/stamp-local.mjs",
-    "test:chat-replay": "node --test tests/chat-replay.test.mts"
+    "test:chat-replay": "node --test tests/chat-replay.test.mts",
+    "generate:icons": "node scripts/generate-framework7-icons.mjs"
   },
   "dependencies": {
     "@fontsource/jetbrains-mono": "^5.3.0",
     "@fontsource/outfit": "^5.3.0",
-    "@phosphor-icons/react": "^2.1.10",
     "fflate": "0.8.3",
     "mermaid": "^11.15.0",
     "monaco-editor": "^0.56.0",
@@ -44,7 +44,8 @@
     "react-dom": "^19.2.5",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.2",
-    "vite": "^8.0.10"
+    "vite": "^8.0.10",
+    "framework7-icons": "5.0.5"
   },
   "license": "SEE LICENSE IN LICENSE",
   "description": "Shared Ansight session player and account-free local host UI",
@@ -55,7 +56,8 @@
     "scripts/verify-build.mjs",
     "LICENSE",
     "NOTICE",
-    "README.md"
+    "README.md",
+    "FRAMEWORK7-ICONS-LICENSE"
   ],
   "exports": {
     ".": {

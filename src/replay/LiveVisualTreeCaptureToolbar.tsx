@@ -1,4 +1,4 @@
-import { ArrowClockwise, CircleNotch, TreeStructure, WarningCircle } from '@phosphor-icons/react'
+import { ArrowClockwise, CircleNotch, TreeStructure, WarningCircle } from '../icons'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 export type LiveVisualTreeSource = { toolId: string; label: string }
@@ -20,6 +20,7 @@ export function LiveVisualTreeCaptureToolbar({ sessionId, loadSources, capture }
   const refresh = useCallback(async () => {
     if (refreshing.current || capturing.current) return
     refreshing.current = true
+    setLoading(true)
     try {
       const next = await loadSources(sessionId)
       if (!mounted.current) return
@@ -67,11 +68,11 @@ export function LiveVisualTreeCaptureToolbar({ sessionId, loadSources, capture }
   const captureLabel = pending ? `Capturing ${label}` : `Capture ${label}`
   return (
     <div className="session-replay-capture-toolbar">
+      <div className="session-replay-capture-actions">
       <select
         aria-label="Visual tree to capture"
-        disabled={pending}
+        disabled={pending || sources.length === 0}
         onChange={(event) => setSelectedToolId(event.target.value)}
-        onFocus={() => { setLoading(true); void refresh() }}
         title="Choose which visual tree to capture from the live app"
         value={selectedToolId}
       >
@@ -80,16 +81,18 @@ export function LiveVisualTreeCaptureToolbar({ sessionId, loadSources, capture }
       </select>
       <button
         aria-label={captureLabel}
-        className="session-replay-capture-button"
-        disabled={pending || loading || !selectedToolId}
+        className="session-replay-capture-button session-replay-capture-button--labelled"
+        disabled={pending || !selectedToolId}
         onClick={() => void handleCapture()}
         title={captureLabel}
         type="button"
       >
         {pending ? <CircleNotch className="spin" aria-hidden="true" /> : <TreeStructure aria-hidden="true" />}
+        <span>{pending ? 'Capturing…' : 'Capture'}</span>
       </button>
+      </div>
       {!loading && sources.length === 0 ? (
-        <button aria-label="Reload available visual trees" className="session-replay-capture-button" onClick={() => { setLoading(true); void refresh() }} title="Reload available visual trees" type="button">
+        <button aria-label="Reload available visual trees" className="session-replay-capture-button" onClick={() => void refresh()} title="Reload available visual trees" type="button">
           <ArrowClockwise aria-hidden="true" />
         </button>
       ) : null}

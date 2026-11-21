@@ -1,4 +1,4 @@
-import { ArrowRight, Check, CheckCircle, Copy, DeviceMobile, Play, Robot, VideoCamera, X } from '@phosphor-icons/react'
+import { ArrowRight, Check, CheckCircle, Copy, DeviceMobile, Play, Robot, VideoCamera, X } from '../icons'
 import { useState } from 'react'
 import type { LocalGettingStartedState, LocalSessionSummary } from './types'
 

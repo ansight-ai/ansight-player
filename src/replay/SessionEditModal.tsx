@@ -1,4 +1,4 @@
-import { Check, CircleNotch, X } from '@phosphor-icons/react'
+import { Check, CircleNotch, X } from '../icons'
 import type { FormEvent } from 'react'
 import { useState } from 'react'
 import type { TeamSession } from '../types'

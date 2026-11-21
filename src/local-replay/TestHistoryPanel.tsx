@@ -33,7 +33,7 @@ import {
   WarningCircle,
   X,
   XCircle,
-} from '@phosphor-icons/react'
+} from '../icons'
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { readTaskAssertionTrace, readTaskCallTrace, taskCallPayloadPreview } from './taskCallTrace'
 import type { TaskAssertionTrace, TaskCallTrace } from './taskCallTrace'

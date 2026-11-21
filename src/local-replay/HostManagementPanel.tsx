@@ -16,7 +16,7 @@ import {
   Trash,
   WarningCircle,
   X,
-} from '@phosphor-icons/react'
+} from '../icons'
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { AppMonitoringPanel } from './AppMonitoringPanel'
 import type {

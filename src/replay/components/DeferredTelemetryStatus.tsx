@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { CircleNotch, Record, WarningCircle } from '@phosphor-icons/react'
+import { CircleNotch, Record, WarningCircle } from '../../icons'
 import type { DeferredTelemetryReport } from '../deferredTelemetry'
 
 export function DeferredTelemetryStatus({ report }: { report: DeferredTelemetryReport | null }) {

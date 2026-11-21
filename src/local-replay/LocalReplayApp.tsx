@@ -1,6 +1,6 @@
 import { readSessionTimelineLink, sessionTimelineHref, type SessionTimelineLink } from './sessionLinks'
 import { observeLocalActivity } from './usage'
-import { ArrowClockwise, Check, Copy, DownloadSimple, Archive, CaretDown, ChartLineUp, CircleNotch, CloudArrowUp, DeviceMobile, FlowArrow, Gear, HardDrives, Info, Link, NotePencil, PlugsConnected, Pulse, QrCode, SidebarSimple, Sparkle, SquaresFour, TestTube, Trash, UserCircle, VideoCamera, WifiHigh, X } from '@phosphor-icons/react'
+import { ArrowClockwise, Check, Copy, DownloadSimple, Archive, CaretDown, ChartLineUp, CircleNotch, CloudArrowUp, DeviceMobile, FlowArrow, Gear, HardDrives, Info, Link, NotePencil, PlugsConnected, Pulse, QrCode, SidebarSimple, Sparkle, SquaresFour, TestTube, Trash, UserCircle, VideoCamera, WifiHigh, X } from '../icons'
 import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type SetStateAction } from 'react'
 import { SessionIcon } from './SessionIcon'
 import { SessionDeviceBadge } from './SessionDeviceBadge'
@@ -571,7 +571,7 @@ export function LocalReplayApp() {
     const platform = selectedSession.runtimePlatform
     const sessionId = selectedSession.sessionId
     const appName = selectedSession.name || selectedSession.clientName || selectedSession.appId
-    return ({ annotations, captureToolbar, deviceFrame, frame, isAnnotationEditorOpen, onCreateAnnotation, onCaptureAnnotationVisualTree, playbackContent, replayViewControls, selectedAnnotationId }: SessionReplayPanelContext) => (
+    return ({ annotations, captureToolbar, deviceFrame, frame, isAnnotationEditorOpen, onCreateAnnotation, onCaptureAnnotationVisualTree, onRecordAnnotation, playbackContent, replayViewControls, selectedAnnotationId }: SessionReplayPanelContext) => (
       <SimulatorControlView
         annotations={annotations}
         captureToolbar={captureToolbar}
@@ -582,6 +582,7 @@ export function LocalReplayApp() {
         isPlayback={liveViewMode === 'playback'}
         key={sessionId}
         onCreateAnnotation={onCreateAnnotation}
+        onRecordAnnotation={onRecordAnnotation}
         onCaptureAnnotationVisualTree={onCaptureAnnotationVisualTree}
         onOpenDeviceLocation={bootstrap?.supportsDeviceLocation ? openDeviceLocation : undefined}
         onOpenDeviceNetwork={() => setNetworkTarget(current => current ? { ...current, isOpen: true } : { sessionId, appName, isOpen: true })}

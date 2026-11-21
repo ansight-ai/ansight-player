@@ -6,7 +6,7 @@ import {
   WarningCircle,
   X,
   XCircle,
-} from '@phosphor-icons/react'
+} from '../icons'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AppGraphDefinition, AppGraphRunStepStatus } from '../types'
 import { createCompoundCanvasLayout } from '../replay/appGraphLayout'

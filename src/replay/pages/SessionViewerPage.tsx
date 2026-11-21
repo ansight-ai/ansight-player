@@ -1,3 +1,7 @@
+import { AnnotationRecordingTracks } from '../../local-replay/AnnotationRecordingTracks'
+import { VoiceAnnotationButton } from '../../local-replay/VoiceAnnotationButton'
+import { AnnotationAgentDeliveryPanel } from '../../local-replay/AnnotationAgentDeliveryPanel'
+import type { AnnotationAgentSource, AnnotationAgentRequest, AnnotationAgentDelivery } from '../../local-replay/annotationAgentDelivery'
 import { SessionRecordingSurface } from '../components/SessionRecordingSurface'
 import { completedTestRecordingEndMs, selectRecordingForVisualTree } from '../sessionRecordings'
 import type { SessionActivitySource } from '../sessionActivity'
@@ -58,6 +62,7 @@ import {
   Robot,
   Scissors,
   GlobeSimple,
+  WifiHigh,
   Sparkle,
   Stack,
   Tag,
@@ -68,7 +73,7 @@ import {
   WarningCircle,
   Wrench,
   X,
-} from '@phosphor-icons/react'
+} from '../../icons'
 import { SdkCapabilityNotice, SdkTouchCaptureNotice, type SdkCapabilityFeature } from '../components/SdkCapabilityNotice'
 import type { CSSProperties, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent, ReactNode, Ref, RefObject } from 'react'
 import { memo, startTransition, useCallback, useEffect, useEffectEvent, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -388,6 +393,7 @@ export type SessionViewerSource = {
   loadLiveVisualTreeSources?: (sessionId: string) => Promise<LiveVisualTreeSource[]>
   captureLiveVisualTree?: (sessionId: string, toolId: string) => Promise<string>
   captureAnnotationVisualTree?: (sessionId: string) => Promise<AnnotationVisualTreeCaptureResult>
+  annotationAgents?: AnnotationAgentSource
   upsertAnnotation?: (sessionId: string, annotation: SessionAnnotation) => Promise<string>
   deleteAnnotation?: (sessionId: string, annotationId: string) => Promise<string>
   extractTimelineRange?: (
@@ -551,6 +557,7 @@ export type SessionReplayPanelContext = {
   onCreateAnnotation?: (geometry: ScreenshotAnnotationGeometryDraft, capture?: ScreenshotAnnotationCapture) => void
   onCaptureAnnotationVisualTree?: () => Promise<AnnotationVisualTreeCaptureResult>
   selectedAnnotationId: string | null
+  onRecordAnnotation?: (annotation: SessionAnnotation) => Promise<void>
 }
 
 type SessionFrameImageContentBounds = {
@@ -568,7 +575,7 @@ const timelineChartHeight = 220
 const timelineChartHorizontalBleed = 12
 // Equal side margins keep the plot centred; 72px fits the widest memory label on the right.
 const timelinePlot: TimelinePlot = { left: 72, top: 12, right: 72, bottom: 30 }
-const timelineCompactPlot: TimelinePlot = { left: 8, top: 10, right: 8, bottom: 18 }
+const timelineCompactPlot: TimelinePlot = { left: 60, top: 16, right: 60, bottom: 26 }
 const timelineLifecycleBarHeight = 14
 const timelineChartValuePadding = 12
 const timelineAnnotationLaneBottomInset = 4
@@ -2841,6 +2848,13 @@ export function SessionViewerPage({
         onCaptureAnnotationVisualTree: isLiveSession && source.captureAnnotationVisualTree
           ? () => source.captureAnnotationVisualTree!(sessionId)
           : undefined,
+        onRecordAnnotation: isLiveSession && source.upsertAnnotation ? async (annotation) => {
+          await source.upsertAnnotation!(sessionId, annotation)
+          const nextPayload = await reloadAnnotationPayload()
+          if (activeSessionIdRef.current === sessionId) {
+            setPayload(nextPayload)
+          }
+        } : undefined,
         selectedAnnotationId: resolvedSelectedAnnotationId,
       })
     : replayPanelOverride
@@ -3035,7 +3049,7 @@ export function SessionViewerPage({
         <div className="viewer-tabs" role="tablist" aria-label="Session sections">
           <TabButton activeTab={effectiveActiveTab} badge={allLogs.length} icon={<ListBullets aria-hidden="true" />} label="Logs" tab="live-log" onSelect={selectUsageTab} />
           <TabButton activeTab={effectiveActiveTab} icon={<ChartLine aria-hidden="true" />} label="Telemetry" tab="telemetry" onSelect={selectUsageTab} />
-          <TabButton activeTab={effectiveActiveTab} icon={<GlobeSimple aria-hidden="true" />} label="Connectivity" tab="connectivity" onSelect={selectUsageTab} />
+          <TabButton activeTab={effectiveActiveTab} icon={<WifiHigh aria-hidden="true" />} label="Connectivity" tab="connectivity" onSelect={selectUsageTab} />
           <TabButton activeTab={effectiveActiveTab} badge={networkRequests.length} icon={<GlobeSimple aria-hidden="true" />} label="Network" tab="network" onSelect={selectUsageTab} />
           {annotations.length > 0 ? <TabButton activeTab={effectiveActiveTab} badge={annotations.length} icon={<NotePencil aria-hidden="true" />} label="Annotations" tab="annotations" onSelect={selectUsageTab} /> : null}
           <TabButton activeTab={effectiveActiveTab} badge={visualTrees.length} icon={<TreeStructure aria-hidden="true" />} label="Visual tree" tab="visual-tree" onSelect={selectUsageTab} />
@@ -3169,6 +3183,7 @@ export function SessionViewerPage({
         ) : null}
         {effectiveActiveTab === 'annotations' ? (
           <AnnotationsSection
+            annotationAgents={source.annotationAgents}
             annotations={annotations}
             canEdit={!!source.upsertAnnotation}
             isSubmitting={isAnnotationSubmitting}
@@ -3254,6 +3269,22 @@ export function SessionViewerPage({
         <AnnotationEditorModal
           key={`${sessionId}:${annotationEditorDraft.annotation.annotationId}`}
           draft={annotationEditorDraft}
+          sessionId={sessionId}
+          annotationAgents={source.annotationAgents}
+          onSend={source.annotationAgents && source.upsertAnnotation ? async (annotation, request) => {
+            await source.upsertAnnotation!(sessionId, annotation)
+            const result = await source.annotationAgents!.send(sessionId, request)
+            const nextPayload = await reloadAnnotationPayload()
+            if (activeSessionIdRef.current === sessionId) {
+              setPayload(nextPayload)
+              onAnnotationSaved?.(annotation)
+              if (result.isSuccess && ['starting', 'queued', 'accepted', 'steered', 'running', 'ready_for_review'].includes(result.status)) {
+                setAnnotationEditorDraft(null)
+                setSessionActionMessage({ kind: 'success', message: result.message })
+              }
+            }
+            return result
+          } : undefined}
           isSubmitting={isAnnotationSubmitting}
           onClose={() => setAnnotationEditorDraft(null)}
           onDelete={source.deleteAnnotation && annotationIds.includes(annotationEditorDraft.annotation.annotationId ?? '')
@@ -5379,7 +5410,7 @@ function SessionTimelineChart({
   }
 
   return (
-    <div className="timeline-chart-shell" ref={chartShellRef}>
+    <div className="timeline-chart-shell" ref={chartShellRef} style={{ '--timeline-chart-bleed': plot === timelineCompactPlot ? '0px' : `${timelineChartHorizontalBleed}px` } as CSSProperties}>
       <div className="timeline-chart-topline">
         <div className="timeline-legend" aria-label="Timeline legend">
           <TimelineMetricGroups
@@ -6861,7 +6892,7 @@ function TabButton({
 }) {
   const isActive = activeTab === tab
   return (
-    <button aria-selected={isActive} className={isActive ? 'viewer-tab viewer-tab--active' : 'viewer-tab'} onClick={() => onSelect(tab)} role="tab" type="button">
+    <button aria-label={typeof badge === 'number' ? `${label} ${badge}` : label} title={typeof badge === 'number' ? `${label} (${badge})` : label} aria-selected={isActive} className={isActive ? 'viewer-tab viewer-tab--active' : 'viewer-tab'} onClick={() => onSelect(tab)} role="tab" type="button">
       {icon}
       <span className="viewer-tab-label">{label}</span>
       {typeof badge === 'number' ? <span className="viewer-tab-badge">{badge}</span> : null}
@@ -8040,6 +8071,7 @@ function AiRunProgress({ run }: { run: SessionAiExtractionSummary }) {
 
 function AnnotationsSection({
   annotations,
+  annotationAgents,
   canEdit,
   isSubmitting,
   onDeleteAnnotation,
@@ -8049,6 +8081,7 @@ function AnnotationsSection({
   selectedAnnotationId,
   sessionId,
 }: {
+  annotationAgents?: AnnotationAgentSource
   annotations: SessionAnnotation[]
   canEdit: boolean
   isSubmitting: boolean
@@ -8068,7 +8101,7 @@ function AnnotationsSection({
 
   return (
     <div className="annotations-panel">
-      <div className="annotation-card-strip" role="listbox" aria-label="Annotations">
+      {annotations.some(annotation => ['localPortal.exploration', 'companion.exploration'].includes(annotation.source ?? '')) ? <AnnotationRecordingTracks annotations={annotations} selectedId={selectedAnnotation?.id ?? null} sessionId={sessionId} source={annotationAgents} onSelect={onSelectAnnotation} /> : <div className="annotation-card-strip" role="listbox" aria-label="Annotations">
         {annotationViews.map((annotation) => {
           const isSelected = annotation.id === selectedAnnotation?.id
           return (
@@ -8092,7 +8125,7 @@ function AnnotationsSection({
             </button>
           )
         })}
-      </div>
+      </div>}
 
       {selectedAnnotation ? (
         <article className="annotation-detail-card">
@@ -8153,6 +8186,9 @@ function AnnotationsSection({
 }
 
 function AnnotationEditorModal({
+  sessionId,
+  annotationAgents,
+  onSend,
   draft,
   isSubmitting,
   onClose,
@@ -8160,6 +8196,9 @@ function AnnotationEditorModal({
   onSave,
   onSummarise,
 }: {
+  sessionId: string
+  annotationAgents?: AnnotationAgentSource
+  onSend?: (annotation: SessionAnnotation, request: AnnotationAgentRequest) => Promise<AnnotationAgentDelivery>
   draft: AnnotationEditorDraft
   isSubmitting: boolean
   onClose: () => void
@@ -8168,13 +8207,16 @@ function AnnotationEditorModal({
   onSummarise?: (options: AnnotationSummaryOptions, onProgress: (progress: SessionOperationProgress) => void) => Promise<string>
 }) {
   const [comment, setComment] = useState(() => buildAnnotationComment(draft.annotation))
+  const commentRef = useRef<HTMLTextAreaElement>(null)
+  const [isDictating, setIsDictating] = useState(false)
   const [status, setStatus] = useState(draft.annotation.status ?? '')
   const [reasoning, setReasoning] = useState<AgentReasoning>(defaultAgentReasoning)
   const [isSummarising, setIsSummarising] = useState(false)
   const [summaryProgress, setSummaryProgress] = useState<SessionOperationProgress | null>(null)
   const [summaryError, setSummaryError] = useState<string | null>(null)
   const [summaryElapsedSeconds, setSummaryElapsedSeconds] = useState(0)
-  const isBusy = isSubmitting || isSummarising
+  const [isSending, setIsSending] = useState(false)
+  const isBusy = isSubmitting || isSummarising || isSending || isDictating
   const normalizedComment = normalizeAnnotationComment(comment)
   const cannotSave = isBusy
     || !!draft.visualTreeCapturePending
@@ -8214,19 +8256,24 @@ function AnnotationEditorModal({
       return
     }
 
+    onSave(buildUpdatedAnnotation())
+  }
+
+  function buildUpdatedAnnotation(): SessionAnnotation {
+    if (!normalizedComment) throw new Error("Add a comment before sending.")
     const lineBreakIndex = normalizedComment.indexOf('\n')
     const label = (lineBreakIndex < 0 ? normalizedComment : normalizedComment.slice(0, lineBreakIndex)).trim()
     const notes = lineBreakIndex < 0 ? null : normalizeAnnotationComment(normalizedComment.slice(lineBreakIndex + 1))
     const customData = { ...(draft.annotation.customData ?? {}) }
     delete customData['ansight.agentAction']
-    onSave({
+    return {
       ...draft.annotation,
       label,
       notes,
       status: status.trim() || null,
       source: draft.annotation.source || 'localPortal',
       customData: Object.keys(customData).length > 0 ? customData : null,
-    })
+    }
   }
 
   const startMs = toTimestamp(draft.annotation.startUtc)
@@ -8243,9 +8290,12 @@ function AnnotationEditorModal({
       <form className="session-info-modal annotation-editor-modal" onMouseDown={(event) => event.stopPropagation()} onSubmit={handleSubmit}>
         <div className="modal-heading">
           <h2>{draft.annotation.label?.trim() ? 'Edit annotation' : 'Add annotation'}</h2>
+          <div className="annotation-editor-heading-actions">
+          {onDelete && draft.annotation.annotationId && <button aria-label="Delete annotation" className="annotation-editor-close" disabled={isBusy} onClick={() => onDelete(draft.annotation.annotationId!)} type="button"><Trash aria-hidden="true" /></button>}
           <button aria-label="Close annotation editor" className="annotation-editor-close" disabled={isBusy} onClick={onClose} type="button">
             <X aria-hidden="true" />
           </button>
+          </div>
         </div>
 
         <div className="annotation-editor-body">
@@ -8268,15 +8318,17 @@ function AnnotationEditorModal({
                   {isSummarising ? 'Summarising…' : 'Summarise section'}
                 </button>
               </div>
-              <p className="muted">Use the selected time range to generate a summary. This replaces the comment below.</p>
               {summaryProgress ? <AnnotationSummaryProgress progress={summaryProgress} elapsedSeconds={summaryElapsedSeconds} reasoning={reasoning} isRunning={isSummarising} /> : null}
               {summaryError ? <AiOperationMessage message={summaryError} role="alert" /> : null}
             </div>
           ) : null}
-          <label className="annotation-comment-field">
-            <span>Comment <strong>required</strong></span>
+          <div className="annotation-comment-field">
+            <label htmlFor="annotation-comment">Comment <strong aria-hidden="true">*</strong></label>
             <textarea
+              ref={commentRef}
+              id="annotation-comment"
               autoFocus
+              aria-required="true"
               aria-keyshortcuts="Meta+Enter"
               disabled={isBusy}
               onChange={(event) => setComment(event.target.value)}
@@ -8289,10 +8341,22 @@ function AnnotationEditorModal({
                 event.currentTarget.form?.requestSubmit()
               }}
               placeholder="Describe the issue…"
-              rows={7}
+              rows={3}
               value={comment}
             />
-          </label>
+            {annotationAgents?.transcribe ? <VoiceAnnotationButton
+              source={annotationAgents}
+              sessionId={sessionId}
+              textareaRef={commentRef}
+              disabled={isSubmitting || isSummarising || isSending}
+              onBusyChange={setIsDictating}
+              onTranscript={(text, start, end) => setComment(current => {
+                const before = current.slice(0, start)
+                const after = current.slice(end)
+                return `${before}${before && !/\s$/.test(before) ? ' ' : ''}${text}${after && !/^\s/.test(after) ? ' ' : ''}${after}`
+              })}
+            /> : null}
+          </div>
           <label className="annotation-status-field">
             <span>Status</span>
             <input
@@ -8305,21 +8369,19 @@ function AnnotationEditorModal({
           </label>
         </div>
 
-        <div className="annotation-editor-actions">
-          {onDelete && draft.annotation.annotationId ? (
-            <button className="button button--danger" disabled={isBusy} onClick={() => onDelete(draft.annotation.annotationId!)} type="button">
-              <Trash aria-hidden="true" />
-              Delete
-            </button>
-          ) : <span />}
-          <div>
-            <button className="button button--secondary" disabled={isBusy} onClick={onClose} type="button">Cancel</button>
-            <button className="button button--primary" disabled={cannotSave} type="submit">
-              {isSubmitting ? <CircleNotch className="spin" aria-hidden="true" /> : <Check aria-hidden="true" />}
-              Save annotation
-            </button>
-          </div>
-        </div>
+        {annotationAgents && onSend && draft.annotation.annotationId ? <AnnotationAgentDeliveryPanel
+          sessionId={sessionId}
+          annotationId={draft.annotation.annotationId}
+          source={annotationAgents}
+          disabled={cannotSave}
+          onBusyChange={setIsSending}
+          onSend={request => onSend(buildUpdatedAnnotation(), request)}
+        /> : <div className="annotation-editor-actions annotation-editor-actions--right">
+          <button className="button button--primary" disabled={cannotSave} type="submit">
+            {isSubmitting ? <CircleNotch className="spin" aria-hidden="true" /> : <Check aria-hidden="true" />}
+            Save
+          </button>
+        </div>}
       </form>
     </div>
   )

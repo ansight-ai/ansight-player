@@ -1,4 +1,4 @@
-import { CircleNotch, Key } from '@phosphor-icons/react'
+import { CircleNotch, Key } from '../icons'
 import { useEffect, useState, type FormEvent } from 'react'
 
 export function RunnerOpenAiSettings() {

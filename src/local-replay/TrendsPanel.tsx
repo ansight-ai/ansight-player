@@ -1,4 +1,4 @@
-import { AppWindow, ArrowClockwise, ArrowSquareOut, CaretRight, ChartLineUp, CircleNotch, MagnifyingGlass, MonitorPlay, X } from '@phosphor-icons/react'
+import { AppWindow, ArrowClockwise, ArrowSquareOut, CaretRight, ChartLineUp, CircleNotch, MagnifyingGlass, MonitorPlay, X } from '../icons'
 import { useEffect, useMemo, useState } from 'react'
 import type {
   LocalTrendsHistory,

@@ -1,4 +1,4 @@
-import { AndroidLogo, AppleLogo, AppWindow, ArrowClockwise, CircleNotch, DeviceMobile, DownloadSimple, MagnifyingGlass, Play, Power, Stop, X } from '@phosphor-icons/react'
+import { AndroidLogo, AppleLogo, AppWindow, ArrowClockwise, CircleNotch, DeviceMobile, DownloadSimple, MagnifyingGlass, Play, Power, Stop, X } from '../icons'
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import type { LocalDevice, LocalDeviceInventory, LocalInstalledApplication, LocalOperationResult } from './types'
 import './DeviceManagementPanel.css'

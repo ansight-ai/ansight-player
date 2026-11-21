@@ -1,4 +1,4 @@
-import { ArrowSquareOut, Info } from '@phosphor-icons/react'
+import { ArrowSquareOut, Info } from '../../icons'
 import './SdkCapabilityNotice.css'
 
 export const sdkSetupUrl = 'https://www.ansight.ai/docs/sdk/'

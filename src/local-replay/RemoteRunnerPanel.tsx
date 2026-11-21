@@ -1,6 +1,6 @@
 import { OptionalPlayerPanel } from './OptionalPlayerPanel'
 import { RunnerOpenAiSettings } from './RunnerOpenAiSettings'
-import { X } from '@phosphor-icons/react'
+import { X } from '../icons'
 import type { LocalRemoteRunnerRegistration, LocalRemoteRunnerStatus } from './types'
 
 export function RemoteRunnerPanel(props: { canManage: boolean; supportsCloud?: boolean; onClose: () => void; onOpenAccount: () => void; registration: LocalRemoteRunnerRegistration | null; status: LocalRemoteRunnerStatus | null }) {

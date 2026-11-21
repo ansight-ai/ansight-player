@@ -1,4 +1,4 @@
-import { CircleNotch, MapPin, Play, Stop, UploadSimple, X } from '@phosphor-icons/react'
+import { CircleNotch, MapPin, Play, Stop, UploadSimple, X } from '../icons'
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { DeviceLocationMap } from './DeviceLocationMap'
 import type {

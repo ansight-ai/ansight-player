@@ -1,4 +1,3 @@
-import { IconContext } from '@phosphor-icons/react'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import '@fontsource/outfit/latin-400.css'
@@ -17,8 +16,6 @@ import { LocalReplayApp } from './LocalReplayApp'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <IconContext.Provider value={{ weight: 'bold' }}>
-      <LocalReplayApp />
-    </IconContext.Provider>
+    <LocalReplayApp />
   </StrictMode>,
 )

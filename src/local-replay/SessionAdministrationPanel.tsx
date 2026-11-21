@@ -1,4 +1,4 @@
-import { ArrowClockwise, CircleNotch, FloppyDisk, HardDrives, MagnifyingGlass, PushPin, Trash, UploadSimple, WifiSlash, X } from '@phosphor-icons/react'
+import { ArrowClockwise, CircleNotch, FloppyDisk, HardDrives, MagnifyingGlass, PushPin, Trash, UploadSimple, WifiSlash, X } from '../icons'
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { addSessionRange } from './sessionSelection'
 import type { LocalOperationResult, LocalSessionCachePlan, LocalSessionSummary } from './types'

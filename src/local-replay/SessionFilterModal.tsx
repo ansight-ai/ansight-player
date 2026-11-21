@@ -1,4 +1,4 @@
-import { Funnel, X } from '@phosphor-icons/react'
+import { Funnel, X } from '../icons'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import flutterLogo from '../assets/technology/flutter.svg'
