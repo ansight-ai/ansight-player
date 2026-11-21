@@ -2796,3 +2796,10 @@
 .annotation-track-playhead { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--accent); z-index: 2; pointer-events: none; }
 .annotation-recording-delivery { padding: 12px; border-radius: 10px; background: var(--surface, white); }
 .annotation-recording-delivery-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; font-size: 12px; }
+
+/* Desktop captures are shown without a simulated device frame. */
+.local-replay-root .session-viewer-dashboard .device-shell--desktop .session-frame-viewport {
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
