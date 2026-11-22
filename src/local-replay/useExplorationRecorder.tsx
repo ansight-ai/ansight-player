@@ -4,16 +4,18 @@ import { CircleNotch, Microphone, Stop } from '../icons'
 import type { SessionAnnotation, SessionImageFrame } from '../replay/sessionViewerData'
 import type { ScreenshotAnnotationGeometryDraft } from '../replay/pages/SessionViewerPage'
 import type { ScreenshotAnnotationCapture } from '../replay/annotationCapture'
-import { localAnnotationAgents } from './annotationAgentDelivery'
+import { localAnnotationTranscription } from './annotationTranscription'
 import { encodeVoiceWav } from './voiceAudio'
-import { resampleSpeech, SpeechSegmenter, speechAnnotation, type SpeechSegment } from './explorationRecording'
+import { resampleSpeech, SpeechSegmenter, transcriptSegment, type SpeechSegment } from './explorationRecording'
+import { writeRecordingTranscript, type TranscriptSegment } from './recordingTranscript'
 
-type Pending = { annotation?: SessionAnnotation; segment?: SpeechSegment; capture?: ScreenshotAnnotationCapture }
+type Pending = { annotation?: SessionAnnotation; transcript?: TranscriptSegment; segment?: SpeechSegment; capture?: ScreenshotAnnotationCapture }
 type Run = {
   id: string; startedAt: number; rate: number; stopped: boolean; stopping: boolean; preparing: boolean
   abort: AbortController; queue: Pending[]; pumping: boolean; failed: boolean; saved: number
   stream?: MediaStream; context?: AudioContext; node?: AudioWorkletNode; input?: MediaStreamAudioSourceNode
   segmenter?: SpeechSegmenter; stopAcknowledged?: () => void; timer?: number
+  wroteTranscript?: boolean; finalizing?: boolean; finalized?: boolean
   save: (annotation: SessionAnnotation) => Promise<void>
 }
 
@@ -21,9 +23,10 @@ type Options = {
   sessionId: string
   enabled: boolean
   onSave?: (annotation: SessionAnnotation) => Promise<void>
+  onWriteTranscript?: typeof writeRecordingTranscript
 }
 
-export function useExplorationRecorder({ sessionId, enabled, onSave }: Options) {
+export function useExplorationRecorder({ sessionId, enabled, onSave, onWriteTranscript = writeRecordingTranscript }: Options) {
   const runRef = useRef<Run | null>(null)
   const mounted = useRef(false)
   const [phase, setPhase] = useState<'idle' | 'preparing' | 'recording' | 'saving' | 'error'>('idle')
@@ -32,7 +35,22 @@ export function useExplorationRecorder({ sessionId, enabled, onSave }: Options) 
   const [error, setError] = useState<string | null>(null)
   const updatePhase = (value: typeof phase) => { if (mounted.current) setPhase(value) }
 
-  function finishIfReady(run: Run) {
+  async function finishIfReady(run: Run) {
+    if (run.stopped && !run.pumping && !run.queue.length && !run.failed && run.wroteTranscript && !run.finalized) {
+      if (run.finalizing) return
+      run.finalizing = true
+      try {
+        await onWriteTranscript(sessionId, run.id)
+        run.finalized = true
+      } catch (failure) {
+        run.failed = true
+        if (mounted.current) setError(failure instanceof Error ? failure.message : 'Unable to finish the transcript.')
+        updatePhase('error')
+      } finally {
+        run.finalizing = false
+      }
+    }
+
     if (run.stopped && !run.pumping && !run.queue.length && !run.failed) {
       if (runRef.current === run) { runRef.current = null; setExplorationActivity(sessionId, null); updatePhase('idle') }
     }
@@ -48,19 +66,23 @@ export function useExplorationRecorder({ sessionId, enabled, onSave }: Options) 
           const samples = await resampleSpeech(pending.segment.samples, run.rate)
           let text: string
           try {
-            text = (await localAnnotationAgents.transcribe!(sessionId, encodeVoiceWav(samples), new AbortController().signal)).text
+            text = (await localAnnotationTranscription.transcribe(sessionId, encodeVoiceWav(samples), new AbortController().signal)).text
           } catch (failure) {
             // A loud non-speech sound can trip the silence detector; no comment is needed.
             if (failure instanceof Error && failure.message.startsWith('No speech was detected')) { run.queue.shift(); continue }
             throw failure
           }
-          pending.annotation = speechAnnotation(run.id, run.startedAt, run.rate, pending.segment, text)
+          pending.transcript = transcriptSegment(run.startedAt, run.rate, pending.segment, text)
           pending.segment = undefined // Release audio as soon as text exists, even if saving needs a retry.
         }
         if (pending.annotation && pending.capture) {
           const result = await pending.capture.visualTree.catch(() => null)
           if (result?.snapshotId) pending.annotation.target = { ...pending.annotation.target, visualTreeSnapshotId: result.snapshotId }
           pending.capture = undefined
+        }
+        if (pending.transcript) {
+          await onWriteTranscript(sessionId, run.id, pending.transcript)
+          run.wroteTranscript = true
         }
         if (pending.annotation) await run.save(pending.annotation)
         run.queue.shift()
@@ -74,7 +96,7 @@ export function useExplorationRecorder({ sessionId, enabled, onSave }: Options) 
       updatePhase('error')
     } finally {
       run.pumping = false
-      finishIfReady(run)
+      void finishIfReady(run)
     }
   }
 
@@ -106,7 +128,7 @@ export function useExplorationRecorder({ sessionId, enabled, onSave }: Options) 
     run.segmenter?.flush()
     run.stopped = true
     run.stopping = false
-    finishIfReady(run)
+    void finishIfReady(run)
   }
 
   async function start() {
@@ -119,9 +141,9 @@ export function useExplorationRecorder({ sessionId, enabled, onSave }: Options) 
     updatePhase('preparing')
     try {
       if (!navigator.mediaDevices?.getUserMedia || !window.AudioWorkletNode) throw new Error('This browser does not support live microphone recording.')
-      const status = await localAnnotationAgents.transcriptionStatus!(sessionId, run.abort.signal)
-      if (!status.isSupported) throw new Error('Local speech recording requires the updated host and a supported computer.')
-      if (!status.isConfigured) await localAnnotationAgents.prepareTranscription!(sessionId, run.abort.signal)
+      const status = await localAnnotationTranscription.transcriptionStatus(sessionId, run.abort.signal)
+      if (!status.isSupported || !status.supportsRecordingTranscript) throw new Error('Local transcript recording requires the updated host and a supported computer.')
+      if (!status.isConfigured) await localAnnotationTranscription.prepareTranscription(sessionId, run.abort.signal)
       if (run.stopped || run.stopping) return
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 } })
       if (run.stopped || run.stopping) { stream.getTracks().forEach(track => track.stop()); return }
@@ -131,6 +153,7 @@ export function useExplorationRecorder({ sessionId, enabled, onSave }: Options) 
       await context.audioWorklet.addModule(new URL('./explorationAudio.worklet.js?no-inline', import.meta.url))
       if (run.stopped || run.stopping) return
       await context.resume()
+      if (run.stopped || run.stopping) return
       run.rate = context.sampleRate
       // Anchor the audio sample clock once; network/transcription delay cannot shift comments.
       run.startedAt = Date.now()
@@ -210,13 +233,13 @@ export function useExplorationRecorder({ sessionId, enabled, onSave }: Options) 
     recording,
     mark,
     controls: <div className="exploration-recording-controls">
-      {!busy ? <button type="button" className="button button--primary button--compact exploration-comments-button" disabled={!enabled} onClick={() => void start()} title="Record spoken comments while exploring the app"><Microphone aria-hidden="true" /> Comments</button>
+      {!busy ? <button type="button" className="button button--primary button--compact exploration-comments-button" disabled={!enabled} onClick={() => void start()} title="Transcribe locally and use the configured analysis provider to find points of interest"><Microphone aria-hidden="true" /> Comments</button>
         : phase === 'error' ? <><button type="button" className="button button--secondary button--compact" onClick={() => {
           const run = runRef.current
           if (run) { run.failed = false; setError(null); updatePhase('saving'); void pump(run) }
         }}>Retry saving</button><button type="button" onClick={() => {
           const run = runRef.current
-          if (run) { run.queue = []; run.failed = false; setError(null); finishIfReady(run) }
+          if (run) { run.queue = []; run.failed = false; setError(null); run.finalized = true; void finishIfReady(run) }
         }}>Discard unsaved</button></>
         : <>
           <span role="status">{recording ? <><span className="exploration-recording-dot" />{Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}</> : <><CircleNotch className="spin" />{phase === 'preparing' ? 'Preparing microphone…' : 'Saving comments…'}</>}</span>

@@ -290,6 +290,8 @@ export type SessionAnalysisRecord = {
   statusMessage?: string | null
   prompt?: string | null
   transcript?: string | null
+  transcriptRevision?: number
+  transcriptSegments?: Array<{ segmentId: string; startUtc: string; endUtc: string; text: string }> | null
   finalResponse?: string | null
   mermaidDefinition?: string | null
 }

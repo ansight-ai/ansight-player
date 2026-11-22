@@ -1,3 +1,4 @@
+import { localAnnotationTranscription } from '../dist/library/local-replay/annotationTranscription.js'
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { localAnnotationAgents, isDeliveryPending } from '../dist/library/local-replay/annotationAgentDelivery.js'
@@ -65,10 +66,10 @@ test('voice transcription sends audio only to the local host with cancellation',
     assert.equal(options.signal, controller.signal)
     return Response.json({ text: 'Fix this button.' })
   })
-  assert.deepEqual(await localAnnotationAgents.transcribe('session/one', audio, controller.signal), { text: 'Fix this button.' })
+  assert.deepEqual(await localAnnotationTranscription.transcribe('session/one', audio, controller.signal), { text: 'Fix this button.' })
 })
 
 test('voice preflight reports an old host before microphone capture', async context => {
   context.mock.method(globalThis, 'fetch', async () => new Response('', { status: 404 }))
-  await assert.rejects(localAnnotationAgents.transcriptionStatus('session', new AbortController().signal), /updated local host/)
+  await assert.rejects(localAnnotationTranscription.transcriptionStatus('session', new AbortController().signal), /updated local host/)
 })

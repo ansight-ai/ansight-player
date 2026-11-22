@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { useExplorationRecorder } from '../../src/local-replay/useExplorationRecorder'
+import type { TranscriptSegment } from '../../src/local-replay/recordingTranscript'
 import type { SessionAnnotation } from '../../src/replay/sessionViewerData'
 
 let clip: ArrayBuffer | undefined
@@ -25,11 +26,20 @@ Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { configurable: tr
 
 export function ExplorationRecordingFixture() {
   const [annotations, setAnnotations] = useState<SessionAnnotation[]>([])
+  const [segments, setSegments] = useState<TranscriptSegment[]>([])
   const [ready, setReady] = useState(false)
-  const recorder = useExplorationRecorder({ sessionId: 'exploration-test', enabled: ready, onSave: async annotation => {
-    if (failNext) { failNext = false; throw new Error('Simulated save failure') }
-    setAnnotations(current => [...current.filter(item => item.annotationId !== annotation.annotationId), annotation])
-  } })
+  const recorder = useExplorationRecorder({
+    sessionId: 'exploration-test',
+    enabled: ready,
+    onSave: async annotation => {
+      if (failNext) { failNext = false; throw new Error('Simulated save failure') }
+      setAnnotations(current => [...current.filter(item => item.annotationId !== annotation.annotationId), annotation])
+    },
+    onWriteTranscript: async (_, __, segment) => {
+      if (failNext) { failNext = false; throw new Error('Simulated save failure') }
+      if (segment) setSegments(current => [...current.filter(item => item.segmentId !== segment.segmentId), segment])
+    },
+  })
   return <main>
     <h1>Exploration recording test</h1>
     <p>Synthetic microphone. Real local transcription. No session changes.</p>
@@ -39,6 +49,7 @@ export function ExplorationRecordingFixture() {
     {recorder.controls}
     <button disabled={!recorder.recording} onClick={() => recorder.mark({ kind: 1, x: .2, y: .3, width: .4, height: .2 }, null)}>Test marking</button>
     <button onClick={() => { failNext = true }}>Fail next save</button>
+    <pre aria-label="Saved transcript">{JSON.stringify(segments, null, 2)}</pre>
     <pre aria-label="Saved annotations">{JSON.stringify(annotations, null, 2)}</pre>
   </main>
 }

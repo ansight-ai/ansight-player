@@ -1,4 +1,4 @@
-import type { SessionAnnotation } from '../replay/sessionViewerData'
+import type { TranscriptSegment } from './recordingTranscript'
 
 export type SpeechSegment = { samples: Float32Array; startSample: number; endSample: number }
 
@@ -33,15 +33,12 @@ export class SpeechSegmenter {
   }
 }
 
-export function speechAnnotation(recordingId: string, startedAt: number, rate: number, segment: SpeechSegment, text: string): SessionAnnotation {
+export function transcriptSegment(startedAt: number, rate: number, segment: SpeechSegment, text: string): TranscriptSegment {
   return {
-    annotationId: crypto.randomUUID(),
+    segmentId: String(segment.startSample),
     startUtc: new Date(startedAt + segment.startSample / rate * 1000).toISOString(),
     endUtc: new Date(startedAt + segment.endSample / rate * 1000).toISOString(),
-    label: text,
-    source: 'localPortal.exploration',
-    captureGroupId: recordingId,
-    customData: { recordingId, kind: 'speech' },
+    text,
   }
 }
 

@@ -1,4 +1,5 @@
 import { AnnotationRecordingTracks } from '../../local-replay/AnnotationRecordingTracks'
+import type { AnnotationTranscriptionSource } from '../../local-replay/annotationTranscription'
 import { VoiceAnnotationButton } from '../../local-replay/VoiceAnnotationButton'
 import { AnnotationAgentDeliveryPanel } from '../../local-replay/AnnotationAgentDeliveryPanel'
 import type { AnnotationAgentSource, AnnotationAgentRequest, AnnotationAgentDelivery } from '../../local-replay/annotationAgentDelivery'
@@ -394,6 +395,7 @@ export type SessionViewerSource = {
   captureLiveVisualTree?: (sessionId: string, toolId: string) => Promise<string>
   captureAnnotationVisualTree?: (sessionId: string) => Promise<AnnotationVisualTreeCaptureResult>
   annotationAgents?: AnnotationAgentSource
+  annotationTranscription?: AnnotationTranscriptionSource
   upsertAnnotation?: (sessionId: string, annotation: SessionAnnotation) => Promise<string>
   deleteAnnotation?: (sessionId: string, annotationId: string) => Promise<string>
   extractTimelineRange?: (
@@ -3271,6 +3273,7 @@ export function SessionViewerPage({
           draft={annotationEditorDraft}
           sessionId={sessionId}
           annotationAgents={source.annotationAgents}
+          annotationTranscription={source.annotationTranscription}
           onSend={source.annotationAgents && source.upsertAnnotation ? async (annotation, request) => {
             await source.upsertAnnotation!(sessionId, annotation)
             const result = await source.annotationAgents!.send(sessionId, request)
@@ -8188,6 +8191,7 @@ function AnnotationsSection({
 function AnnotationEditorModal({
   sessionId,
   annotationAgents,
+  annotationTranscription,
   onSend,
   draft,
   isSubmitting,
@@ -8198,6 +8202,7 @@ function AnnotationEditorModal({
 }: {
   sessionId: string
   annotationAgents?: AnnotationAgentSource
+  annotationTranscription?: AnnotationTranscriptionSource
   onSend?: (annotation: SessionAnnotation, request: AnnotationAgentRequest) => Promise<AnnotationAgentDelivery>
   draft: AnnotationEditorDraft
   isSubmitting: boolean
@@ -8344,8 +8349,8 @@ function AnnotationEditorModal({
               rows={3}
               value={comment}
             />
-            {annotationAgents?.transcribe ? <VoiceAnnotationButton
-              source={annotationAgents}
+            {annotationTranscription ? <VoiceAnnotationButton
+              source={annotationTranscription}
               sessionId={sessionId}
               textareaRef={commentRef}
               disabled={isSubmitting || isSummarising || isSending}

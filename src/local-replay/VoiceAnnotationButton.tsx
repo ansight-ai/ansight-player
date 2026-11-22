@@ -1,12 +1,12 @@
 import { prepareVoiceAudio } from './voiceAudio'
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { CircleNotch, Microphone, Stop, X } from '../icons'
-import type { AnnotationAgentSource } from './annotationAgentDelivery'
+import type { AnnotationTranscriptionSource } from './annotationTranscription'
 
 type Recording = { abort: AbortController; recorder?: MediaRecorder; stream?: MediaStream; timer?: number; chunks: Blob[]; bytes: number }
 
 type Props = {
-  source: AnnotationAgentSource
+  source: AnnotationTranscriptionSource
   sessionId: string
   textareaRef: RefObject<HTMLTextAreaElement | null>
   disabled: boolean
@@ -41,7 +41,7 @@ export function VoiceAnnotationButton({ source, sessionId, textareaRef, disabled
   }, [])
 
   async function start() {
-    if (disabled || active.current || !source.transcribe) return
+    if (disabled || active.current) return
     setError(null)
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
       setError('Microphone recording is unavailable in this browser. Open Ansight in a browser with microphone support.')
@@ -55,15 +55,12 @@ export function VoiceAnnotationButton({ source, sessionId, textareaRef, disabled
     setPhase('starting')
     onBusyChange(true)
     try {
-      if (source.transcriptionStatus) {
-        const status = await source.transcriptionStatus(sessionId, run.abort.signal)
-        if (status.isSupported === false) throw new Error('Local dictation on Mac requires Apple Silicon and macOS 15 or newer.')
-        if (status.isSupported === undefined) throw new Error('Restart Ansight with the updated local host to enable offline dictation.')
-        if (!status.isConfigured) {
-          if (!source.prepareTranscription) throw new Error('Local speech model setup is unavailable.')
-          setPhase('preparing')
-          await source.prepareTranscription(sessionId, run.abort.signal)
-        }
+      const status = await source.transcriptionStatus(sessionId, run.abort.signal)
+      if (status.isSupported === false) throw new Error('Local dictation is unavailable on this computer.')
+      if (status.isSupported === undefined) throw new Error('Restart Ansight with the updated local host to enable offline dictation.')
+      if (!status.isConfigured) {
+        setPhase('preparing')
+        await source.prepareTranscription(sessionId, run.abort.signal)
       }
       if (active.current !== run) return
       setPhase('starting')
@@ -99,7 +96,7 @@ export function VoiceAnnotationButton({ source, sessionId, textareaRef, disabled
           if (!audio.size) throw new Error('No audio was recorded. Please try again.')
           const wav = await prepareVoiceAudio(audio)
           if (active.current !== run) return
-          const result = await source.transcribe!(sessionId, wav, run.abort.signal)
+          const result = await source.transcribe(sessionId, wav, run.abort.signal)
           if (active.current !== run) return
           if (!result.text?.trim()) throw new Error('No speech was detected. Please try again.')
           onTranscript(result.text.trim(), start, end)

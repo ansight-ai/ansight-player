@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import vm from 'node:vm'
 import { readFileSync } from 'node:fs'
-import { SpeechSegmenter, speechAnnotation } from '../dist/library/local-replay/explorationRecording.js'
+import { SpeechSegmenter, transcriptSegment } from '../dist/library/local-replay/explorationRecording.js'
 
 test('silence is discarded; pauses split speech and preserve its sample clock', () => {
   const segments = []
@@ -14,10 +14,10 @@ test('silence is discarded; pauses split speech and preserve its sample clock', 
   assert.equal(segments[0].startSample, 1700)
   assert.equal(segments[0].endSample, 3700)
   const startedAt = Date.parse('2026-11-21T00:00:00Z')
-  const annotation = speechAnnotation('recording', startedAt, 1000, segments[0], 'Move this button')
+  const annotation = transcriptSegment(startedAt, 1000, segments[0], 'Move this button')
   assert.equal(annotation.startUtc, '2026-11-21T00:00:01.700Z')
   assert.equal(annotation.endUtc, '2026-11-21T00:00:03.700Z')
-  assert.equal(annotation.captureGroupId, 'recording')
+  assert.equal(annotation.segmentId, String(segments[0].startSample))
 })
 
 test('stop flushes the final spoken phrase exactly once', () => {

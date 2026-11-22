@@ -1,3 +1,4 @@
+import { localAnnotationTranscription } from './annotationTranscription'
 import { localAnnotationAgents } from './annotationAgentDelivery'
 import { recordingFile } from '../replay/sessionRecordings'
 import { artifactTimelineHref } from './artifactLinks'
@@ -49,6 +50,7 @@ const artifactComparison: ArtifactComparisonSource = {
 export const localReplaySource: SessionViewerSource = {
   mode: 'local',
   annotationAgents: localAnnotationAgents,
+  annotationTranscription: localAnnotationTranscription,
   activity: {
     load: async (sessionId, cursor) => {
       const query = new URLSearchParams({ limit: '200' })
@@ -259,6 +261,7 @@ async function refreshLocalPayload(
     metricChannelCount: String(capture.totalMetricChannelCount ?? capture.metricChannels?.length ?? 0),
     annotationCount: String(capture.annotations?.length ?? 0),
     analysisCount: String(capture.analyses?.length ?? 0),
+    transcriptRevision: String((capture.analyses ?? []).reduce((revision, item) => revision + (item.transcriptRevision ?? 0), 0)),
   })
   const response = await fetch(
     `api/sessions/${encodeURIComponent(sessionId)}/updates?${query.toString()}`,
@@ -286,6 +289,7 @@ async function refreshLocalPayload(
     || update.metricChannels.length > 0
     || update.metrics.length > 0
     || update.totalAnnotationCount !== (capture.annotations?.length ?? 0)
+    || update.analyses.length > 0
     || update.totalAnalysisCount !== (capture.analyses?.length ?? 0)
   if (!hasChanges) {
     return current
@@ -315,7 +319,7 @@ async function refreshLocalPayload(
   const annotations = update.totalAnnotationCount === (capture.annotations?.length ?? 0)
     ? (capture.annotations ?? [])
     : update.annotations
-  const analyses = update.totalAnalysisCount === (capture.analyses?.length ?? 0)
+  const analyses = update.analyses.length === 0 && update.totalAnalysisCount === (capture.analyses?.length ?? 0)
     ? (capture.analyses ?? [])
     : update.analyses
   const logStreams = mergeLogStreams(capture.logStreams ?? [], update.logStreams)
