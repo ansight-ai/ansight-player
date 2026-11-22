@@ -5,8 +5,7 @@ export function annotationTrackLayout(annotations: SessionAnnotation[]) {
   const clips = annotations.map((annotation, index): TrackClip => {
     const start = Date.parse(annotation.startUtc ?? '')
     const finish = Date.parse(annotation.endUtc ?? '')
-    const isLegacySpeech = ['localPortal.exploration', 'companion.exploration'].includes(annotation.source ?? '')
-      && annotation.customData?.kind === 'speech'
+    const isLegacySpeech = isFeedbackSpeech(annotation)
     const lane = annotation.source === 'transcript.inferred' ? 'inferred' : isLegacySpeech ? 'speech' : 'markings'
     return { annotation, id: annotation.annotationId || `annotation-${index}`, start,
       end: Math.max(start + 100, Number.isFinite(finish) ? finish : start + 1000), row: 0, lane }
@@ -24,4 +23,32 @@ export function annotationTrackLayout(annotations: SessionAnnotation[]) {
 export function recordingDeliveryKey(ids: string[]) {
   // Storage identity follows the exact set, so adding another comment creates a new delivery.
   return `recording:${[...new Set(ids)].sort().join(',')}`
+}
+
+export const feedbackContextMs = 3000
+export const isFeedbackAnnotation = (annotation: SessionAnnotation) => ['localPortal.exploration', 'companion.exploration'].includes(annotation.source ?? '')
+export const isFeedbackSpeech = (annotation: SessionAnnotation) => isFeedbackAnnotation(annotation)
+  && (annotation.customData?.kind === 'speech' || (!annotation.customData?.kind && !annotation.geometry?.length))
+export const feedbackText = (annotation: SessionAnnotation) => [annotation.label?.trim(), annotation.notes?.trim()].filter(Boolean).join('\n')
+export function feedbackSessions(annotations: SessionAnnotation[]) {
+  const clips = annotationTrackLayout(annotations).clips.filter(clip => isFeedbackAnnotation(clip.annotation))
+  const groups = new Map<string, TrackClip[]>()
+  for (const clip of clips) {
+    const id = clip.annotation.captureGroupId || clip.id
+    groups.set(id, [...(groups.get(id) ?? []), clip])
+  }
+  return [...groups].map(([id, items]) => {
+    const speech = items.filter(clip => isFeedbackSpeech(clip.annotation))
+    const markings = items.filter(clip => !isFeedbackSpeech(clip.annotation)).map(clip => ({ ...clip,
+      speechIds: speech.filter(line => line.start <= clip.end + feedbackContextMs && line.end >= clip.start - feedbackContextMs).map(line => line.id) }))
+    const paragraphs: { start: number; end: number; lines: TrackClip[] }[] = []
+    for (const line of speech) {
+      const previous = paragraphs.at(-1)
+      if (previous && line.start - previous.end <= feedbackContextMs) {
+        previous.lines.push(line); previous.end = Math.max(previous.end, line.end)
+      } else paragraphs.push({ start: line.start, end: line.end, lines: [line] })
+    }
+    return { id, start: items[0].start, end: Math.max(...items.map(clip => clip.end)), speech, markings, paragraphs,
+      transcript: speech.map(clip => feedbackText(clip.annotation)).join(' ').replace(/\s+([,.;:!?])/g, '$1') }
+  })
 }

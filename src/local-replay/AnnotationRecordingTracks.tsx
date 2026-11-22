@@ -3,7 +3,7 @@ import { Microphone, NotePencil, PaperPlaneTilt, X } from '../icons'
 import type { SessionAnnotation } from '../replay/sessionViewerData'
 import type { AnnotationAgentSource } from './annotationAgentDelivery'
 import { AnnotationAgentDeliveryPanel } from './AnnotationAgentDeliveryPanel'
-import { annotationTrackLayout, recordingDeliveryKey } from './annotationTracks'
+import { annotationTrackLayout, recordingDeliveryKey, feedbackSessions, feedbackText } from './annotationTracks'
 import { useExplorationActivity } from './explorationActivity'
 
 export function AnnotationRecordingTracks({ annotations, selectedId, sessionId, source, onSelect }: {
@@ -17,6 +17,7 @@ export function AnnotationRecordingTracks({ annotations, selectedId, sessionId, 
   const [delivery, setDelivery] = useState<SessionAnnotation[] | null>(null)
   const [sending, setSending] = useState(false)
   const filtered = group === 'all' || !groups.includes(group) ? annotations : annotations.filter(a => a.captureGroupId === group)
+  const feedback = feedbackSessions(filtered)
   const layout = annotationTrackLayout(filtered)
   const duration = layout.end - layout.start
   const selected = layout.clips.find(clip => clip.id === selectedId)
@@ -27,11 +28,11 @@ export function AnnotationRecordingTracks({ annotations, selectedId, sessionId, 
   return <section className="annotation-recording-tracks" aria-label="Comments timeline">
     <div className="annotation-tracks-toolbar">
       <label>Recording <select value={group} onChange={event => { setGroup(event.target.value); setZoom(1) }}>
-        <option value="all">All comments</option>
+        <option value="all">All feedback sessions</option>
         {groups.map((id, index) => { const first = annotations.find(a => a.captureGroupId === id); return <option key={id} value={id}>Recording {index + 1} · {first?.startUtc ? time(Date.parse(first.startUtc)) : ''}</option> })}
       </select></label>
       <div className="annotation-tracks-zoom"><button type="button" aria-label="Zoom comments out" disabled={zoom <= 1} onClick={() => setZoom(value => Math.max(1, value / 2))}>−</button><button type="button" aria-label="Zoom comments in" disabled={zoom >= 16} onClick={() => setZoom(value => Math.min(16, value * 2))}>+</button></div>
-      {source ? <button type="button" className="annotation-tracks-send" disabled={busy || !ids.length} title={busy ? 'Stop recording and finish saving before sending' : `Send ${ids.length} annotations together`} onClick={() => setDelivery([...filtered])}><PaperPlaneTilt aria-hidden="true" />Send {group === 'all' ? 'all' : 'recording'} to chat</button> : null}
+      {source ? <button type="button" className="annotation-tracks-send" disabled={busy || !ids.length} title={busy ? 'Stop recording and finish saving before sending' : `Send ${ids.length} comments and markings together`} onClick={() => setDelivery([...filtered])}><PaperPlaneTilt aria-hidden="true" />Send {group === 'all' ? 'feedback' : 'recording'} to chat</button> : null}
     </div>
     {busy ? <small role="status">Recording or saving comments… Stop recording to send this set.</small> : null}
     <div className="annotation-tracks-scroll">
@@ -58,8 +59,32 @@ ${time(clip.start)} – ${time(clip.end)}`} key={clip.id}
         ))}
       </div>
     </div>
+    {feedback.map((recording, index) => {
+      const selectedMark = recording.markings.find(mark => mark.id === selectedId)
+      const relatedIds = new Set(selectedMark?.speechIds ?? [])
+      return <article className="feedback-session" key={recording.id} aria-label={`Feedback session ${index + 1}`}>
+        <header><strong>Feedback session{feedback.length > 1 ? ` ${index + 1}` : ''}</strong><span>{time(recording.start)} – {time(recording.end)}</span></header>
+        <h4>Transcript</h4>
+        {recording.paragraphs.length ? recording.paragraphs.map(paragraph => <p key={paragraph.lines[0].id} className="feedback-transcript">
+          {paragraph.lines.map((line, i) => <span key={line.id}>{i ? ' ' : ''}<button type="button"
+            className={relatedIds.has(line.id) || line.id === selectedId ? 'feedback-transcript-line feedback-transcript-line--selected' : 'feedback-transcript-line'}
+            title={`${time(line.start)} – ${time(line.end)}`} onClick={() => onSelect(line.id, line.start)}>{feedbackText(line.annotation)}</button></span>)}
+        </p>) : <p className="muted">No speech recorded.</p>}
+        {recording.markings.length ? <div className="feedback-markings"><h4>Screen markings</h4>
+          {recording.markings.map((mark, markIndex) => <div className="feedback-marking" key={mark.id}>
+            <button type="button" className={selectedId === mark.id ? 'feedback-marking-link feedback-marking-link--selected' : 'feedback-marking-link'}
+              onClick={() => onSelect(mark.id, mark.start)} title={`Screen marking annotation ID: ${mark.id}`}>
+              <NotePencil aria-hidden="true" />Marking {markIndex + 1} · {time(mark.start)}
+            </button>
+            <code>{mark.id}</code>
+            <p>{mark.speechIds.length ? recording.speech.filter(line => mark.speechIds.includes(line.id)).map(line => feedbackText(line.annotation)).join(' ') : 'No nearby speech. Review the complete transcript.'}</p>
+          </div>)}
+          <small>Linked by timing within 3 seconds before or after each marking. The agent uses Ansight to inspect the saved drawings and surrounding session.</small>
+        </div> : null}
+      </article>
+    })}
     {delivery && source ? <div className="annotation-recording-delivery">
-      <div className="annotation-recording-delivery-heading"><strong>Send {delivery.length} annotations together</strong><button type="button" aria-label="Close recording delivery" disabled={sending} onClick={() => setDelivery(null)}><X aria-hidden="true" /></button></div>
+      <div className="annotation-recording-delivery-heading"><strong>Send feedback session to chat</strong><button type="button" aria-label="Close recording delivery" disabled={sending} onClick={() => setDelivery(null)}><X aria-hidden="true" /></button></div>
       <AnnotationAgentDeliveryPanel showSave={false} sessionId={sessionId} annotationId={recordingDeliveryKey(delivery.map(a => a.annotationId!))} source={source} disabled={busy} onBusyChange={setSending}
         onSend={async request => {
           const catalog = await source.catalog(sessionId, request.provider, request.projectId)
