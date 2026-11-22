@@ -11,6 +11,11 @@ test('speech and markings retain their shared time positions on separate tracks'
   assert.equal((result.clips[1].start - result.start) / (result.end - result.start), .5)
   assert.equal(result.clips[0].row, result.clips[1].row)
 })
+test('inferred findings have their own track', () => {
+  const finding = { ...annotation('finding', 2500, 3000), source: 'transcript.inferred' }
+  const result = annotationTrackLayout([annotation('mark', 2000, 4000), finding])
+  assert.deepEqual(result.clips.map(clip => clip.lane), ['markings', 'inferred'])
+})
 test('overlapping markings stack without moving their times', () => {
   const result = annotationTrackLayout([annotation('a', 0, 1000), annotation('b', 500, 1500), annotation('c', 1500, 2000)])
   assert.deepEqual(result.clips.map(clip => clip.row), [0, 1, 0])

@@ -188,7 +188,7 @@ import type {
   TeamSession,
 } from '../../types'
 
-type ViewerTab = 'connectivity' | 'live-log' | 'telemetry' | 'network' | 'annotations' | 'visual-tree' | 'artifacts' | 'files' | 'attachments'
+type ViewerTab = 'connectivity' | 'live-log' | 'telemetry' | 'network' | 'annotations' | 'transcript' | 'visual-tree' | 'artifacts' | 'files' | 'attachments'
 
 type SessionAiForm = {
   kind: SessionAiExtractionKind
@@ -1821,6 +1821,8 @@ export function SessionViewerPage({
   const hasActiveAiExtraction = useMemo(() => aiExtractions.some(isActiveAiRun), [aiExtractions])
   const annotationIds = useMemo(() => annotations.map(resolveAnnotationId), [annotations])
   const resolvedSelectedAnnotationId = annotationIds.find((annotationId) => annotationId === selectedAnnotationId) ?? annotationIds[0] ?? null
+  const recordingTranscripts = (captureSession?.analyses ?? []).filter(item => item.analysisKind === 'recordingTranscript')
+  const sessionAnalyses = (captureSession?.analyses ?? []).filter(item => item.analysisKind !== 'recordingTranscript')
   const isActiveTabUnavailable = activeTab === 'annotations' && annotations.length === 0
   const effectiveActiveTab = isActiveTabUnavailable ? defaultTab : activeTab
 
@@ -3053,6 +3055,7 @@ export function SessionViewerPage({
           <TabButton activeTab={effectiveActiveTab} icon={<ChartLine aria-hidden="true" />} label="Telemetry" tab="telemetry" onSelect={selectUsageTab} />
           <TabButton activeTab={effectiveActiveTab} icon={<WifiHigh aria-hidden="true" />} label="Connectivity" tab="connectivity" onSelect={selectUsageTab} />
           <TabButton activeTab={effectiveActiveTab} badge={networkRequests.length} icon={<GlobeSimple aria-hidden="true" />} label="Network" tab="network" onSelect={selectUsageTab} />
+          <TabButton activeTab={effectiveActiveTab} badge={recordingTranscripts.length} icon={<FileText aria-hidden="true" />} label="Transcript" tab="transcript" onSelect={selectUsageTab} />
           {annotations.length > 0 ? <TabButton activeTab={effectiveActiveTab} badge={annotations.length} icon={<NotePencil aria-hidden="true" />} label="Annotations" tab="annotations" onSelect={selectUsageTab} /> : null}
           <TabButton activeTab={effectiveActiveTab} badge={visualTrees.length} icon={<TreeStructure aria-hidden="true" />} label="Visual tree" tab="visual-tree" onSelect={selectUsageTab} />
           <TabButton activeTab={effectiveActiveTab} badge={artifactSnapshots.length} icon={<Stack aria-hidden="true" />} label="Artifacts" tab="artifacts" onSelect={selectUsageTab} />
@@ -3183,10 +3186,27 @@ export function SessionViewerPage({
         {effectiveActiveTab === 'network' && (captureSession.captureSource !== 'device' || networkRequests.length > 0) ? (
           networkLoading ? <p role="status">Loading recorded requests…</p> : remoteNetworkForSession?.error ? <p role="alert">Network requests could not be loaded: {remoteNetworkForSession.error}</p> : <NetworkSection requests={networkRequests} />
         ) : null}
+        {effectiveActiveTab === 'transcript' ? (
+          <RecordingTranscriptSection
+            key={sessionId}
+            transcripts={recordingTranscripts}
+            onSeek={timestamp => {
+              setSelectedVisualTreeSnapshotKey(null)
+              setSelectedArtifactSnapshotKey(null)
+              setScrubAtMs(timestamp)
+            }}
+          />
+        ) : null}
         {effectiveActiveTab === 'annotations' ? (
           <AnnotationsSection
             annotationAgents={source.annotationAgents}
             annotations={annotations}
+            transcripts={recordingTranscripts}
+            onSeekTranscript={timestamp => {
+              setSelectedVisualTreeSnapshotKey(null)
+              setSelectedArtifactSnapshotKey(null)
+              setScrubAtMs(timestamp)
+            }}
             canEdit={!!source.upsertAnnotation}
             isSubmitting={isAnnotationSubmitting}
             onDeleteAnnotation={(annotationId) => void deleteAnnotation(annotationId)}
@@ -3219,7 +3239,7 @@ export function SessionViewerPage({
           onOptimizeSession={source.optimizeSession ? handleOptimizeSession : undefined}
           showSessionMetadata={isSignedIn}
           session={session}
-          summaryCount={(isLocalReplay ? 0 : visibleSummaryAiExtractions.length) + (captureSession.analyses?.length ?? 0)}
+          summaryCount={(isLocalReplay ? 0 : visibleSummaryAiExtractions.length) + sessionAnalyses.length}
           flowchartCount={visibleFlowchartAiExtractions.length}
           touches={touches}
           visualTrees={visualTrees}
@@ -3238,7 +3258,7 @@ export function SessionViewerPage({
             aiExtractions={sessionInfoAiKind === 'analysis' ? visibleSummaryAiExtractions : visibleFlowchartAiExtractions}
             aiForm={aiForm}
             aiMessage={aiMessage}
-            analyses={sessionInfoAiKind === 'analysis' ? captureSession.analyses ?? [] : []}
+            analyses={sessionInfoAiKind === 'analysis' ? sessionAnalyses : []}
             archivingAiRunId={archivingAiRunId}
             accessBlock={sessionInfoAiKind === 'analysis' ? summaryAccessBlock : flowchartAccessBlock}
             hasCloudAiCapability={sessionInfoAiKind === 'analysis' ? canGenerateSummary : canGenerateFlowchart}
@@ -8072,8 +8092,57 @@ function AiRunProgress({ run }: { run: SessionAiExtractionSummary }) {
   )
 }
 
+function RecordingTranscriptSection({ transcripts, onSeek }: {
+  transcripts: SessionAnalysisRecord[]
+  onSeek: (timestamp: number) => void
+}) {
+  const [channel, setChannel] = useState('')
+  const [search, setSearch] = useState('')
+  const selectedChannel = transcripts.some(item => item.analysisId === channel) ? channel : ''
+  const query = search.trim().toLowerCase()
+  const rows = transcripts.flatMap((item, index) => {
+    if (selectedChannel && selectedChannel !== item.analysisId) return []
+    const channelLabel = `${item.agentId || 'Microphone'} · Recording ${index + 1}`
+    return (item.transcriptSegments ?? [])
+      .filter(segment => !query || segment.text.toLowerCase().includes(query))
+      .map(segment => ({ item, channelLabel, segment }))
+  }).sort((left, right) => Date.parse(left.segment.startUtc) - Date.parse(right.segment.startUtc))
+
+  if (transcripts.length === 0) {
+    return <EmptyState icon={<FileText aria-hidden="true" />} title="No transcript" message="Record spoken comments during a live session to read them here." />
+  }
+
+  return (
+    <section className="annotation-detail-card" aria-label="Recording transcript">
+      <div className="recording-transcript-actions">
+        {transcripts.length > 1 ? <label>Channel <select value={selectedChannel} onChange={event => setChannel(event.target.value)}>
+          <option value="">All channels</option>
+          {transcripts.map((item, index) => <option key={item.analysisId} value={item.analysisId}>
+            {item.agentId || 'Microphone'} · Recording {index + 1}
+          </option>)}
+        </select></label> : null}
+        <label>Search transcript <input type="search" value={search} onChange={event => setSearch(event.target.value)} /></label>
+        {rows.length ? <CopyTextButton label={query || selectedChannel ? 'Copy shown text' : 'Copy transcript'} text={rows.map(({ segment }) => segment.text).join('\n')} /> : null}
+      </div>
+      {rows.length ? <ul className="recording-transcript-lines">
+        {rows.map(({ item, channelLabel, segment }) => <li key={`${item.analysisId}:${segment.segmentId}`}>
+          <button className="button button--secondary button--compact" type="button" onClick={() => onSeek(Date.parse(segment.startUtc))}>
+            {formatAnnotationClockTimeFromMs(Date.parse(segment.startUtc))} – {formatAnnotationClockTimeFromMs(Date.parse(segment.endUtc))} · {channelLabel}
+          </button>
+          <div className="recording-transcript-text">{segment.text}</div>
+        </li>)}
+      </ul> : <p className="muted" role="status">No matching transcript text.</p>}
+      {transcripts.filter(item => !selectedChannel || item.analysisId === selectedChannel).map(item => item.statusMessage ? (
+        <p key={item.analysisId} className="muted" role="status">{item.statusMessage}</p>
+      ) : null)}
+    </section>
+  )
+}
+
 function AnnotationsSection({
   annotations,
+  transcripts,
+  onSeekTranscript,
   annotationAgents,
   canEdit,
   isSubmitting,
@@ -8086,6 +8155,8 @@ function AnnotationsSection({
 }: {
   annotationAgents?: AnnotationAgentSource
   annotations: SessionAnnotation[]
+  transcripts: SessionAnalysisRecord[]
+  onSeekTranscript: (timestamp: number) => void
   canEdit: boolean
   isSubmitting: boolean
   onDeleteAnnotation: (annotationId: string) => void
@@ -8098,13 +8169,20 @@ function AnnotationsSection({
   const annotationViews = useMemo(() => annotations.map(buildAnnotationView), [annotations])
   const selectedAnnotation = annotationViews.find((annotation) => annotation.id === selectedAnnotationId) ?? annotationViews[0] ?? null
 
+  const selectedSourceAnnotation = annotations.find(item => item.annotationId === selectedAnnotation?.id)
+  const sourceTranscriptId = selectedSourceAnnotation?.customData?.transcriptId
+  const sourceSegmentIds = selectedSourceAnnotation?.customData?.segmentIds
+  const excerpts = Array.isArray(sourceSegmentIds)
+    ? transcripts.find(item => item.analysisId === sourceTranscriptId)?.transcriptSegments?.filter(item => sourceSegmentIds.includes(item.segmentId))
+    : undefined
+
   if (annotationViews.length === 0) {
     return <EmptyState icon={<NotePencil aria-hidden="true" />} title="No annotations" message="This session did not include annotations." />
   }
 
   return (
     <div className="annotations-panel">
-      {annotations.some(annotation => ['localPortal.exploration', 'companion.exploration'].includes(annotation.source ?? '')) ? <AnnotationRecordingTracks annotations={annotations} selectedId={selectedAnnotation?.id ?? null} sessionId={sessionId} source={annotationAgents} onSelect={onSelectAnnotation} /> : <div className="annotation-card-strip" role="listbox" aria-label="Annotations">
+      {annotations.some(annotation => ['localPortal.exploration', 'companion.exploration', 'transcript.inferred'].includes(annotation.source ?? '')) ? <AnnotationRecordingTracks annotations={annotations} selectedId={selectedAnnotation?.id ?? null} sessionId={sessionId} source={annotationAgents} onSelect={onSelectAnnotation} /> : <div className="annotation-card-strip" role="listbox" aria-label="Annotations">
         {annotationViews.map((annotation) => {
           const isSelected = annotation.id === selectedAnnotation?.id
           return (
@@ -8138,6 +8216,7 @@ function AnnotationsSection({
             </span>
             <div>
               <h3>{selectedAnnotation.label}</h3>
+              {selectedSourceAnnotation?.source === 'transcript.inferred' ? <span className="annotation-status">Inferred</span> : null}
               {selectedAnnotation.status ? <span className="annotation-status">{selectedAnnotation.status}</span> : null}
               <span>{selectedAnnotation.timeDisplay}</span>
             </div>
@@ -8174,6 +8253,13 @@ function AnnotationsSection({
           </div>
 
           {selectedAnnotation.hasNotes ? <p className="annotation-notes">{selectedAnnotation.notes}</p> : null}
+          {excerpts?.length ? <div aria-label="Transcript excerpts">
+            {excerpts.map(segment => <p key={segment.segmentId}>
+              <button className="button button--secondary button--compact" type="button" onClick={() => onSeekTranscript(Date.parse(segment.startUtc))}>
+                {formatAnnotationClockTimeFromMs(Date.parse(segment.startUtc))}
+              </button>{' '}{segment.text}
+            </p>)}
+          </div> : null}
 
           {selectedAnnotation.targetSummary ? (
             <div className="annotation-target">
