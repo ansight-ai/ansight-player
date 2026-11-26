@@ -2797,17 +2797,3 @@
 .annotation-track-playhead { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--accent); z-index: 2; pointer-events: none; }
 .annotation-recording-delivery { padding: 12px; border-radius: 10px; background: var(--surface, white); }
 .annotation-recording-delivery-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; font-size: 12px; }
-
-.feedback-session { padding: 14px 4px; }
-.feedback-session header { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.feedback-session header span, .feedback-markings small { color: var(--text-secondary, #777); font-size: 12px; }
-.feedback-session h4 { margin: 14px 0 7px; font-size: 12px; }
-.feedback-transcript { line-height: 1.8; margin: 0 0 8px; white-space: pre-wrap; }
-.feedback-transcript-line { display: inline; border: 0; padding: 2px 0; border-radius: 3px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.feedback-transcript-line:hover, .feedback-transcript-line--selected { background: #ff6b3520; }
-.feedback-marking { margin-bottom: 12px; }
-.feedback-marking-link { display: inline-flex; align-items: center; gap: 5px; border: 0; border-radius: 6px; padding: 5px 7px; background: transparent; color: inherit; cursor: pointer; }
-.feedback-marking-link--selected { color: #fa441f; background: #ff6b3518; }
-.feedback-marking-link svg { width: 15px; height: 15px; }
-.feedback-marking code { display: block; font-size: 10px; color: var(--text-secondary, #777); overflow-wrap: anywhere; padding: 3px 7px; }
-.feedback-marking p { margin: 2px 7px; font-size: 13px; line-height: 1.6; }

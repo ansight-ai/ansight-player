@@ -1,4 +1,3 @@
-import { isFeedbackSpeech } from '../../local-replay/annotationTracks'
 import { AnnotationRecordingTracks } from '../../local-replay/AnnotationRecordingTracks'
 import type { AnnotationTranscriptionSource } from '../../local-replay/annotationTranscription'
 import { VoiceAnnotationButton } from '../../local-replay/VoiceAnnotationButton'
@@ -8209,7 +8208,7 @@ function AnnotationsSection({
         })}
       </div>}
 
-      {selectedAnnotation && !annotations.some(annotation => annotation.annotationId === selectedAnnotation.id && isFeedbackSpeech(annotation)) ? (
+      {selectedAnnotation ? (
         <article className="annotation-detail-card">
           <div className="annotation-detail-heading">
             <span className="annotation-detail-icon">
